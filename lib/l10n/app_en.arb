@@ -1,0 +1,70 @@
+{
+  "@@locale": "en",
+  "appName": "HomeGenny",
+  "@appName": {
+    "description": "Application name"
+  },
+  "splashTagline": "Your home, simplified",
+  "loginTitle": "Welcome back",
+  "loginSubtitle": "Sign in to continue to HomeGenny",
+  "emailLabel": "Email address",
+  "passwordLabel": "Password",
+  "loginButton": "Sign In",
+  "forgotPassword": "Forgot password?",
+  "orContinueWith": "Or continue with",
+  "biometricLogin": "Biometric Login",
+  "otpTitle": "Verify OTP",
+  "otpSubtitle": "Enter the 6-digit code sent to {phone}",
+  "@otpSubtitle": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "verifyOtp": "Verify",
+  "resendOtp": "Resend code",
+  "resendOtpIn": "Resend in {seconds}s",
+  "@resendOtpIn": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "forgotPasswordTitle": "Reset password",
+  "forgotPasswordSubtitle": "Enter your email and we'll send reset instructions",
+  "sendResetLink": "Send reset link",
+  "backToLogin": "Back to login",
+  "biometricTitle": "Quick sign in",
+  "biometricSubtitle": "Use your fingerprint or face to sign in securely",
+  "useBiometric": "Authenticate",
+  "usePasswordInstead": "Use password instead",
+  "sessionExpiredTitle": "Session expired",
+  "sessionExpiredMessage": "Your session has expired. Please sign in again to continue.",
+  "signInAgain": "Sign in again",
+  "noInternetTitle": "No internet connection",
+  "noInternetMessage": "Please check your connection and try again.",
+  "retry": "Retry",
+  "updateAppTitle": "Update required",
+  "updateAppMessage": "A new version of HomeGenny is available. Please update to continue.",
+  "updateNow": "Update now",
+  "staffDashboard": "Staff Dashboard",
+  "rmDashboard": "RM Dashboard",
+  "clientDashboard": "Client Dashboard",
+  "logout": "Logout",
+  "loading": "Loading...",
+  "errorGeneric": "Something went wrong. Please try again.",
+  "emailRequired": "Email is required",
+  "emailInvalid": "Enter a valid email",
+  "passwordRequired": "Password is required",
+  "passwordTooShort": "Password must be at least 6 characters",
+  "otpRequired": "OTP is required",
+  "otpInvalid": "Enter a valid 6-digit OTP",
+  "offlineBanner": "You are offline. Showing cached data where available.",
+  "languageSettings": "Language",
+  "themeSettings": "Theme",
+  "darkMode": "Dark mode",
+  "lightMode": "Light mode",
+  "systemDefault": "System default"
+}

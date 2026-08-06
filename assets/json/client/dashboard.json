@@ -1,0 +1,17 @@
+{
+  "client_name": "Priya Sharma",
+  "staff_id": "STF-001",
+  "staff_name": "Rajesh Kumar",
+  "staff_role": "Home Care Specialist",
+  "staff_rating": 4.8,
+  "staff_shift": "9:00 AM – 6:00 PM",
+  "staff_on_duty": true,
+  "present_days": 22,
+  "total_days": 24,
+  "attendance_percent": 91.7,
+  "last_check_in": "Today, 9:02 AM",
+  "pending_payment_amount": "₹18,500",
+  "pending_payment_due": "Due in 5 days",
+  "unread_notifications": 3,
+  "active_complaints": 0
+}
