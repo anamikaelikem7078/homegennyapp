@@ -12,12 +12,13 @@ import '../viewmodels/login_viewmodel.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/models/user_role.dart';
 
-// --- Ethereal Luxe Palette ---
-
+// --- Premium Palette ---
 const Color _electricBlue = Color(0xFF1A56FF);
+const Color _offWhite = Color(0xFFFBF9F8);
 const Color _obsidianError = Color(0xFFD32F2F);
+const Color _textColor = Color(0xFF1A1C1E);
 
-/// Ethereal Obsidian Login Screen
+/// Premium Login Screen
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -27,13 +28,13 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -41,8 +42,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _localizedValidator(String? key) {
     if (key == null) return null;
     return switch (key) {
-      'emailRequired' => context.l10n.emailRequired,
-      'emailInvalid' => context.l10n.emailInvalid,
+      'emailRequired' => 'Mobile number or email required',
+      'emailInvalid' => 'Invalid mobile number or email',
       'passwordRequired' => context.l10n.passwordRequired,
       'passwordTooShort' => context.l10n.passwordTooShort,
       _ => key,
@@ -55,31 +56,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final success = await ref
         .read(loginViewModelProvider.notifier)
         .login(
-          email: _emailController.text.trim(),
+          phone: _phoneController.text.trim(),
           password: _passwordController.text,
         );
 
     if (!mounted || !success) return;
 
-    final email = _emailController.text.trim();
-    if (AuthRepositoryImpl.isDemoCredentials(email, _passwordController.text)) {
-      final profileOk = await ref.read(authProvider.notifier).fetchProfile();
-      if (!mounted || !profileOk) return;
-
-      final role = ref.read(authProvider).user?.role ?? UserRole.client;
-      context.go(role.dashboardRoute);
-      return;
-    }
-
-    // Commented out OTP navigation as per request to bypass it
-    // context.go('${AppRoutes.otp}?phone=${Uri.encodeComponent(email)}');
-
-    // Directly show home page
-    final profileOk = await ref.read(authProvider.notifier).fetchProfile();
-    if (!mounted || !profileOk) return;
-
-    final role = ref.read(authProvider).user?.role ?? UserRole.client;
-    context.go(role.dashboardRoute);
+    final phone = _phoneController.text.trim();
+    // Always go to OTP flow, even for demo
+    context.go('${AppRoutes.otp}?phone=${Uri.encodeComponent(phone)}');
   }
 
   @override
@@ -94,7 +79,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
+      backgroundColor: _offWhite,
       body: SafeArea(
         child: Center(
           child: ResponsiveLayout(
@@ -125,23 +110,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Column(
       children: [
         SizedBox(height: 32),
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: _electricBlue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Icon(Icons.eco_outlined, color: _electricBlue, size: 32),
+        ),
+        SizedBox(height: 24),
         Text(
-          'HomeGenny',
+          'Sign in to\nHomeGenny',
+          textAlign: TextAlign.center,
           style: GoogleFonts.libreCaslonText(
-            fontSize: 42,
+            fontSize: 36,
             fontWeight: FontWeight.w600,
-            color: context.colors.onSurface,
-            letterSpacing: -1.0,
+            color: _electricBlue,
+            height: 1.1,
           ),
         ),
-        SizedBox(height: 8),
+        SizedBox(height: 12),
         Text(
-          'EXQUISITE ESTATE MANAGEMENT',
+          'Manage your sanctuary with\nprecision.',
+          textAlign: TextAlign.center,
           style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: context.colors.onSurfaceVariant,
-            letterSpacing: 2.0,
+            fontSize: 15,
+            fontWeight: FontWeight.w400,
+            color: const Color(0xFF6B7280),
+            height: 1.5,
           ),
         ),
       ],
@@ -149,307 +146,246 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _buildForm(bool isLoading) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: context.theme.cardColor,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: context.theme.dividerColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            spreadRadius: 0,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Email Field
-            Text(
-              'EMAIL ADDRESS',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: context.colors.onSurface,
-                letterSpacing: 0.5,
-              ),
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Mobile Number Field
+          Text(
+            'MOBILE NUMBER',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: _textColor,
+              letterSpacing: 1.0,
             ),
-            SizedBox(height: 8),
-            TextFormField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
+          ),
+          SizedBox(height: 8),
+          Container(
+            decoration: _inputCardDecoration(),
+            child: TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
               style: GoogleFonts.inter(
-                fontSize: 15,
-                color: context.colors.onSurface,
+                fontSize: 16,
+                color: _textColor,
                 fontWeight: FontWeight.w500,
               ),
-              decoration: _minimalInputDecoration(hint: 'name@estate.com'),
-              validator: (v) => _localizedValidator(Validators.email(v)),
+              decoration: _inputDecoration(
+                hint: '+1 (555) 000-0000',
+                prefixIcon: Icons.phone_android_rounded,
+              ),
+              validator: (v) => _localizedValidator(Validators.phone(v)),
             ),
-            SizedBox(height: 20),
+          ),
+          SizedBox(height: 24),
 
-            // Password Field
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'PASSWORD',
+          // Password Field
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'PASSWORD',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _textColor,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              InkWell(
+                onTap: () => context.push(AppRoutes.forgotPassword),
+                child: Text(
+                  'Forgot password?',
                   style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: context.colors.onSurface,
-                    letterSpacing: 0.5,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF6B7280),
                   ),
                 ),
-                InkWell(
-                  onTap: () => context.push(AppRoutes.forgotPassword),
-                  child: Text(
-                    'Forgot?',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: _electricBlue,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            TextFormField(
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Container(
+            decoration: _inputCardDecoration(),
+            child: TextFormField(
               controller: _passwordController,
               obscureText: _obscurePassword,
               textInputAction: TextInputAction.done,
               onFieldSubmitted: (_) => _onLogin(),
               style: GoogleFonts.inter(
-                fontSize: 15,
-                color: context.colors.onSurface,
+                fontSize: 16,
+                color: _textColor,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 2.0,
               ),
-              decoration: _minimalInputDecoration(hint: '••••••••'),
+              decoration: _inputDecoration(
+                hint: '••••••••',
+                prefixIcon: Icons.lock_outline_rounded,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    color: const Color(0xFF6B7280),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _obscurePassword = !_obscurePassword;
+                    });
+                  },
+                ),
+              ),
               validator: (v) => _localizedValidator(Validators.password(v)),
             ),
-            SizedBox(height: 32),
+          ),
+          SizedBox(height: 32),
 
-            // Primary Sign In Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: isLoading ? null : _onLogin,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _electricBlue,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
+          // Primary Sign In Button
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: isLoading ? null : _onLogin,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _electricBlue,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                child: isLoading
-                    ? SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: context.theme.cardColor,
-                        ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'SIGN IN',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 1.2,
-                            ),
+              ),
+              child: isLoading
+                  ? SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'SIGN IN',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1.2,
                           ),
-                          SizedBox(width: 8),
-                          Icon(Icons.arrow_forward, size: 16),
-                        ],
-                      ),
-              ),
+                        ),
+                        SizedBox(width: 8),
+                        Icon(Icons.arrow_forward, size: 20),
+                      ],
+                    ),
             ),
-            SizedBox(height: 24),
+          ),
+          SizedBox(height: 32),
 
-            // OR Divider
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 1,
-                    color: context.theme.dividerColor,
+          // OR Divider
+          Row(
+            children: [
+              Expanded(
+                child: Container(height: 1, color: const Color(0xFFE5E7EB)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'OR',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF9CA3AF),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'OR',
+              ),
+              Expanded(
+                child: Container(height: 1, color: const Color(0xFFE5E7EB)),
+              ),
+            ],
+          ),
+          SizedBox(height: 32),
+
+          // Secondary Biometric Button
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton(
+              onPressed: () => context.push(AppRoutes.biometricLogin),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: _textColor,
+                side: BorderSide(color: _textColor),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.fingerprint, color: _textColor),
+                  SizedBox(width: 12),
+                  Text(
+                    'BIOMETRIC LOGIN',
                     style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: context.colors.onSurfaceVariant,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.0,
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Container(
-                    height: 1,
-                    color: context.theme.dividerColor,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 24),
-
-            // Secondary Biometric Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton(
-                onPressed: () => context.push(AppRoutes.biometricLogin),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: context.colors.onSurface,
-                  side: BorderSide(color: context.theme.dividerColor),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.fingerprint, color: context.colors.onSurface),
-                    SizedBox(width: 8),
-                    Text(
-                      'BIOMETRIC LOGIN',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                  ],
-                ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildFooter() {
-    return Column(
-      children: [
-        Text(
-          'EXPLORE PREVIEW MODES',
-          style: GoogleFonts.inter(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: context.colors.onSurface,
-            letterSpacing: 1.0,
-          ),
-        ),
-        SizedBox(height: 24),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildDemoSquare(
-              'Client',
-              Icons.person_outline,
-              'client@homegenny.com',
-            ),
-            SizedBox(width: 16),
-            _buildDemoSquare(
-              'Staff',
-              Icons.badge_outlined,
-              'staff@homegenny.com',
-            ),
-            SizedBox(width: 16),
-            // _buildDemoSquare('RM', Icons.account_balance_outlined, 'rm@homegenny.com'),
-          ],
+  BoxDecoration _inputCardDecoration() {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(4),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.03),
+          blurRadius: 10,
+          spreadRadius: 0,
+          offset: const Offset(0, 4),
         ),
       ],
     );
   }
 
-  Widget _buildDemoSquare(String label, IconData icon, String email) {
-    return InkWell(
-      onTap: () {
-        _emailController.text = email;
-        _passwordController.text = 'demo1234';
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: 100,
-        height: 115,
-        decoration: BoxDecoration(
-          color: context.theme.cardColor,
-          border: Border.all(
-            color: _electricBlue.withOpacity(0.15),
-            width: 1.5,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: _electricBlue.withOpacity(0.12),
-              blurRadius: 15,
-              spreadRadius: 1,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _electricBlue.withOpacity(0.08),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 28, color: _electricBlue),
-            ),
-            SizedBox(height: 14),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: context.colors.onSurface,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  InputDecoration _minimalInputDecoration({required String hint}) {
+  InputDecoration _inputDecoration({
+    required String hint,
+    required IconData prefixIcon,
+    Widget? suffixIcon,
+  }) {
     return InputDecoration(
       hintText: hint,
       hintStyle: GoogleFonts.inter(
-        color: context.colors.onSurfaceVariant.withOpacity(0.8),
-        fontSize: 14,
+        color: const Color(0xFF9CA3AF),
+        fontSize: 16,
         letterSpacing: 0,
       ),
-      filled: false,
+      filled: true,
+      fillColor: Colors.white,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      prefixIcon: Icon(prefixIcon, color: const Color(0xFF9CA3AF)),
+      suffixIcon: suffixIcon,
       border: OutlineInputBorder(
-        borderSide: BorderSide(color: context.theme.dividerColor),
+        borderSide: BorderSide.none,
         borderRadius: BorderRadius.circular(4),
       ),
       enabledBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: context.theme.dividerColor),
+        borderSide: BorderSide.none,
         borderRadius: BorderRadius.circular(4),
       ),
       focusedBorder: OutlineInputBorder(
@@ -463,6 +399,68 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       focusedErrorBorder: OutlineInputBorder(
         borderSide: const BorderSide(color: _obsidianError, width: 1.5),
         borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+
+  Widget _buildFooter() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              "Don't have an account? ",
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+            InkWell(
+              onTap: () {},
+              child: Text(
+                'Request\nAccess',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _electricBlue,
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 32),
+        // Demo shortcuts at the bottom
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildDemoShortcut('Client Demo', '+15550000001'),
+            SizedBox(width: 16),
+            _buildDemoShortcut('Staff Demo', '+15550000002'),
+            SizedBox(width: 16),
+            _buildDemoShortcut('RM Demo', '+15550000003'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDemoShortcut(String label, String phone) {
+    return InkWell(
+      onTap: () {
+        _phoneController.text = phone;
+        _passwordController.text = 'demo1234';
+      },
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF9CA3AF),
+          decoration: TextDecoration.underline,
+        ),
       ),
     );
   }

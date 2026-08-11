@@ -10,10 +10,7 @@ import '../../../design_system/design_system.dart';
 
 /// Shared language picker — used across all roles.
 class AppLanguageSettingsScreen extends ConsumerStatefulWidget {
-  const AppLanguageSettingsScreen({
-    super.key,
-    this.useGradient = false,
-  });
+  const AppLanguageSettingsScreen({super.key, this.useGradient = false});
 
   final bool useGradient;
 
@@ -22,7 +19,8 @@ class AppLanguageSettingsScreen extends ConsumerStatefulWidget {
       _AppLanguageSettingsScreenState();
 }
 
-class _AppLanguageSettingsScreenState extends ConsumerState<AppLanguageSettingsScreen> {
+class _AppLanguageSettingsScreenState
+    extends ConsumerState<AppLanguageSettingsScreen> {
   late String _selected;
 
   @override
@@ -38,10 +36,9 @@ class _AppLanguageSettingsScreenState extends ConsumerState<AppLanguageSettingsS
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-
         centerTitle: true,
         title: Text(
-          'Settings',
+          context.l10n.settings,
           style: GoogleFonts.libreCaslonText(
             color: context.colors.onSurface,
             fontSize: 22,
@@ -50,126 +47,83 @@ class _AppLanguageSettingsScreenState extends ConsumerState<AppLanguageSettingsS
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            children: [
-              SizedBox(height: 16),
-              // Illustration placeholder
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: context.theme.cardColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: context.colors.surfaceVariant, width: 8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 16),
+                    // Illustration placeholder
+                    Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: context.theme.cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: context.colors.surfaceVariant,
+                          width: 8,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.02),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Text(
+                      context.l10n.chooseLanguage,
+                      style: GoogleFonts.libreCaslonText(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: context.colors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      context.l10n.selectPreferredLanguage,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: context.colors.onSurfaceVariant,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    _buildLanguageOption(
+                      title: 'English',
+                      subtitle: 'Default System',
+                      value: 'en',
+                      icon: Icons.language,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildLanguageOption(
+                      title: 'Hindi',
+                      subtitle: 'हिन्दी',
+                      value: 'hi',
+                      icon: Icons.translate,
                     ),
                   ],
                 ),
               ),
-              SizedBox(height: 32),
-              Text(
-                'Choose Language',
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 32,
-                  color: context.colors.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Select your preferred language to customize your HomeGenny experience.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: context.colors.onSurfaceVariant,
-                    height: 1.5,
-                  ),
-                ),
-              ),
-              SizedBox(height: 32),
-              _buildLanguageOption(
-                title: 'English',
-                subtitle: 'Default System',
-                value: 'en',
-                icon: Icons.language,
-              ),
-              SizedBox(height: 16),
-              _buildLanguageOption(
-                title: 'Hindi',
-                subtitle: 'हिन्दी',
-                value: 'hi',
-                icon: Icons.translate,
-              ),
-              const Spacer(),
-              Text(
-                'COMING SOON',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                  color: context.colors.onSurfaceVariant,
-                ),
-              ),
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: context.colors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'French',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: context.colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: context.colors.surfaceVariant,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'Spanish',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: context.colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 32),
-              SizedBox(
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () async {
-                    await ref.read(localeProvider.notifier).setLocale(Locale(_selected));
+                    await ref
+                        .read(localeProvider.notifier)
+                        .setLocale(Locale(_selected));
                     if (!context.mounted) return;
-                    context.showAppSnackBar('Language updated');
+                    context.showAppSnackBar(context.l10n.languageUpdated);
                     context.pop();
                   },
                   style: ElevatedButton.styleFrom(
@@ -182,17 +136,17 @@ class _AppLanguageSettingsScreenState extends ConsumerState<AppLanguageSettingsS
                     ),
                   ),
                   child: Text(
-                    'SAVE CHANGES',
+                    context.l10n.saveChanges,
                     style: GoogleFonts.inter(
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.0,
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -231,7 +185,7 @@ class _AppLanguageSettingsScreenState extends ConsumerState<AppLanguageSettingsS
               ),
               child: Icon(icon, color: const Color(0xFF1A56FF), size: 24),
             ),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,7 +198,7 @@ class _AppLanguageSettingsScreenState extends ConsumerState<AppLanguageSettingsS
                       color: context.colors.onSurface,
                     ),
                   ),
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: GoogleFonts.inter(
@@ -261,7 +215,9 @@ class _AppLanguageSettingsScreenState extends ConsumerState<AppLanguageSettingsS
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected ? const Color(0xFF1A56FF) : context.colors.onSurfaceVariant,
+                  color: isSelected
+                      ? const Color(0xFF1A56FF)
+                      : context.colors.onSurfaceVariant,
                   width: isSelected ? 6 : 1.5,
                 ),
               ),
@@ -275,18 +231,17 @@ class _AppLanguageSettingsScreenState extends ConsumerState<AppLanguageSettingsS
 
 /// Shared theme picker — used across all roles.
 class AppThemeSettingsScreen extends ConsumerStatefulWidget {
-  const AppThemeSettingsScreen({
-    super.key,
-    this.useGradient = false,
-  });
+  const AppThemeSettingsScreen({super.key, this.useGradient = false});
 
   final bool useGradient;
 
   @override
-  ConsumerState<AppThemeSettingsScreen> createState() => _AppThemeSettingsScreenState();
+  ConsumerState<AppThemeSettingsScreen> createState() =>
+      _AppThemeSettingsScreenState();
 }
 
-class _AppThemeSettingsScreenState extends ConsumerState<AppThemeSettingsScreen> {
+class _AppThemeSettingsScreenState
+    extends ConsumerState<AppThemeSettingsScreen> {
   late ThemeMode _selectedMode;
 
   @override
@@ -331,7 +286,7 @@ class _AppThemeSettingsScreenState extends ConsumerState<AppThemeSettingsScreen>
                   color: const Color(0xFF1A56FF),
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Appearance',
                 style: GoogleFonts.libreCaslonText(
@@ -340,7 +295,7 @@ class _AppThemeSettingsScreenState extends ConsumerState<AppThemeSettingsScreen>
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 'Personalize your digital environment. Select a theme that aligns with your creative flow and visual comfort.',
                 style: GoogleFonts.inter(
@@ -349,31 +304,31 @@ class _AppThemeSettingsScreenState extends ConsumerState<AppThemeSettingsScreen>
                   height: 1.5,
                 ),
               ),
-              SizedBox(height: 32),
-              
+              const SizedBox(height: 32),
+
               _buildThemeOption(
                 title: 'System default',
                 subtitle: 'Syncs with your device settings',
                 mode: ThemeMode.system,
                 icon: Icons.settings_brightness_outlined,
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               _buildThemeOption(
                 title: 'Light mode',
                 subtitle: 'High clarity, stone-tinted aesthetic',
                 mode: ThemeMode.light,
                 icon: Icons.wb_sunny_outlined,
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               _buildThemeOption(
                 title: 'Dark mode',
                 subtitle: 'Focused experience for low light',
                 mode: ThemeMode.dark,
                 icon: Icons.nightlight_round_outlined,
               ),
-              
+
               const Spacer(),
-              
+
               Text(
                 'All settings are saved automatically to your HomeGenny profile across devices.',
                 style: GoogleFonts.inter(
@@ -383,13 +338,15 @@ class _AppThemeSettingsScreenState extends ConsumerState<AppThemeSettingsScreen>
                   height: 1.5,
                 ),
               ),
-              SizedBox(height: 24),
-              
+              const SizedBox(height: 24),
+
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    ref.read(themeModeProvider.notifier).setThemeMode(_selectedMode);
+                    ref
+                        .read(themeModeProvider.notifier)
+                        .setThemeMode(_selectedMode);
                     context.showAppSnackBar('Appearance updated');
                     context.pop();
                   },
@@ -412,7 +369,7 @@ class _AppThemeSettingsScreenState extends ConsumerState<AppThemeSettingsScreen>
                   ),
                 ),
               ),
-              SizedBox(height: 16), // buffer
+              const SizedBox(height: 16), // buffer
             ],
           ),
         ),
@@ -451,12 +408,14 @@ class _AppThemeSettingsScreenState extends ConsumerState<AppThemeSettingsScreen>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected ? const Color(0xFF1A56FF) : context.colors.onSurfaceVariant,
+                  color: isSelected
+                      ? const Color(0xFF1A56FF)
+                      : context.colors.onSurfaceVariant,
                   width: isSelected ? 5 : 1.5,
                 ),
               ),
             ),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,7 +428,7 @@ class _AppThemeSettingsScreenState extends ConsumerState<AppThemeSettingsScreen>
                       color: context.colors.onSurface,
                     ),
                   ),
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: GoogleFonts.inter(

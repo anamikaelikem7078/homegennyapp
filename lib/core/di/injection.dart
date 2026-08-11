@@ -6,9 +6,6 @@ import '../../common/domain/repositories/auth_repository.dart';
 import '../../features/client/data/datasources/client_datasource.dart';
 import '../../features/client/data/repositories/client_repository_impl.dart';
 import '../../features/client/domain/repositories/client_repository.dart';
-import '../../features/rm/data/datasources/rm_datasource.dart';
-import '../../features/rm/data/repositories/rm_repository_impl.dart';
-import '../../features/rm/domain/repositories/rm_repository.dart';
 import '../../features/staff/data/datasources/staff_datasource.dart';
 import '../../features/staff/data/repositories/staff_repository_impl.dart';
 import '../../features/staff/domain/repositories/staff_repository.dart';
@@ -117,19 +114,6 @@ final staffDummyDataSourceProvider = Provider<StaffDummyDataSource>((ref) {
   return StaffDummyDataSource(jsonLoader: ref.watch(jsonAssetLoaderProvider));
 });
 
-// ── RM datasources ──
-final rmRemoteDataSourceProvider = Provider<RmRemoteDataSource>((ref) {
-  return RmRemoteDataSource(ref.watch(dioClientProvider));
-});
-
-final rmLocalDataSourceProvider = Provider<RmLocalDataSource>((ref) {
-  return RmLocalDataSource(ref.watch(hiveServiceProvider));
-});
-
-final rmDummyDataSourceProvider = Provider<RmDummyDataSource>((ref) {
-  return RmDummyDataSource(jsonLoader: ref.watch(jsonAssetLoaderProvider));
-});
-
 // ── Client datasources ──
 final clientRemoteDataSourceProvider = Provider<ClientRemoteDataSource>((ref) {
   return ClientRemoteDataSource(ref.watch(dioClientProvider));
@@ -161,15 +145,6 @@ final staffRepositoryProvider = Provider<StaffRepository>((ref) {
     remote: ref.watch(staffRemoteDataSourceProvider),
     local: ref.watch(staffLocalDataSourceProvider),
     dummy: ref.watch(staffDummyDataSourceProvider),
-  );
-});
-
-final rmRepositoryProvider = Provider<RmRepository>((ref) {
-  return RmRepositoryImpl(
-    executor: ref.watch(repositoryExecutorProvider),
-    remote: ref.watch(rmRemoteDataSourceProvider),
-    local: ref.watch(rmLocalDataSourceProvider),
-    dummy: ref.watch(rmDummyDataSourceProvider),
   );
 });
 

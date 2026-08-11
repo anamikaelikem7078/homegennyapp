@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../common/presentation/providers/auth_provider.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/router/app_routes.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/staff_routes.dart';
@@ -36,7 +37,7 @@ class StaffProfileScreen extends ConsumerWidget {
         ),
         centerTitle: true,
         title: Text(
-          'Profile',
+          context.l10n.profile,
           style: GoogleFonts.inter(
             color: const Color(0xFF0F172A),
             fontSize: 16,
@@ -53,7 +54,7 @@ class StaffProfileScreen extends ConsumerWidget {
       body: profileAsync.when(
         loading: () => const DsLoadingWidget(),
         error: (e, _) => DsErrorState(
-          title: 'Error loading profile',
+          title: context.l10n.errorLoadingProfile,
           onRetry: () => ref.invalidate(staffProfileProvider),
         ),
         data: (profile) => ListView(
@@ -163,7 +164,7 @@ class StaffProfileScreen extends ConsumerWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Profile Completion',
+                                context.l10n.profileCompletion,
                                 style: GoogleFonts.inter(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
@@ -172,7 +173,7 @@ class StaffProfileScreen extends ConsumerWidget {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                'Unlock premium coordinator features',
+                                context.l10n.unlockPremiumFeatures,
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
                                   color: const Color(0xFF64748B),
@@ -222,7 +223,7 @@ class StaffProfileScreen extends ConsumerWidget {
 
             // Management Modules
             Text(
-              'MANAGEMENT MODULES',
+              context.l10n.managementModules,
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -236,32 +237,32 @@ class StaffProfileScreen extends ConsumerWidget {
               icon: Icons.description_outlined,
               iconColor: const Color(0xFF1A56FF),
               iconBgColor: const Color(0xFFEFF6FF),
-              title: 'Documents',
-              subtitle: 'Verified ID & Tax forms',
+              title: context.l10n.documents,
+              subtitle: context.l10n.verifiedIdTaxForms,
               onTap: () => context.push(StaffRoutes.documents),
             ),
             _ModuleTile(
               icon: Icons.school_outlined,
               iconColor: const Color(0xFFF97316),
               iconBgColor: const Color(0xFFFFF7ED),
-              title: 'Training',
-              subtitle: '4 Modules in progress',
+              title: context.l10n.training,
+              subtitle: context.l10n.modulesInProgress,
               onTap: () => context.push(StaffRoutes.training),
             ),
             _ModuleTile(
               icon: Icons.videocam_outlined,
               iconColor: const Color(0xFF0EA5E9),
               iconBgColor: const Color(0xFFF0F9FF),
-              title: 'Video Certification',
-              subtitle: 'Awaiting submission',
+              title: context.l10n.videoCertification,
+              subtitle: context.l10n.awaitingSubmission,
               onTap: () => context.push(StaffRoutes.videoCertification),
             ),
             _ModuleTile(
               icon: Icons.edit_document,
               iconColor: const Color(0xFFEF4444),
               iconBgColor: const Color(0xFFFEF2F2),
-              title: 'Agreement',
-              subtitle: 'Signature required',
+              title: context.l10n.agreement,
+              subtitle: context.l10n.signatureRequired,
               subtitleColor: const Color(0xFFEF4444),
               onTap: () => context.push(StaffRoutes.agreement),
             ),
@@ -269,24 +270,24 @@ class StaffProfileScreen extends ConsumerWidget {
               icon: Icons.location_on_outlined,
               iconColor: const Color(0xFF10B981),
               iconBgColor: const Color(0xFFECFDF5),
-              title: 'Deployment',
-              subtitle: 'View current assignment',
+              title: context.l10n.deployment,
+              subtitle: context.l10n.viewCurrentAssignment,
               onTap: () => context.push(StaffRoutes.deployment),
             ),
             _ModuleTile(
               icon: Icons.payments_outlined,
               iconColor: const Color(0xFFEAB308),
               iconBgColor: const Color(0xFFFEFCE8),
-              title: 'Salary',
-              subtitle: 'Financial overview',
+              title: context.l10n.salary,
+              subtitle: context.l10n.financialOverview,
               onTap: () => context.push(StaffRoutes.salary),
             ),
             _ModuleTile(
               icon: Icons.support_agent_outlined,
               iconColor: const Color(0xFF8B5CF6),
               iconBgColor: const Color(0xFFF5F3FF),
-              title: 'Help & Support',
-              subtitle: 'Concierge assistance',
+              title: context.l10n.helpSupport,
+              subtitle: context.l10n.conciergeAssistance,
               onTap: () => context.push(StaffRoutes.help),
             ),
 
@@ -305,7 +306,7 @@ class StaffProfileScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'System Settings',
+                    context.l10n.systemSettings,
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -331,7 +332,7 @@ class StaffProfileScreen extends ConsumerWidget {
                   ),
                   // const SizedBox(width: 8),
                   Text(
-                    'Logout from Device',
+                    context.l10n.logoutFromDevice,
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

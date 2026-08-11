@@ -42,7 +42,7 @@ class ClientProfileTabScreen extends ConsumerWidget {
       ),
       body: profile.when(
         loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
+        error: (_, __) => DsErrorState(title: context.l10n.error),
         data: (p) => ListView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           children: [
@@ -115,7 +115,7 @@ class ClientProfileTabScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'PREMIUM MEMBER',
+                  context.l10n.premiumMember,
                   style: GoogleFonts.inter(
                     color: const Color(0xFF1A56FF),
                     fontSize: 10,
@@ -128,7 +128,7 @@ class ClientProfileTabScreen extends ConsumerWidget {
             SizedBox(height: 8),
             Center(
               child: Text(
-                'Member since Oct 2021',
+                context.l10n.memberSince,
                 style: GoogleFonts.inter(
                   color: context.colors.onSurfaceVariant,
                   fontSize: 12,
@@ -140,25 +140,25 @@ class ClientProfileTabScreen extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _StatItem(value: '12', label: 'Services'),
+                _StatItem(value: '12', label: context.l10n.services),
                 Container(
                   width: 1,
                   height: 40,
                   color: context.theme.dividerColor,
                 ),
-                _StatItem(value: '4.9', label: 'Rating'),
+                _StatItem(value: '4.9', label: context.l10n.rating),
                 Container(
                   width: 1,
                   height: 40,
                   color: context.theme.dividerColor,
                 ),
-                _StatItem(value: '150', label: 'Credits'),
+                _StatItem(value: '150', label: context.l10n.credits),
               ],
             ),
             SizedBox(height: 40),
             // Account Settings
             Text(
-              'Account Settings',
+              context.l10n.accountSettings,
               style: GoogleFonts.libreCaslonText(
                 fontSize: 18,
                 color: context.colors.onSurface,
@@ -168,23 +168,23 @@ class ClientProfileTabScreen extends ConsumerWidget {
             SizedBox(height: 16),
             _ProfileMenuTile(
               icon: Icons.person_outline_rounded,
-              title: 'Personal Details',
+              title: context.l10n.personalDetails,
               onTap: () => context.push(ClientRoutes.personalDetails),
             ),
             _ProfileMenuTile(
               icon: Icons.location_on_outlined,
-              title: 'Address Book',
+              title: context.l10n.addressBook,
               onTap: () => context.push(ClientRoutes.address),
             ),
             _ProfileMenuTile(
               icon: Icons.credit_card_outlined,
-              title: 'Payment Methods',
+              title: context.l10n.paymentMethods,
               onTap: () => context.push(ClientRoutes.paymentDetails),
             ),
             SizedBox(height: 32),
             // Support & Safety
             Text(
-              'Support & Safety',
+              context.l10n.supportSafety,
               style: GoogleFonts.libreCaslonText(
                 fontSize: 18,
                 color: context.colors.onSurface,
@@ -194,17 +194,17 @@ class ClientProfileTabScreen extends ConsumerWidget {
             SizedBox(height: 16),
             _ProfileMenuTile(
               icon: Icons.report_problem_outlined,
-              title: 'Complaints',
+              title: context.l10n.complaints,
               onTap: () => context.push(ClientRoutes.complaintHistory),
             ),
             _ProfileMenuTile(
               icon: Icons.help_outline_rounded,
-              title: 'Help Center',
+              title: context.l10n.helpCenter,
               onTap: () {},
             ),
             _ProfileMenuTile(
               icon: Icons.privacy_tip_outlined,
-              title: 'Privacy Policy',
+              title: context.l10n.privacyPolicy,
               onTap: () {},
             ),
             SizedBox(height: 40),
@@ -225,7 +225,7 @@ class ClientProfileTabScreen extends ConsumerWidget {
                   ),
                 ),
                 child: Text(
-                  'Log Out',
+                  context.l10n.logOut,
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -381,7 +381,7 @@ class _ClientPersonalDetailsScreenState
         ),
         centerTitle: true,
         title: Text(
-          'Personal Details',
+          context.l10n.personalDetails,
           style: GoogleFonts.libreCaslonText(
             color: context.colors.onSurface,
             fontSize: 22,
@@ -403,7 +403,7 @@ class _ClientPersonalDetailsScreenState
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             children: [
               Text(
-                'PROFILE MANAGEMENT',
+                context.l10n.profileManagement,
                 style: GoogleFonts.inter(
                   color: const Color(0xFF1A56FF),
                   fontSize: 10,
@@ -413,7 +413,7 @@ class _ClientPersonalDetailsScreenState
               ),
               SizedBox(height: 8),
               Text(
-                'Refine your identity.',
+                context.l10n.refineIdentity,
                 style: GoogleFonts.libreCaslonText(
                   color: context.colors.onSurface,
                   fontSize: 28,
@@ -422,7 +422,7 @@ class _ClientPersonalDetailsScreenState
               ),
               SizedBox(height: 12),
               Text(
-                'Your information is treated with the utmost discretion, reflecting our commitment to security and personal elegance.',
+                context.l10n.personalInfoDesc,
                 style: GoogleFonts.inter(
                   color: context.colors.onSurfaceVariant,
                   fontSize: 13,
@@ -450,16 +450,16 @@ class _ClientPersonalDetailsScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildLabel('FULL NAME'),
-                    _buildTextField(_name, Icons.person_outline),
+                    _buildLabel(context.l10n.fullName, context),
+                    _buildTextField(_name, Icons.person_outline, context),
                     SizedBox(height: 20),
 
-                    _buildLabel('EMAIL ADDRESS'),
-                    _buildTextField(_email, Icons.email_outlined),
+                    _buildLabel(context.l10n.emailAddress, context),
+                    _buildTextField(_email, Icons.email_outlined, context),
                     SizedBox(height: 20),
 
-                    _buildLabel('PHONE NUMBER'),
-                    _buildTextField(_phone, Icons.phone_outlined),
+                    _buildLabel(context.l10n.phoneNumber, context),
+                    _buildTextField(_phone, Icons.phone_outlined, context),
                     SizedBox(height: 32),
 
                     const Divider(color: Color(0xFFF3F4F6), height: 1),
@@ -488,7 +488,7 @@ class _ClientPersonalDetailsScreenState
                                 ),
                               )
                             : Text(
-                                'SAVE CHANGES',
+                                context.l10n.saveChanges,
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
@@ -518,7 +518,7 @@ class _ClientPersonalDetailsScreenState
                       bottom: 16,
                       left: 16,
                       child: Text(
-                        'SECURE DATA',
+                        context.l10n.secureData,
                         style: GoogleFonts.inter(
                           color: context.theme.cardColor,
                           fontSize: 10,
@@ -557,7 +557,7 @@ class _ClientPersonalDetailsScreenState
                     ),
                     SizedBox(height: 16),
                     Text(
-                      'Privacy Assured',
+                      context.l10n.privacyAssured,
                       style: GoogleFonts.libreCaslonText(
                         color: context.theme.cardColor,
                         fontSize: 20,
@@ -566,7 +566,7 @@ class _ClientPersonalDetailsScreenState
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Your credentials are encrypted with institutional-grade protocols.',
+                      context.l10n.privacyDesc,
                       style: GoogleFonts.inter(
                         color: context.theme.cardColor.withOpacity(0.9),
                         fontSize: 12,
@@ -584,7 +584,7 @@ class _ClientPersonalDetailsScreenState
     );
   }
 
-  Widget _buildLabel(String text) {
+  Widget _buildLabel(String text, BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
@@ -599,9 +599,10 @@ class _ClientPersonalDetailsScreenState
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, IconData icon) {
+  Widget _buildTextField(TextEditingController controller, IconData icon, BuildContext context, {bool isNumber = false}) {
     return TextField(
       controller: controller,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
       style: GoogleFonts.inter(
         color: Colors.black,
         fontSize: 14,
@@ -695,7 +696,7 @@ class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
         ),
         centerTitle: true,
         title: Text(
-          'Address',
+          context.l10n.address,
           style: GoogleFonts.libreCaslonText(
             color: context.colors.onSurface,
             fontSize: 22,
@@ -723,7 +724,7 @@ class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             children: [
               Text(
-                'PROFILE DETAILS',
+                context.l10n.profileDetails,
                 style: GoogleFonts.inter(
                   color: const Color(0xFF1A56FF),
                   fontSize: 10,
@@ -733,7 +734,7 @@ class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
               ),
               SizedBox(height: 8),
               Text(
-                'Primary Residence',
+                context.l10n.primaryResidence,
                 style: GoogleFonts.libreCaslonText(
                   color: context.colors.onSurface,
                   fontSize: 28,
@@ -742,7 +743,7 @@ class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
               ),
               SizedBox(height: 12),
               Text(
-                'Update your shipping and service location to ensure seamless delivery.',
+                context.l10n.addressUpdateDesc,
                 style: GoogleFonts.inter(
                   color: context.colors.onSurfaceVariant,
                   fontSize: 13,
@@ -751,18 +752,19 @@ class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
               ),
               SizedBox(height: 32),
 
-              _buildLabel('Street Address'),
-              _buildTextField(_address, Icons.home_outlined),
+              _buildLabel(context.l10n.streetAddress, context),
+              _buildTextField(_address, Icons.home_outlined, context),
               SizedBox(height: 20),
 
-              _buildLabel('City'),
-              _buildTextField(_city, Icons.location_city_outlined),
+              _buildLabel(context.l10n.city, context),
+              _buildTextField(_city, Icons.location_city_outlined, context),
               SizedBox(height: 20),
 
-              _buildLabel('Pincode'),
+              _buildLabel(context.l10n.pincode, context),
               _buildTextField(
                 _pincode,
                 Icons.pin_drop_outlined,
+                context,
                 isNumber: true,
               ),
               SizedBox(height: 32),
@@ -790,7 +792,7 @@ class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
                           ),
                           SizedBox(width: 8),
                           Text(
-                            'Locate on map',
+                            context.l10n.locateOnMap,
                             style: GoogleFonts.inter(
                               color: context.theme.cardColor,
                               fontSize: 12,
@@ -873,7 +875,7 @@ class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
     );
   }
 
-  Widget _buildLabel(String text) {
+  Widget _buildLabel(String text, BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
@@ -890,7 +892,8 @@ class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
 
   Widget _buildTextField(
     TextEditingController controller,
-    IconData icon, {
+    IconData icon,
+    BuildContext context, {
     bool isNumber = false,
   }) {
     return TextField(
@@ -949,7 +952,7 @@ class ClientPaymentDetailsScreen extends ConsumerWidget {
         ),
         centerTitle: true,
         title: Text(
-          'Payment Details',
+          context.l10n.paymentDetails,
           style: GoogleFonts.libreCaslonText(
             color: context.colors.onSurface,
             fontSize: 22,
@@ -1167,7 +1170,7 @@ class ClientPaymentDetailsScreen extends ConsumerWidget {
             _buildMenuTile(
               context: context,
               icon: Icons.history_rounded,
-              title: 'Payment History',
+              title: context.l10n.paymentHistory,
               subtitle: 'View all recent transactions',
               onTap: () => context.push(ClientRoutes.paymentHistory),
             ),
@@ -1414,7 +1417,7 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
           // Header
           Center(
             child: Text(
-              'Account Settings',
+              context.l10n.accountSettings,
               style: GoogleFonts.libreCaslonText(
                 fontSize: 28,
                 color: context.colors.onSurface,
@@ -1441,11 +1444,13 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
 
           // Preferences Card
           _buildSettingsCard(
-            title: 'Preferences',
+            context: context,
+            title: context.l10n.preferences,
             children: [
               _buildSettingItem(
-                title: 'Language',
-                subtitle: 'Select your primary interface language',
+                context: context,
+                title: context.l10n.language,
+                subtitle: context.l10n.languageDesc,
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1474,8 +1479,9 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
                 child: Divider(height: 1, color: Color(0xFFF3F4F6)),
               ),
               _buildSettingItem(
-                title: 'Appearance',
-                subtitle: 'Switch between light and dark themes',
+                context: context,
+                title: context.l10n.appearance,
+                subtitle: context.l10n.appearanceDesc,
                 trailing: Container(
                   decoration: BoxDecoration(
                     color: context.colors.surfaceVariant,
@@ -1508,7 +1514,7 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
                                 )
                               : null,
                           child: Text(
-                            'Light',
+                            context.l10n.light,
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight:
@@ -1549,7 +1555,7 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
                                 )
                               : null,
                           child: Text(
-                            'Dark',
+                            context.l10n.dark,
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight:
@@ -1574,12 +1580,14 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
 
           // Notifications Card
           _buildSettingsCard(
-            title: 'Notifications',
+            context: context,
+            title: context.l10n.notifications,
             children: [
               _buildSettingItem(
+                context: context,
                 icon: Icons.notifications_outlined,
-                title: 'Push Notifications',
-                subtitle: 'Receive alerts on your mobile device',
+                title: context.l10n.pushNotifications,
+                subtitle: context.l10n.pushNotificationsDesc,
                 trailing: Switch(
                   value: _pushEnabled,
                   onChanged: (v) => setState(() => _pushEnabled = v),
@@ -1594,9 +1602,10 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
                 child: Divider(height: 1, color: Color(0xFFF3F4F6)),
               ),
               _buildSettingItem(
+                context: context,
                 icon: Icons.email_outlined,
-                title: 'Email Summaries',
-                subtitle: 'Weekly reports delivered to your inbox',
+                title: context.l10n.emailSummaries,
+                subtitle: context.l10n.emailSummariesDesc,
                 trailing: Switch(
                   value: _emailEnabled,
                   onChanged: (v) => setState(() => _emailEnabled = v),
@@ -1611,9 +1620,10 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
                 child: Divider(height: 1, color: Color(0xFFF3F4F6)),
               ),
               _buildSettingItem(
+                context: context,
                 icon: Icons.event_available_outlined,
-                title: 'Attendance Alerts',
-                subtitle: 'Real-time status updates for events',
+                title: context.l10n.attendanceAlerts,
+                subtitle: context.l10n.attendanceAlertsDesc,
                 trailing: Switch(
                   value: _attendanceAlerts,
                   onChanged: (v) => setState(() => _attendanceAlerts = v),
@@ -1629,12 +1639,13 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
 
           // Legal & Privacy Card
           _buildSettingsCard(
-            title: 'Legal & Privacy',
+            context: context,
+            title: context.l10n.legalPrivacy,
             children: [
-              _buildLegalItem('Privacy Policy', 'How we handle your data'),
-              _buildLegalItem('Terms of Service', 'The rules of our agreement'),
-              _buildLegalItem('Cookie Policy', 'Managing browser cookies'),
-              _buildLegalItem('Licenses', 'Third-party software notices'),
+              _buildLegalItem(context.l10n.privacyPolicy, context.l10n.privacyPolicyDesc, context),
+              _buildLegalItem(context.l10n.termsOfService, context.l10n.termsOfServiceDesc, context),
+              _buildLegalItem(context.l10n.cookiePolicy, context.l10n.cookiePolicyDesc, context),
+              _buildLegalItem(context.l10n.licenses, context.l10n.licensesDesc, context),
             ],
           ),
           SizedBox(height: 24),
@@ -1651,7 +1662,7 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Delete Account',
+                  context.l10n.deleteAccount,
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1660,7 +1671,7 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  'Once you delete your account, there is no going back. Please be certain.',
+                  context.l10n.deleteAccountWarning,
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     color: context.colors.onSurfaceVariant,
@@ -1671,7 +1682,7 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
                   child: TextButton(
                     onPressed: () {},
                     child: Text(
-                      'Deactivate Account',
+                      context.l10n.deactivateAccount,
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -1691,6 +1702,7 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
   }
 
   Widget _buildSettingsCard({
+    required BuildContext context,
     required String title,
     required List<Widget> children,
   }) {
@@ -1729,6 +1741,7 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
   }
 
   Widget _buildSettingItem({
+    required BuildContext context,
     IconData? icon,
     required String title,
     required String subtitle,
@@ -1775,7 +1788,7 @@ class _ClientSettingsScreenState extends ConsumerState<ClientSettingsScreen> {
     );
   }
 
-  Widget _buildLegalItem(String title, String subtitle) {
+  Widget _buildLegalItem(String title, String subtitle, BuildContext context) {
     return InkWell(
       onTap: () {},
       child: Padding(

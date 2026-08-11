@@ -115,7 +115,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
               SizedBox(height: 8),
               Center(
                 child: Text(
-                  'CAREGIVER', // Updated role for matching image
+                  context.l10n.caregiver, // Updated role for matching image
                   style: GoogleFonts.inter(
                     color: const Color(0xFF1A56FF),
                     fontSize: 12,
@@ -136,7 +136,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
                   ),
                   SizedBox(width: 4),
                   Text(
-                    '${staff.rating} Rating',
+                    context.l10n.ratingValue(staff.rating.toString()),
                     style: GoogleFonts.inter(
                       color: const Color(0xFF1A56FF),
                       fontSize: 13,
@@ -148,7 +148,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
                     child: Text('|', style: TextStyle(color: Colors.black26)),
                   ),
                   Text(
-                    'Verified Professional',
+                    context.l10n.verifiedProfessional,
                     style: GoogleFonts.inter(
                       color: context.colors.onSurfaceVariant,
                       fontSize: 13,
@@ -165,7 +165,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
                     child: _StatCard(
                       icon: Icons.history,
                       value: '12+',
-                      label: 'Years\nExperience',
+                      label: context.l10n.yearsExperience,
                     ),
                   ),
                   SizedBox(width: 16),
@@ -173,23 +173,23 @@ class ClientStaffTabScreen extends ConsumerWidget {
                     child: _StatCard(
                       icon: Icons.task_alt,
                       value: '842',
-                      label: 'Projects\nCompleted',
+                      label: context.l10n.projectsCompleted,
                     ),
                   ),
                 ],
               ),
               SizedBox(height: 16),
-              const _StatCard(
+              _StatCard(
                 icon: Icons.shield_outlined,
                 value: '99%',
-                label: 'Safety Score',
+                label: context.l10n.safetyScore,
                 isFullWidth: true,
               ),
 
               SizedBox(height: 40),
               // Professional Profile
               Text(
-                'Professional Profile',
+                context.l10n.professionalProfile,
                 style: GoogleFonts.libreCaslonText(
                   fontSize: 16,
                   color: context.colors.onSurface,
@@ -201,7 +201,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
                 text: TextSpan(
                   children: [
                     TextSpan(
-                      text: 'D',
+                      text: context.l10n.dDropcap,
                       style: GoogleFonts.libreCaslonText(
                         fontSize: 48,
                         color: context.colors.onSurface,
@@ -209,8 +209,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
                       ),
                     ),
                     TextSpan(
-                      text:
-                          'edicated Caregiver with over a decade of expertise in providing compassionate care for elderly and differently-abled individuals. Rajesh specializes in personalized health monitoring, medication management, and proactive wellness protocols. Known for his empathetic approach and strategic problem solving, he ensures every individual receives the highest standard of support and comfort.',
+                      text: context.l10n.professionalProfileDesc,
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         color: context.colors.onSurfaceVariant,
@@ -223,7 +222,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
               SizedBox(height: 40),
               // Work Experience
               Text(
-                'Work Experience',
+                context.l10n.workExperience,
                 style: GoogleFonts.libreCaslonText(
                   fontSize: 16,
                   color: context.colors.onSurface,
@@ -231,28 +230,26 @@ class ClientStaffTabScreen extends ConsumerWidget {
                 ),
               ),
               SizedBox(height: 24),
-              const _TimelineItem(
-                date: '2018 — PRESENT',
-                title: 'Senior Care Specialist',
-                company: 'Sunrise Health Services',
-                description:
-                    'Providing comprehensive daily care, medical assistance, and physical therapy support for senior residents.',
+              _TimelineItem(
+                date: context.l10n.expDate1,
+                title: context.l10n.expTitle1,
+                company: context.l10n.expCompany1,
+                description: context.l10n.expDesc1,
                 isLast: false,
                 isActive: true,
               ),
-              const _TimelineItem(
-                date: '2014 — 2018',
-                title: 'Registered Care Provider',
-                company: 'Metropolitan Care Home',
-                description:
-                    'Directed customized care plans and collaborated with medical professionals to ensure optimal patient health.',
+              _TimelineItem(
+                date: context.l10n.expDate2,
+                title: context.l10n.expTitle2,
+                company: context.l10n.expCompany2,
+                description: context.l10n.expDesc2,
                 isLast: true,
                 isActive: false,
               ),
               SizedBox(height: 32),
               // Expertise & Skills
               Text(
-                'Expertise & Skills',
+                context.l10n.expertiseSkills,
                 style: GoogleFonts.libreCaslonText(
                   fontSize: 16,
                   color: context.colors.onSurface,
@@ -264,12 +261,12 @@ class ClientStaffTabScreen extends ConsumerWidget {
                 spacing: 8,
                 runSpacing: 12,
                 children: [
-                  _SkillChip(label: 'Medication Management'),
-                  _SkillChip(label: 'Physical Therapy Support'),
-                  _SkillChip(label: 'Elderly Care'),
-                  _SkillChip(label: 'Emergency Response'),
-                  _SkillChip(label: 'Nutritional Planning'),
-                  _SkillChip(label: 'Compassionate Care'),
+                  _SkillChip(label: context.l10n.skill1),
+                  _SkillChip(label: context.l10n.skill2),
+                  _SkillChip(label: context.l10n.skill3),
+                  _SkillChip(label: context.l10n.skill4),
+                  _SkillChip(label: context.l10n.skill5),
+                  _SkillChip(label: context.l10n.skill6),
                 ],
               ),
               SizedBox(height: 40),
@@ -285,7 +282,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Attendance Record',
+                      context.l10n.attendanceRecordLabel,
                       style: GoogleFonts.libreCaslonText(
                         fontSize: 16,
                         color: context.colors.onSurface,
@@ -309,7 +306,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
                         ),
                         SizedBox(width: 12),
                         Text(
-                          'Monthly Punctuality',
+                          context.l10n.monthlyPunctuality,
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             color: context.colors.onSurface,
@@ -332,7 +329,15 @@ class ClientStaffTabScreen extends ConsumerWidget {
                     SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day) {
+                      children: [
+                        context.l10n.mon,
+                        context.l10n.tue,
+                        context.l10n.wed,
+                        context.l10n.thu,
+                        context.l10n.fri,
+                        context.l10n.sat,
+                        context.l10n.sun
+                      ].map((day) {
                         return Text(
                           day,
                           style: GoogleFonts.inter(
@@ -377,7 +382,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
                     const Divider(height: 1, color: Color(0xFFE5E7EB)),
                     SizedBox(height: 24),
                     Text(
-                      'RECENT ACTIVITY',
+                      context.l10n.recentActivity,
                       style: GoogleFonts.inter(
                         fontSize: 10,
                         color: context.colors.onSurfaceVariant,
@@ -387,13 +392,13 @@ class ClientStaffTabScreen extends ConsumerWidget {
                     ),
                     SizedBox(height: 16),
                     _ActivityItem(
-                      title: 'Morning Routine Assistance',
-                      time: 'Today, 09:00 AM',
+                      title: context.l10n.activity1,
+                      time: context.l10n.activityTime1,
                     ),
                     SizedBox(height: 16),
                     _ActivityItem(
-                      title: 'Medication Administration',
-                      time: 'Yesterday, 04:30 PM',
+                      title: context.l10n.activity2,
+                      time: context.l10n.activityTime2,
                     ),
                   ],
                 ),
@@ -701,7 +706,7 @@ class ClientStaffProfileScreen extends ConsumerWidget {
             SizedBox(height: 4),
             Center(
               child: Text(
-                'HOME CARE SPECIALIST',
+                context.l10n.homeCareSpecialist,
                 style: GoogleFonts.inter(
                   color: const Color(0xFF9E7C5D),
                   fontSize: 11,
@@ -752,7 +757,7 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          'RATING',
+                          context.l10n.ratingLabel,
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             color: context.colors.onSurface,
@@ -792,7 +797,7 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                             ),
                             SizedBox(width: 6),
                             Text(
-                              'Full Time',
+                              context.l10n.fullTime,
                               style: GoogleFonts.inter(
                                 fontSize: 14,
                                 color: const Color(0xFF1A56FF),
@@ -803,7 +808,7 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          '9:00 AM - 6:00 PM',
+                          context.l10n.workingHours,
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             color: context.colors.onSurface,
@@ -821,8 +826,8 @@ class ClientStaffProfileScreen extends ConsumerWidget {
             // Navigation Blocks
             _NavCard(
               icon: Icons.work_outline,
-              title: 'Experience',
-              subtitle: '12 YEARS IN CARE',
+              title: context.l10n.experience,
+              subtitle: context.l10n.yearsInCare,
               onTap: () => context.push(ClientRoutes.staffExperience(staffId)),
             ),
             SizedBox(height: 12),
@@ -831,8 +836,8 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                 Expanded(
                   child: _NavCardSquare(
                     icon: Icons.verified_outlined,
-                    title: 'Skills',
-                    subtitle: 'SPECIALIZED',
+                    title: context.l10n.skills,
+                    subtitle: context.l10n.specialized,
                     onTap: () =>
                         context.push(ClientRoutes.staffSkills(staffId)),
                   ),
@@ -841,8 +846,8 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                 Expanded(
                   child: _NavCardSquare(
                     icon: Icons.calendar_today_outlined,
-                    title: 'Attendance',
-                    subtitle: '98% RECORD',
+                    title: context.l10n.attendance,
+                    subtitle: context.l10n.attendanceRecordSub,
                     onTap: () =>
                         context.push(ClientRoutes.staffAttendance(staffId)),
                   ),
@@ -855,8 +860,8 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                 Expanded(
                   child: _NavCardSquare(
                     icon: Icons.insights,
-                    title: 'Performance',
-                    subtitle: 'TOP TIER',
+                    title: context.l10n.performance,
+                    subtitle: context.l10n.topTier,
                     onTap: () =>
                         context.push(ClientRoutes.staffPerformance(staffId)),
                   ),
@@ -865,8 +870,8 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                 Expanded(
                   child: _NavCardSquare(
                     icon: Icons.person_remove_alt_1_outlined,
-                    title: 'Replacement',
-                    subtitle: 'MANAGE',
+                    title: context.l10n.replacement,
+                    subtitle: context.l10n.manage,
                     onTap: () => context.push(ClientRoutes.replacementRequest),
                   ),
                 ),
@@ -1060,7 +1065,7 @@ class ClientStaffExperienceScreen extends ConsumerWidget {
           children: [
             Center(
               child: Text(
-                'CURATED CAREER',
+                context.l10n.curatedCareer,
                 style: GoogleFonts.inter(
                   color: const Color(0xFF9E7C5D), // A sophisticated brown/gold
                   fontSize: 10,
@@ -1072,7 +1077,7 @@ class ClientStaffExperienceScreen extends ConsumerWidget {
             SizedBox(height: 8),
             Center(
               child: Text(
-                'Professional\nJourney &\nExpertise',
+                context.l10n.profJourneyExp,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.libreCaslonText(
                   fontSize: 32,
@@ -1097,11 +1102,11 @@ class ClientStaffExperienceScreen extends ConsumerWidget {
               runSpacing: 12,
               alignment: WrapAlignment.center,
               children: [
-                _JourneyTag(label: 'CLINICAL CARE', isActive: true),
-                _JourneyTag(label: 'PATIENT ADVOCACY'),
-                _JourneyTag(label: 'GERONTOLOGY'),
-                _JourneyTag(label: 'CASE MANAGEMENT'),
-                _JourneyTag(label: 'MEDICATION ADMIN'),
+                _JourneyTag(label: context.l10n.clinicalCare, isActive: true),
+                _JourneyTag(label: context.l10n.patientAdvocacy),
+                _JourneyTag(label: context.l10n.gerontology),
+                _JourneyTag(label: context.l10n.caseManagement),
+                _JourneyTag(label: context.l10n.medicationAdmin),
               ],
             ),
             SizedBox(height: 40),
@@ -1134,7 +1139,7 @@ class ClientStaffExperienceScreen extends ConsumerWidget {
                 ),
               ),
               child: Text(
-                'DOWNLOAD FULL DOSSIER',
+                context.l10n.downloadDossier,
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -1145,7 +1150,7 @@ class ClientStaffExperienceScreen extends ConsumerWidget {
             SizedBox(height: 16),
             Center(
               child: Text(
-                'REFERENCES AVAILABLE UPON REQUEST',
+                context.l10n.referencesAvailable,
                 style: GoogleFonts.inter(
                   color: context.colors.onSurfaceVariant,
                   fontSize: 9,

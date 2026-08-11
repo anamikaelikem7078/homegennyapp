@@ -7,7 +7,7 @@ import '../models/user_role.dart';
 /// Authentication repository contract (domain layer).
 abstract interface class AuthRepository {
   Future<Result<AuthTokens>> login({
-    required String email,
+    required String phone,
     required String password,
   });
 

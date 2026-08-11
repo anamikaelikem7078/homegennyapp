@@ -7,10 +7,8 @@ import 'logging_interceptor.dart';
 
 /// Configured Dio HTTP client for HomeGenny API.
 class DioClient {
-  DioClient({
-    required AuthInterceptor authInterceptor,
-    Dio? dio,
-  }) : _dio = dio ?? Dio() {
+  DioClient({required AuthInterceptor authInterceptor, Dio? dio})
+    : _dio = dio ?? Dio() {
     _dio
       ..options = BaseOptions(
         baseUrl: ApiConstants.baseUrl,
@@ -22,10 +20,7 @@ class DioClient {
         },
         validateStatus: (status) => status != null && status < 500,
       )
-      ..interceptors.addAll([
-        authInterceptor,
-        LoggingInterceptor(),
-      ]);
+      ..interceptors.addAll([authInterceptor, LoggingInterceptor()]);
   }
 
   final Dio _dio;
@@ -115,9 +110,7 @@ class DioClient {
       onSendProgress: onSendProgress,
       options: (options ?? Options()).copyWith(
         contentType: 'multipart/form-data',
-        headers: {
-          ApiConstants.headerAccept: ApiConstants.contentTypeJson,
-        },
+        headers: {ApiConstants.headerAccept: ApiConstants.contentTypeJson},
       ),
     );
   }

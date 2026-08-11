@@ -11,12 +11,12 @@ class AuthRemoteDataSource extends BaseRemoteDataSource {
   AuthRemoteDataSource(super.dio);
 
   Future<AuthTokensDto> login({
-    required String email,
+    required String phone,
     required String password,
   }) async {
     final data = await postJson(
       ApiConstants.authLogin,
-      data: {'email': email, 'password': password},
+      data: {'phone': phone, 'password': password},
     );
     return AuthTokensDto.fromJson(data);
   }

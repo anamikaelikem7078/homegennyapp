@@ -1,76 +1,37 @@
-/// RM module route paths.
+/// RM feature route path constants.
 abstract final class RmRoutes {
-  static const String root = '/rm';
   static const String dashboard = '/rm/dashboard';
-  static const String staff = '/rm/staff';
-  static const String clients = '/rm/clients';
-  static const String reports = '/rm/reports';
-  static const String profile = '/rm/profile';
+  static const String pipeline = '/rm/pipeline';
+  static const String staffIntake = '/rm/staff-intake';
 
-  // Dashboard
-  static const String followUpsToday = '/rm/follow-ups/today';
-  static const String pendingVerification = '/rm/pending/verification';
-  static const String pendingTraining = '/rm/pending/training';
-  static const String pendingAgreement = '/rm/pending/agreement';
-  static const String pendingDeployment = '/rm/pending/deployment';
-  static const String clientRequests = '/rm/client-requests';
-
-  // Staff
-  static const String staffSearch = '/rm/staff/search';
-  static const String staffCreate = '/rm/staff/create';
   static String staffDetail(String id) => '/rm/staff/$id';
-  static String staffEdit(String id) => '/rm/staff/$id/edit';
-  static String staffDocuments(String id) => '/rm/staff/$id/documents';
-  static String staffTraining(String id) => '/rm/staff/$id/training';
-  static String staffAttendance(String id) => '/rm/staff/$id/attendance';
-  static String staffSalary(String id) => '/rm/staff/$id/salary';
+  static String verificationDashboard(String id) => '/rm/staff/$id/verification';
+  static String track1(String id) => '/rm/staff/$id/verification/track1';
+  static String track2(String id) => '/rm/staff/$id/verification/track2';
+  static String track3(String id) => '/rm/staff/$id/verification/track3';
+  static String track4(String id) => '/rm/staff/$id/verification/track4';
+  static String track5(String id) => '/rm/staff/$id/verification/track5';
+  
+  static String stage3Training(String id) => '/rm/staff/$id/stage3/training';
+  static String stage3VideoUpload(String id) => '/rm/staff/$id/stage3/video-upload';
+  static String stage3VideoReview(String id) => '/rm/staff/$id/stage3/video-review';
 
-  // Verification
-  static const String verificationPending = '/rm/verification/pending';
-  static String verificationDetail(String id) => '/rm/verification/$id';
-  static String verificationApprove(String id) => '/rm/verification/$id/approve';
-  static String verificationReject(String id) => '/rm/verification/$id/reject';
+  static String stage4Hub(String id) => '/rm/staff/$id/stage4/hub';
+  static String stage4A1(String id) => '/rm/staff/$id/stage4/a1';
+  static String stage4A1OTP(String id) => '/rm/staff/$id/stage4/a1-otp';
+  static String stage4A2(String id) => '/rm/staff/$id/stage4/a2';
+  
+  static String stage4A2Client(String id) => '/rm/staff/$id/stage4/a2-client';
+  static String stage4SowAmendment(String id) => '/rm/staff/$id/stage4/sow-amendment';
+  static String stage4A3(String id) => '/rm/staff/$id/stage4/a3';
+  static String stage4Complete(String id) => '/rm/staff/$id/stage4/complete';
 
-  // Training
-  static const String trainingAssign = '/rm/training/assign';
-  static const String trainingProgress = '/rm/training/progress';
-  static const String trainingCertificates = '/rm/training/certificates';
+  static String stage5TrialCheckin(String id) => '/rm/staff/$id/stage5/trial-checkin';
 
-  // Video
-  static const String videosPending = '/rm/videos/pending';
-  static String videoWatch(String id) => '/rm/videos/$id/watch';
-  static String videoReview(String id) => '/rm/videos/$id/review';
-
-  // Client
-  static String clientDetail(String id) => '/rm/clients/$id';
-  static String clientRequirements(String id) => '/rm/clients/$id/requirements';
-  static String clientAssignStaff(String id) => '/rm/clients/$id/assign-staff';
-  static String clientReplacement(String id) => '/rm/clients/$id/replacement';
-
-  // Deployment
-  static const String deployment = '/rm/deployment';
-  static const String deploymentAssignStaff = '/rm/deployment/assign-staff';
-  static const String deploymentAssignClient = '/rm/deployment/assign-client';
-  static const String deploymentTrial = '/rm/deployment/trial';
-  static const String deploymentPermanent = '/rm/deployment/permanent';
-
-  // Reports
-  static const String reportDaily = '/rm/reports/daily';
-  static const String reportWeekly = '/rm/reports/weekly';
-  static const String reportMonthly = '/rm/reports/monthly';
-  static const String reportAttendance = '/rm/reports/attendance';
-  static const String reportPipeline = '/rm/reports/pipeline';
-  static const String reportDeployment = '/rm/reports/deployment';
-
-  // Other
-  static const String notifications = '/rm/notifications';
-  static const String settings = '/rm/settings';
-
-  static const List<String> tabRoutes = [
-    dashboard,
-    staff,
-    clients,
-    reports,
-    profile,
-  ];
+  // Demo Sequential Flow Routes
+  static String staffActivePlacement(String id) => '/rm/staff/$id/demo/active-placement';
+  static String staffDailyShift(String id) => '/rm/staff/$id/demo/daily-shift';
+  static String staffPayslip(String id) => '/rm/staff/$id/demo/payslip';
+  static String clientInvoice(String id) => '/rm/staff/$id/demo/client-invoice';
+  static String rmComplianceAlerts(String id) => '/rm/staff/$id/demo/compliance-alerts';
 }

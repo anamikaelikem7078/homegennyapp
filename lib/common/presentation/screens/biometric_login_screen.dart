@@ -10,7 +10,12 @@ import '../viewmodels/biometric_viewmodel.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_widgets.dart';
 
-/// Biometric login screen.
+// --- Premium Palette ---
+const Color _electricBlue = Color(0xFF1A56FF);
+const Color _offWhite = Color(0xFFFBF9F8);
+const Color _textColor = Color(0xFF1A1C1E);
+
+/// Premium Biometric Login Screen
 class BiometricLoginScreen extends ConsumerStatefulWidget {
   const BiometricLoginScreen({super.key});
 
@@ -56,71 +61,91 @@ class _BiometricLoginScreenState extends ConsumerState<BiometricLoginScreen> {
     });
 
     return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
+      backgroundColor: _offWhite,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  icon: Icon(Icons.arrow_back_ios_new_rounded,
-                      color: Color(0xFF1A1C1E)),
-                  onPressed: () => context.go(AppRoutes.login),
-                ),
-              ),
-              const Spacer(flex: 2),
-              
-              // Biometric Icon Container
-              Center(
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: context.colors.surfaceVariant,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: const Color(0xFF1A56FF).withOpacity(0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.fingerprint,
-                      size: 64,
-                      color: Color(0xFF1A56FF),
-                    ),
-                  ),
-                ),
-              ),
               SizedBox(height: 32),
+              // Wordmark Branding
+              Center(
+                child: Text(
+                  'HOMEGENNY',
+                  style: GoogleFonts.libreCaslonText(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                    color: _electricBlue,
+                    letterSpacing: 2.0,
+                  ),
+                ),
+              ),
+              const Spacer(flex: 1),
               
               // Title
               Text(
-                'Quick sign in',
+                'Touch ID / Face\nID',
                 style: GoogleFonts.libreCaslonText(
-                  fontSize: 32,
+                  fontSize: 36,
                   fontWeight: FontWeight.w600,
+                  color: _electricBlue,
+                  height: 1.1,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 12),
+              
+              // Subtitle
+              Text(
+                'Secure, fast, and effortless access.',
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w400,
                   color: const Color(0xFF1A1C1E),
                 ),
                 textAlign: TextAlign.center,
               ),
-              SizedBox(height: 16),
-              
-              // Subtitle
-              Text(
-                'Use your fingerprint or face to sign in\nsecurely',
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                  color: const Color(0xFF6B7280),
-                  height: 1.5,
+              SizedBox(height: 48),
+
+              // Gestural Focus
+              Center(
+                child: Container(
+                  width: 240,
+                  height: 240,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 16,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 140,
+                      height: 140,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF9FAFB),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFF3F4F6)),
+                      ),
+                      child: Icon(
+                        Icons.fingerprint_rounded,
+                        size: 80,
+                        color: _electricBlue,
+                      ),
+                    ),
+                  ),
                 ),
-                textAlign: TextAlign.center,
               ),
-              const Spacer(flex: 3),
+
+              const Spacer(flex: 2),
               
               // Not Available Text
               if (!state.isAvailable)
@@ -144,7 +169,7 @@ class _BiometricLoginScreenState extends ConsumerState<BiometricLoginScreen> {
                 child: ElevatedButton(
                   onPressed: state.isAvailable && !state.isLoading ? _authenticate : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A56FF),
+                    backgroundColor: _electricBlue,
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
@@ -155,41 +180,35 @@ class _BiometricLoginScreenState extends ConsumerState<BiometricLoginScreen> {
                       ? SizedBox(
                           width: 24,
                           height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: context.theme.cardColor),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.fingerprint, size: 20),
-                            SizedBox(width: 8),
-                            Text(
-                              'Authenticate',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                      : Text(
+                          'Authenticate',
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1.0,
+                          ),
                         ),
                 ),
               ),
-              SizedBox(height: 16),
+              SizedBox(height: 24),
               
               // Use Password Instead
-              TextButton(
-                onPressed: () => context.go(AppRoutes.login),
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF1A56FF),
-                ),
-                child: Text(
-                  'Use password instead',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+              Center(
+                child: InkWell(
+                  onTap: () => context.go(AppRoutes.login),
+                  child: Text(
+                    'Use Password Instead',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF4B5563),
+                    ),
                   ),
                 ),
               ),
-              SizedBox(height: 24),
+              SizedBox(height: 32),
             ],
           ),
         ),

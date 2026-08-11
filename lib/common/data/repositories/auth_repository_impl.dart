@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../../core/auth/jwt_token_handler.dart';
 import '../../../core/data/repository_executor.dart';
 import '../../../core/exceptions/exception_handler.dart';
+import '../../../core/exceptions/failures.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/hive_service.dart';
 import '../../../core/storage/secure_storage_service.dart';
@@ -21,9 +22,9 @@ import '../models/auth_dto.dart';
 class AuthRepositoryImpl implements AuthRepository {
   static const _demoPassword = 'demo1234';
 
-  static const _demoClientEmail = 'client@homegenny.com';
-  static const _demoStaffEmail = 'staff@homegenny.com';
-  static const _demoRmEmail = 'rm@homegenny.com';
+  static const _demoClientPhone = '+15550000001';
+  static const _demoStaffPhone = '+15550000002';
+  static const _demoRmPhone = '+15550000003';
 
   static const _demoClientName = 'Demo Client';
   static const _demoStaffName = 'Demo Staff';
@@ -49,25 +50,25 @@ class AuthRepositoryImpl implements AuthRepository {
   final AuthLocalDataSource _local;
   final AuthMapper _mapper;
 
-  static bool isDemoCredentials(String email, String password) {
-    final lowerEmail = email.trim().toLowerCase();
-    return (lowerEmail == _demoClientEmail ||
-            lowerEmail == _demoStaffEmail ||
-            lowerEmail == _demoRmEmail) &&
+  static bool isDemoCredentials(String phone, String password) {
+    final lowerPhone = phone.trim().toLowerCase();
+    return (lowerPhone == _demoClientPhone ||
+            lowerPhone == _demoStaffPhone ||
+            lowerPhone == _demoRmPhone) &&
         password.trim() == _demoPassword;
   }
 
   @override
   Future<Result<AuthTokens>> login({
-    required String email,
+    required String phone,
     required String password,
   }) async {
-    if (isDemoCredentials(email, password)) {
+    if (isDemoCredentials(phone, password)) {
       await _tokenHandler.saveTokens(
         accessToken: 'demo-access-token',
         refreshToken: 'demo-refresh-token',
       );
-      await _secureStorage.write(StorageKeys.lastLoginEmail, email);
+      await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
       return const Success(AuthTokens(
         accessToken: 'demo-access-token',
         refreshToken: 'demo-refresh-token',
@@ -75,13 +76,13 @@ class AuthRepositoryImpl implements AuthRepository {
     }
 
     try {
-      final dto = await _remote.login(email: email, password: password);
+      final dto = await _remote.login(phone: phone, password: password);
       final tokens = _mapper.toTokens(dto);
       await _tokenHandler.saveTokens(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       );
-      await _secureStorage.write(StorageKeys.lastLoginEmail, email);
+      await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
       return Success(tokens);
     } catch (e, stack) {
       return Error(ExceptionHandler.handle(e, stack));
@@ -93,6 +94,19 @@ class AuthRepositoryImpl implements AuthRepository {
     required String phone,
     required String otp,
   }) async {
+    final lowerPhone = phone.trim().toLowerCase();
+    if (lowerPhone == _demoClientPhone ||
+        lowerPhone == _demoStaffPhone ||
+        lowerPhone == _demoRmPhone) {
+      if (otp != '1234') {
+        return const Error(AuthFailure(message: 'Invalid demo OTP. Use 1234.'));
+      }
+      return const Success(AuthTokens(
+        accessToken: 'demo-access-token',
+        refreshToken: 'demo-refresh-token',
+      ));
+    }
+
     try {
       final dto = await _remote.verifyOtp(phone: phone, otp: otp);
       final tokens = _mapper.toTokens(dto);
@@ -118,17 +132,17 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<Result<UserModel>> getUserProfile() async {
-    final savedEmail = await _secureStorage.read(StorageKeys.lastLoginEmail);
-    final lowerEmail = savedEmail?.trim().toLowerCase();
+    final savedPhone = await _secureStorage.read(StorageKeys.lastLoginEmail);
+    final lowerPhone = savedPhone?.trim().toLowerCase();
     
-    if (lowerEmail == _demoClientEmail || lowerEmail == _demoStaffEmail || lowerEmail == _demoRmEmail) {
+    if (lowerPhone == _demoClientPhone || lowerPhone == _demoStaffPhone || lowerPhone == _demoRmPhone) {
       late String demoName;
       late UserRole demoRole;
 
-      if (lowerEmail == _demoStaffEmail) {
+      if (lowerPhone == _demoStaffPhone) {
         demoName = _demoStaffName;
         demoRole = UserRole.staff;
-      } else if (lowerEmail == _demoRmEmail) {
+      } else if (lowerPhone == _demoRmPhone) {
         demoName = _demoRmName;
         demoRole = UserRole.rm;
       } else {
@@ -139,7 +153,7 @@ class AuthRepositoryImpl implements AuthRepository {
       final demoUser = UserModel(
         id: 'demo-user-${demoRole.value}',
         name: demoName,
-        email: lowerEmail!,
+        email: 'demo@homegenny.com',
         role: demoRole,
       );
       await _secureStorage.write(StorageKeys.userId, demoUser.id);
@@ -226,11 +240,11 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   Future<bool> _isDemoMode() async {
-    final savedEmail = await _secureStorage.read(StorageKeys.lastLoginEmail);
-    final lowerEmail = savedEmail?.trim().toLowerCase();
-    return lowerEmail == _demoClientEmail ||
-           lowerEmail == _demoStaffEmail ||
-           lowerEmail == _demoRmEmail;
+    final savedPhone = await _secureStorage.read(StorageKeys.lastLoginEmail);
+    final lowerPhone = savedPhone?.trim().toLowerCase();
+    return lowerPhone == _demoClientPhone ||
+           lowerPhone == _demoStaffPhone ||
+           lowerPhone == _demoRmPhone;
   }
 
   @override

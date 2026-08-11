@@ -134,7 +134,7 @@ abstract final class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          minimumSize: Size(double.infinity, AppSpacing.buttonHeight),
+          minimumSize: Size(64, AppSpacing.buttonHeight),
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.4),
@@ -147,7 +147,7 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: Size(double.infinity, AppSpacing.buttonHeight),
+          minimumSize: Size(64, AppSpacing.buttonHeight),
           foregroundColor: AppColors.primary,
           side: const BorderSide(color: AppColors.primary),
           shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),

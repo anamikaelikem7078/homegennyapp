@@ -66,5 +66,379 @@
   "themeSettings": "Theme",
   "darkMode": "Dark mode",
   "lightMode": "Light mode",
-  "systemDefault": "System default"
+  "systemDefault": "System default",
+  "profile": "Profile",
+  "errorLoadingProfile": "Error loading profile",
+  "profileCompletion": "Profile Completion",
+  "unlockPremiumFeatures": "Unlock premium coordinator features",
+  "managementModules": "MANAGEMENT MODULES",
+  "documents": "Documents",
+  "verifiedIdTaxForms": "Verified ID & Tax forms",
+  "training": "Training",
+  "modulesInProgress": "4 Modules in progress",
+  "videoCertification": "Video Certification",
+  "awaitingSubmission": "Awaiting submission",
+  "agreement": "Agreement",
+  "signatureRequired": "Signature required",
+  "deployment": "Deployment",
+  "viewCurrentAssignment": "View current assignment",
+  "salary": "Salary",
+  "financialOverview": "Financial overview",
+  "helpSupport": "Help & Support",
+  "conciergeAssistance": "Concierge assistance",
+  "systemSettings": "System Settings",
+  "logoutFromDevice": "Logout from Device",
+  "settings": "Settings",
+  "chooseLanguage": "Choose Language",
+  "selectPreferredLanguage": "Select your preferred language for the application interface.",
+  "languageUpdated": "Language updated",
+  "saveChanges": "SAVE CHANGES",
+  "financialCenter": "Financial Center",
+  "manageInvoicesDesc": "Manage your invoices, statements, and payment methods.",
+  "pendingInvoice": "PENDING INVOICE",
+  "totalOutstanding": "Total Outstanding",
+  "dueBy": "Due by {date}",
+  "@dueBy": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "payNow": "Pay Now",
+  "paymentHistoryTitle": "Payment\nHistory",
+  "downloadStatements": "Download\nStatements",
+  "statementDownloaded": "Statement downloaded successfully",
+  "autoPaySettings": "Auto-Pay Settings",
+  "recentTransactions": "Recent Transactions",
+  "invoiceDetails": "Invoice Details",
+  "invoiceCap": "INVOICE",
+  "pending": "Pending",
+  "proceedToPayment": "Proceed to Payment",
+  "share": "Share",
+  "download": "Download",
+  "help": "Help",
+  "securePaymentDesc": "Payments are processed securely via encrypted channels. By proceeding, you agree to our Terms of Billing.",
+  "paymentHistory": "Payment History",
+  "noPaymentHistory": "No payment history found.",
+  "statementOverview": "STATEMENT OVERVIEW",
+  "financialArchive": "Financial Archive",
+  "paid": "Paid",
+  "loadMoreRecords": "Load More Records",
+  "downloadPdfInvoice": "Download PDF invoice",
+  "paymentStatus": "Payment Status",
+  "pendingCap": "PENDING",
+  "referenceInvoice": "Reference {invoiceNumber}",
+  "@referenceInvoice": {
+    "placeholders": {
+      "invoiceNumber": {
+        "type": "String"
+      }
+    }
+  },
+  "dueDateDesc": "Due date: {date}",
+  "@dueDateDesc": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "secureEncryptedDesc": "SECURE 256-BIT SSL ENCRYPTED TRANSACTION",
+  "needAssistance": "Need Assistance?",
+  "needAssistanceDesc": "Our concierge team is available 24/7 to help with any payment discrepancies or billing questions.",
+  "autoReceipt": "Auto-Receipt",
+  "autoReceiptDesc": "A digital copy of this invoice will be sent to your registered email immediately after processing.",
+  "enterValidUpiPin": "Please enter a valid UPI PIN",
+  "paymentSuccessful": "Payment Successful!",
+  "upiPayment": "UPI Payment",
+  "payingHomeGenny": "Paying HomeGenny",
+  "enterUpiPin": "ENTER 4-DIGIT UPI PIN",
+  "paySecurely": "Pay Securely",
+  "error": "Error",
+  "errorLoadingInvoice": "Error loading invoice details",
+  "overview": "OVERVIEW",
+  "welcomeBack": "Welcome back,\n{name}",
+  "@welcomeBack": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "personalCareEcosystem": "Your personal care ecosystem at a glance.",
+  "newRequest": "New Request",
+  "activeNow": "ACTIVE NOW",
+  "ratingValue": "{rating} Rating",
+  "@ratingValue": {
+    "placeholders": {
+      "rating": {
+        "type": "String"
+      }
+    }
+  },
+  "todaysShift": "TODAY'S SHIFT",
+  "currentTask": "CURRENT TASK",
+  "attendanceCap": "ATTENDANCE",
+  "percentageValue": "{percentage}%",
+  "@percentageValue": {
+    "placeholders": {
+      "percentage": {
+        "type": "String"
+      }
+    }
+  },
+  "daysPresent": "{presentDays}/{totalDays} days",
+  "@daysPresent": {
+    "placeholders": {
+      "presentDays": {
+        "type": "String"
+      },
+      "totalDays": {
+        "type": "String"
+      }
+    }
+  },
+  "paymentsCap": "PAYMENTS",
+  "daysLeft": "{days} days left",
+  "@daysLeft": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "ongoingTraining": "ONGOING TRAINING",
+  "quickManagement": "Quick Management",
+  "myStaff": "My Staff",
+  "logs": "Logs",
+  "complain": "Complain",
+  "premiumInsuranceActive": "Premium Insurance\nActive",
+  "insuranceCoverDesc": "Your staff members are fully covered by HomeGenny's Comprehensive Care Shield.",
+  "viewPolicyDetails": "View Policy Details",
+  "homeCap": "HOME",
+  "staffCap": "STAFF",
+  "profileCap": "PROFILE",
+  "attendanceSummary": "Attendance\nSummary",
+  "thisMonth": "THIS MONTH",
+  "daysPresentDesc": "{presentDays} of {totalDays} days present",
+  "@daysPresentDesc": {
+    "placeholders": {
+      "presentDays": {
+        "type": "String"
+      },
+      "totalDays": {
+        "type": "String"
+      }
+    }
+  },
+  "today": "Today",
+  "checkInTime": "In: {time}",
+  "@checkInTime": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "noRecordsYet": "No records yet",
+  "presentCap": "PRESENT",
+  "todaysAttendance": "Today's Attendance",
+  "attendanceHistory": "Attendance History",
+  "raiseIssue": "Raise Issue",
+  "paymentRequired": "PAYMENT REQUIRED",
+  "viewInvoice": "View Invoice",
+  "pendingAuthorization": "Pending Authorization",
+  "confirmBooking": "CONFIRM BOOKING",
+  "assignedStaff": "Assigned Staff",
+  "staffProfile": "Staff Profile",
+  "experience": "Experience",
+  "skills": "Skills",
+  "attendance": "Attendance",
+  "assignedStaff": "Assigned Staff",
+  "staffProfile": "Staff Profile",
+  "experience": "Experience",
+  "skills": "Skills",
+  "attendance": "Attendance",
+  "performance": "Performance",
+  "premiumMember": "PREMIUM MEMBER",
+  "memberSince": "Member since Oct 2021",
+  "services": "Services",
+  "rating": "Rating",
+  "credits": "Credits",
+  "accountSettings": "Account Settings",
+  "personalDetails": "Personal Details",
+  "addressBook": "Address Book",
+  "paymentMethods": "Payment Methods",
+  "paymentDetails": "Payment Details",
+  "supportSafety": "Support & Safety",
+  "complaints": "Complaints",
+  "helpCenter": "Help Center",
+  "privacyPolicy": "Privacy Policy",
+  "logOut": "Log Out",
+  "profileManagement": "PROFILE MANAGEMENT",
+  "refineIdentity": "Refine your identity.",
+  "personalInfoDesc": "Your information is treated with the utmost discretion, reflecting our commitment to security and personal elegance.",
+  "fullName": "FULL NAME",
+  "emailAddress": "EMAIL ADDRESS",
+  "phoneNumber": "PHONE NUMBER",
+  "saveChanges": "SAVE CHANGES",
+  "secureData": "SECURE DATA",
+  "privacyAssured": "Privacy Assured",
+  "privacyDesc": "Your credentials are encrypted with institutional-grade protocols.",
+  "address": "Address",
+  "profileDetails": "PROFILE DETAILS",
+  "primaryResidence": "Primary Residence",
+  "addressUpdateDesc": "Update your shipping and service location to ensure seamless delivery.",
+  "streetAddress": "Street Address",
+  "city": "City",
+  "pincode": "Pincode",
+  "locateOnMap": "Locate on map",
+  "serviceSetup": "Service: Interior Curated Setup",
+  "invoicePdfDesc": "{invoiceNumber} • PDF, 1.2MB",
+  "@invoicePdfDesc": {
+    "placeholders": {
+      "invoiceNumber": {
+        "type": "String"
+      }
+    }
+  },
+  "preferences": "Preferences",
+  "language": "Language",
+  "languageDesc": "Select your primary interface language",
+  "appearance": "Appearance",
+  "appearanceDesc": "Switch between light and dark themes",
+  "light": "Light",
+  "dark": "Dark",
+  "notifications": "Notifications",
+  "pushNotifications": "Push Notifications",
+  "pushNotificationsDesc": "Receive alerts on your mobile device",
+  "emailSummaries": "Email Summaries",
+  "emailSummariesDesc": "Weekly reports delivered to your inbox",
+  "attendanceAlerts": "Attendance Alerts",
+  "attendanceAlertsDesc": "Real-time status updates for events",
+  "legalPrivacy": "Legal & Privacy",
+  "privacyPolicyDesc": "How we handle your data",
+  "termsOfService": "Terms of Service",
+  "termsOfServiceDesc": "The rules of our agreement",
+  "cookiePolicy": "Cookie Policy",
+  "cookiePolicyDesc": "Managing browser cookies",
+  "licenses": "Licenses",
+  "licensesDesc": "Third-party software notices",
+  "deleteAccount": "Delete Account",
+  "deleteAccountWarning": "Once you delete your account, there is no going back. Please be certain.",
+  "deactivateAccount": "Deactivate Account",
+  "caregiver": "CAREGIVER",
+  "ratingValue": "{rating} Rating",
+  "@ratingValue": {
+    "placeholders": {
+      "rating": {
+        "type": "String"
+      }
+    }
+  },
+  "verifiedProfessional": "Verified Professional",
+  "yearsExperience": "Years\nExperience",
+  "projectsCompleted": "Projects\nCompleted",
+  "safetyScore": "Safety Score",
+  "professionalProfile": "Professional Profile",
+  "dDropcap": "D",
+  "professionalProfileDesc": "edicated Caregiver with over a decade of expertise in providing compassionate care for elderly and differently-abled individuals. Rajesh specializes in personalized health monitoring, medication management, and proactive wellness protocols. Known for his empathetic approach and strategic problem solving, he ensures every individual receives the highest standard of support and comfort.",
+  "workExperience": "Work Experience",
+  "expDate1": "2018 — PRESENT",
+  "expTitle1": "Senior Care Specialist",
+  "expCompany1": "Sunrise Health Services",
+  "expDesc1": "Providing comprehensive daily care, medical assistance, and physical therapy support for senior residents.",
+  "expDate2": "2014 — 2018",
+  "expTitle2": "Registered Care Provider",
+  "expCompany2": "Metropolitan Care Home",
+  "expDesc2": "Directed customized care plans and collaborated with medical professionals to ensure optimal patient health.",
+  "expertiseSkills": "Expertise & Skills",
+  "skill1": "Medication Management",
+  "skill2": "Physical Therapy Support",
+  "skill3": "Elderly Care",
+  "skill4": "Emergency Response",
+  "skill5": "Nutritional Planning",
+  "skill6": "Compassionate Care",
+  "attendanceRecordLabel": "Attendance Record",
+  "monthlyPunctuality": "Monthly Punctuality",
+  "recentActivity": "RECENT ACTIVITY",
+  "activity1": "Morning Routine Assistance",
+  "activityTime1": "Today, 09:00 AM",
+  "activity2": "Medication Administration",
+  "activityTime2": "Yesterday, 04:30 PM",
+  "homeCareSpecialist": "HOME CARE SPECIALIST",
+  "ratingLabel": "RATING",
+  "fullTime": "Full Time",
+  "workingHours": "9:00 AM - 6:00 PM",
+  "yearsInCare": "12 YEARS IN CARE",
+  "specialized": "SPECIALIZED",
+  "attendanceRecordSub": "98% RECORD",
+  "topTier": "TOP TIER",
+  "replacement": "Replacement",
+  "manage": "MANAGE",
+  "curatedCareer": "CURATED CAREER",
+  "profJourneyExp": "Professional\nJourney &\nExpertise",
+  "clinicalCare": "CLINICAL CARE",
+  "patientAdvocacy": "PATIENT ADVOCACY",
+  "gerontology": "GERONTOLOGY",
+  "caseManagement": "CASE MANAGEMENT",
+  "medicationAdmin": "MEDICATION ADMIN",
+  "downloadDossier": "DOWNLOAD FULL DOSSIER",
+  "referencesAvailable": "REFERENCES AVAILABLE UPON REQUEST",
+  "mon": "M",
+  "tue": "T",
+  "wed": "W",
+  "thu": "T",
+  "fri": "F",
+  "gerontology": "GERONTOLOGY",
+  "caseManagement": "CASE MANAGEMENT",
+  "medicationAdmin": "MEDICATION ADMIN",
+  "downloadDossier": "DOWNLOAD FULL DOSSIER",
+  "referencesAvailable": "REFERENCES AVAILABLE UPON REQUEST",
+  "mon": "M",
+  "tue": "T",
+  "wed": "W",
+  "thu": "T",
+  "fri": "F",
+  "sat": "S",
+  "sun": "S",
+  "experienceIssue": "Experience an issue?",
+  "supportTeamDesc": "Our dedicated support team is ready to provide a seamless resolution for your concierge needs.",
+  "describeIssue": "DESCRIBE THE ISSUE",
+  "detailProblemHint": "Detail the nature of the problem...",
+  "urgencyLevel": "URGENCY LEVEL",
+  "urgencyLow": "LOW",
+  "urgencyStandard": "STANDARD",
+  "urgencyCritical": "CRITICAL",
+  "uploadDocuments": "Upload Documents",
+  "uploadDocsHint": "JPEG, PNG, or PDF (Max 10MB)",
+  "submitIssue": "SUBMIT ISSUE",
+  "priorityHandling": "Priority Handling",
+  "priorityHandlingDesc": "Our elite team responds within 15 minutes for critical issues.",
+  "pleaseDescribeIssue": "Please describe the issue",
+  "issueSubmittedSuccess": "Issue submitted successfully",
+  "uploadImagesTitle": "Upload Images",
+  "addPhoto": "Add Photo",
+  "done": "Done",
+  "imagesAttached": "{count} image(s) attached",
+  "@imagesAttached": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "complaintHistoryTitle": "Complaint History",
+  "newComplaintBtn": "NEW COMPLAINT",
+  "noComplaintsFound": "No complaints found.",
+  "resolutionDetails": "RESOLUTION DETAILS",
+  "ref": "REF: {id}",
+  "@ref": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  }
 }

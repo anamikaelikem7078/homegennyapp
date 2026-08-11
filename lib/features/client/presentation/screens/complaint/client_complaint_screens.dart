@@ -35,7 +35,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
 
   Future<void> _submit() async {
     if (_description.text.isEmpty) {
-      context.showDsSnackBar('Please describe the issue', type: DsSnackBarType.warning);
+      context.showDsSnackBar(context.l10n.pleaseDescribeIssue, type: DsSnackBarType.warning);
       return;
     }
     setState(() => _loading = true);
@@ -49,7 +49,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
     result.fold(
       onSuccess: (_) {
         ref.invalidate(clientComplaintsProvider);
-        context.showDsSnackBar('Issue submitted successfully', type: DsSnackBarType.success);
+        context.showDsSnackBar(context.l10n.issueSubmittedSuccess, type: DsSnackBarType.success);
         context.go(ClientRoutes.complaintHistory);
       },
       onError: (f) => context.showDsSnackBar(f.message, type: DsSnackBarType.error),
@@ -93,7 +93,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
         children: [
           Text(
-            'Experience an issue?',
+            context.l10n.experienceIssue,
             style: GoogleFonts.libreCaslonText(
               fontSize: 32,
               color: context.colors.onSurface,
@@ -102,7 +102,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
           ),
           SizedBox(height: 16),
           Text(
-            'Our dedicated support team is ready to provide a seamless resolution for your concierge needs.',
+            context.l10n.supportTeamDesc,
             style: GoogleFonts.inter(
               fontSize: 14,
               color: context.colors.onSurfaceVariant,
@@ -112,7 +112,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
           SizedBox(height: 40),
           
           Text(
-            'DESCRIBE THE ISSUE',
+            context.l10n.describeIssue,
             style: GoogleFonts.inter(
               fontSize: 10,
               color: const Color(0xFF9E7C5D),
@@ -126,7 +126,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
             maxLines: 5,
             style: GoogleFonts.inter(fontSize: 14, color: context.colors.onSurface),
             decoration: InputDecoration(
-              hintText: 'Detail the nature of the problem...',
+              hintText: context.l10n.detailProblemHint,
               hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.black26),
               border: const UnderlineInputBorder(
                 borderSide: BorderSide(color: Color(0xFFE5E7EB)),
@@ -143,7 +143,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
           SizedBox(height: 40),
           
           Text(
-            'URGENCY LEVEL',
+            context.l10n.urgencyLevel,
             style: GoogleFonts.inter(
               fontSize: 10,
               color: const Color(0xFF9E7C5D),
@@ -154,11 +154,11 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
           SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _UrgencyButton(label: 'LOW', isActive: _urgency == 'LOW', onTap: () => setState(() => _urgency = 'LOW'))),
+              Expanded(child: _UrgencyButton(label: context.l10n.urgencyLow, isActive: _urgency == 'LOW', onTap: () => setState(() => _urgency = 'LOW'))),
               SizedBox(width: 8),
-              Expanded(child: _UrgencyButton(label: 'STANDARD', isActive: _urgency == 'STANDARD', onTap: () => setState(() => _urgency = 'STANDARD'))),
+              Expanded(child: _UrgencyButton(label: context.l10n.urgencyStandard, isActive: _urgency == 'STANDARD', onTap: () => setState(() => _urgency = 'STANDARD'))),
               SizedBox(width: 8),
-              Expanded(child: _UrgencyButton(label: 'CRITICAL', isActive: _urgency == 'CRITICAL', onTap: () => setState(() => _urgency = 'CRITICAL'))),
+              Expanded(child: _UrgencyButton(label: context.l10n.urgencyCritical, isActive: _urgency == 'CRITICAL', onTap: () => setState(() => _urgency = 'CRITICAL'))),
             ],
           ),
           SizedBox(height: 40),
@@ -181,7 +181,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
                   Icon(Icons.cloud_upload_outlined, color: Color(0xFF1A56FF), size: 32),
                   SizedBox(height: 12),
                   Text(
-                    'Upload Documents',
+                    context.l10n.uploadDocuments,
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       color: const Color(0xFF1A56FF),
@@ -190,7 +190,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'JPEG, PNG, or PDF (Max 10MB)',
+                    context.l10n.uploadDocsHint,
                     style: GoogleFonts.inter(
                       fontSize: 10,
                       color: context.colors.onSurfaceVariant,
@@ -221,7 +221,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
               child: _loading 
                 ? Icon(Icons.check, color: context.theme.cardColor)
                 : Text(
-                  'SUBMIT ISSUE',
+                  context.l10n.submitIssue,
                   style: GoogleFonts.inter(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -248,7 +248,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Priority Handling',
+                        context.l10n.priorityHandling,
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: const Color(0xFF1A56FF),
@@ -257,7 +257,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
                       ),
                       SizedBox(height: 4),
                       Text(
-                        'Our elite team responds within 15 minutes for critical issues.',
+                        context.l10n.priorityHandlingDesc,
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           color: context.colors.onSurface,
@@ -325,7 +325,7 @@ class _ClientComplaintUploadScreenState extends State<ClientComplaintUploadScree
   @override
   Widget build(BuildContext context) {
     return ClientPageScaffold(
-      title: 'Upload Images',
+      title: context.l10n.uploadImagesTitle,
       body: Column(
         children: [
           Expanded(
@@ -347,7 +347,7 @@ class _ClientComplaintUploadScreenState extends State<ClientComplaintUploadScree
                       children: [
                         Icon(Icons.add_a_photo_outlined, color: AppColors.primary, size: 32),
                         SizedBox(height: AppSpacing.xs),
-                        Text('Add Photo'),
+                        Text(context.l10n.addPhoto),
                       ],
                     ),
                   ),
@@ -356,9 +356,9 @@ class _ClientComplaintUploadScreenState extends State<ClientComplaintUploadScree
             ),
           ),
           DsPrimaryButton(
-            label: 'Done',
+            label: context.l10n.done,
             onPressed: () {
-              context.showDsSnackBar('$_count image(s) attached', type: DsSnackBarType.success);
+              context.showDsSnackBar(context.l10n.imagesAttached(_count), type: DsSnackBarType.success);
               context.pop();
             },
           ),
@@ -386,7 +386,7 @@ class ClientComplaintHistoryScreen extends ConsumerWidget {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Complaint History',
+          context.l10n.complaintHistoryTitle,
           style: GoogleFonts.libreCaslonText(
             color: context.colors.onSurface,
             fontSize: 22,
@@ -400,7 +400,7 @@ class ClientComplaintHistoryScreen extends ConsumerWidget {
           onPressed: () => context.push(ClientRoutes.complaintRaise),
           icon: Icon(Icons.add, size: 20),
           label: Text(
-            'NEW COMPLAINT',
+            context.l10n.newComplaintBtn,
             style: GoogleFonts.inter(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -427,7 +427,7 @@ class ClientComplaintHistoryScreen extends ConsumerWidget {
           if (list.isEmpty) {
             return Center(
               child: Text(
-                'No complaints found.',
+                context.l10n.noComplaintsFound,
                 style: GoogleFonts.inter(color: context.colors.onSurfaceVariant),
               ),
             );
@@ -486,7 +486,7 @@ class ClientComplaintHistoryScreen extends ConsumerWidget {
                           child: Text('|', style: TextStyle(color: context.theme.dividerColor)),
                         ),
                         Text(
-                          'REF: HG-CMP-${c.id.hashCode.toString().substring(0, 4)}',
+                          context.l10n.ref(c.id.hashCode.toString().substring(0, 4)),
                           style: GoogleFonts.inter(
                             color: context.colors.onSurfaceVariant,
                             fontSize: 10,
@@ -581,7 +581,7 @@ class ClientComplaintHistoryScreen extends ConsumerWidget {
                                 Icon(Icons.check_circle_outline, color: Color(0xFF1A56FF), size: 14),
                                 SizedBox(width: 6),
                                 Text(
-                                  'RESOLUTION DETAILS',
+                                  context.l10n.resolutionDetails,
                                   style: GoogleFonts.inter(
                                     color: const Color(0xFF1A56FF),
                                     fontSize: 10,

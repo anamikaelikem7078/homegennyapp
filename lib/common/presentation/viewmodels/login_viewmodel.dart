@@ -10,21 +10,32 @@ class LoginViewModel extends StateNotifier<LoginState> {
   LoginViewModel(this._repository) : super(const LoginState());
 
   final AuthRepository _repository;
+  int _failedAttempts = 0;
 
   Future<bool> login({
-    required String email,
+    required String phone,
     required String password,
   }) async {
+    if (_failedAttempts >= 5) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Account locked due to too many failed attempts. Please try again later.',
+      );
+      return false;
+    }
+
     state = state.copyWith(isLoading: true, errorMessage: null);
 
-    final result = await _repository.login(email: email, password: password);
+    final result = await _repository.login(phone: phone, password: password);
 
     return result.fold(
       onSuccess: (_) {
+        _failedAttempts = 0;
         state = state.copyWith(isLoading: false, loginSuccess: true);
         return true;
       },
       onError: (failure) {
+        _failedAttempts++;
         state = state.copyWith(
           isLoading: false,
           errorMessage: ExceptionHandler.userMessage(failure),

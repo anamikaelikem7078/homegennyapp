@@ -133,7 +133,7 @@ class _WelcomeHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'OVERVIEW',
+          context.l10n.overview,
           style: GoogleFonts.inter(
             color: const Color(0xFF1A56FF),
             fontSize: 10,
@@ -143,7 +143,7 @@ class _WelcomeHeader extends StatelessWidget {
         ),
         SizedBox(height: 8),
         Text(
-          'Welcome back,\n$name',
+          context.l10n.welcomeBack(name),
           style: GoogleFonts.libreCaslonText(
             fontSize: 32,
             color: const Color(0xFF0F172A),
@@ -153,7 +153,7 @@ class _WelcomeHeader extends StatelessWidget {
         ),
         SizedBox(height: 8),
         Text(
-          'Your personal care ecosystem at a glance.',
+          context.l10n.personalCareEcosystem,
           style: GoogleFonts.inter(
             color: const Color(0xFF64748B),
             fontSize: 13,
@@ -180,7 +180,7 @@ class _WelcomeHeader extends StatelessWidget {
                 Icon(Icons.add, size: 20),
                 SizedBox(width: 8),
                 Text(
-                  'New Request',
+                  context.l10n.newRequest,
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -279,7 +279,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                         ),
                         SizedBox(width: 6),
                         Text(
-                          'ACTIVE NOW',
+                          context.l10n.activeNow,
                           style: GoogleFonts.inter(
                             color: Colors.white,
                             fontSize: 9,
@@ -323,7 +323,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                       ...List.generate(5, (index) => Icon(Icons.star_border_rounded, color: const Color(0xFF1A56FF), size: 14)),
                       SizedBox(width: 8),
                       Text(
-                        '$rating Rating',
+                        context.l10n.ratingValue(rating.toString()),
                         style: GoogleFonts.inter(
                           color: const Color(0xFF64748B),
                           fontSize: 12,
@@ -363,7 +363,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'TODAY\'S SHIFT',
+                            context.l10n.todaysShift,
                             style: GoogleFonts.inter(
                               color: const Color(0xFF94A3B8),
                               fontSize: 10,
@@ -386,7 +386,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'CURRENT TASK',
+                            context.l10n.currentTask,
                             style: GoogleFonts.inter(
                               color: const Color(0xFF94A3B8),
                               fontSize: 10,
@@ -477,7 +477,7 @@ class _AttendanceBentoCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'ATTENDANCE',
+                  context.l10n.attendanceCap,
                   style: GoogleFonts.inter(
                     color: const Color(0xFF64748B),
                     fontSize: 10,
@@ -504,7 +504,7 @@ class _AttendanceBentoCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '$percentage%',
+                    context.l10n.percentageValue(percentage),
                     style: GoogleFonts.inter(
                       color: const Color(0xFF0F172A),
                       fontSize: 14,
@@ -517,7 +517,7 @@ class _AttendanceBentoCard extends StatelessWidget {
             SizedBox(height: 16),
             Center(
               child: Text(
-                '$presentDays/$totalDays days',
+                context.l10n.daysPresent(presentDays.toString(), totalDays.toString()),
                 style: GoogleFonts.libreCaslonText(
                   color: const Color(0xFF1A56FF),
                   fontSize: 13,
@@ -566,7 +566,7 @@ class _PaymentsBentoCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'PAYMENTS',
+                  context.l10n.paymentsCap,
                   style: GoogleFonts.inter(
                     color: Colors.white.withValues(alpha: 0.8),
                     fontSize: 10,
@@ -592,7 +592,7 @@ class _PaymentsBentoCard extends StatelessWidget {
                 Icon(Icons.timer_outlined, color: Colors.white, size: 12),
                 SizedBox(width: 4),
                 Text(
-                  '5 days left',
+                  context.l10n.daysLeft('5'), // Or whatever logic
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 11,
@@ -616,7 +616,7 @@ class _PaymentsBentoCard extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'Pay Now',
+                  context.l10n.payNow,
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -663,7 +663,7 @@ class _OngoingTrainingWidget extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'ONGOING TRAINING',
+                  context.l10n.ongoingTraining,
                   style: GoogleFonts.inter(
                     color: const Color(0xFF64748B),
                     fontSize: 9,
@@ -719,7 +719,7 @@ class _QuickManagementGrid extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Quick Management',
+              context.l10n.quickManagement,
               style: GoogleFonts.libreCaslonText(
                 color: const Color(0xFF0F172A),
                 fontSize: 16,
@@ -739,9 +739,9 @@ class _QuickManagementGrid extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _QuickActionTile(icon: Icons.people_outline_rounded, label: 'My Staff', onTap: () => context.go(ClientRoutes.staff)),
-            _QuickActionTile(icon: Icons.receipt_long_outlined, label: 'Logs', onTap: () => context.push(ClientRoutes.attendanceHistory)),
-            _QuickActionTile(icon: Icons.report_problem_outlined, label: 'Complain', onTap: () => context.push(ClientRoutes.complaintRaise)),
+            _QuickActionTile(icon: Icons.people_outline_rounded, label: context.l10n.myStaff, onTap: () => context.go(ClientRoutes.staff)),
+            _QuickActionTile(icon: Icons.receipt_long_outlined, label: context.l10n.logs, onTap: () => context.push(ClientRoutes.attendanceHistory)),
+            _QuickActionTile(icon: Icons.report_problem_outlined, label: context.l10n.complain, onTap: () => context.push(ClientRoutes.complaintRaise)),
           ],
         ),
       ],
@@ -839,7 +839,7 @@ class _CareShieldBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Premium Insurance\nActive',
+                  context.l10n.premiumInsuranceActive,
                   style: GoogleFonts.libreCaslonText(
                     color: const Color(0xFF0F172A),
                     fontSize: 16,
@@ -848,7 +848,7 @@ class _CareShieldBanner extends StatelessWidget {
                 ),
                 SizedBox(height: 8),
                 Text(
-                  'Your staff members are fully covered by HomeGenny\'s Comprehensive Care Shield.',
+                  context.l10n.insuranceCoverDesc,
                   style: GoogleFonts.inter(
                     color: const Color(0xFF64748B),
                     fontSize: 12,
@@ -859,7 +859,7 @@ class _CareShieldBanner extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      'View Policy Details',
+                      context.l10n.viewPolicyDetails,
                       style: GoogleFonts.inter(
                         color: const Color(0xFF1A56FF),
                         fontSize: 12,
@@ -940,25 +940,25 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
           children: [
             buildItem(
               icon: Icons.home_outlined,
-              label: 'HOME',
+              label: context.l10n.homeCap,
               isActive: false,
               onTap: () => context.go(ClientRoutes.dashboard),
             ),
             buildItem(
               icon: Icons.people_outline,
-              label: 'STAFF',
+              label: context.l10n.staffCap,
               isActive: true,
               onTap: () => context.go(ClientRoutes.staff),
             ),
             buildItem(
               icon: Icons.payments_outlined,
-              label: 'PAYMENTS',
+              label: context.l10n.paymentsCap,
               isActive: false,
               onTap: () => context.go(ClientRoutes.payments),
             ),
             buildItem(
               icon: Icons.person_outline_rounded,
-              label: 'PROFILE',
+              label: context.l10n.profileCap,
               isActive: false,
               onTap: () => context.go(ClientRoutes.profile),
             ),
@@ -1060,7 +1060,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
       bottomNavigationBar: _buildBottomNavigationBar(context),
       body: dashboard.when(
         loading: () => const Center(child: DsLoadingWidget()),
-        error: (_, __) => const Center(child: DsErrorState(title: 'Error')),
+        error: (_, __) => DsErrorState(title: context.l10n.error),
         data: (data) {
           final summary = data.attendanceSummary;
           return ListView(
@@ -1068,7 +1068,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
             children: [
               // Headline
               Text(
-                'Attendance\nSummary',
+                context.l10n.attendanceSummary,
                 style: GoogleFonts.libreCaslonText(
                   fontSize: 36,
                   fontWeight: FontWeight.w700,
@@ -1094,7 +1094,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'THIS MONTH',
+                          context.l10n.thisMonth,
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -1114,7 +1114,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      '${summary.attendancePercent.round()}%',
+                      context.l10n.percentageValue(summary.attendancePercent.round().toString()),
                       style: GoogleFonts.libreCaslonText(
                         fontSize: 48,
                         fontWeight: FontWeight.w700,
@@ -1124,7 +1124,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      '${summary.presentDays} of ${summary.totalDays} days present',
+                      context.l10n.daysPresentDesc(summary.presentDays.toString(), summary.totalDays.toString()),
                       style: GoogleFonts.inter(
                         fontSize: 14,
                         color: const Color(0xFF475569),
@@ -1164,7 +1164,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Today',
+                              context.l10n.today,
                               style: GoogleFonts.inter(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -1173,7 +1173,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              t.checkIn != null ? 'In: ${t.checkIn}' : 'No records yet',
+                              t.checkIn != null ? context.l10n.checkInTime(t.checkIn!) : context.l10n.noRecordsYet,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: textGrey,
@@ -1190,7 +1190,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          'PRESENT',
+                          context.l10n.presentCap,
                           style: GoogleFonts.inter(
                             color: const Color(0xFF16A34A),
                             fontSize: 10,
@@ -1208,17 +1208,17 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
               // Navigation List
               buildNavItem(
                 icon: Icons.today_outlined,
-                title: "Today's Attendance",
+                title: context.l10n.todaysAttendance,
                 onTap: () => context.push(ClientRoutes.attendanceToday),
               ),
               buildNavItem(
                 icon: Icons.history_rounded,
-                title: "Attendance History",
+                title: context.l10n.attendanceHistory,
                 onTap: () => context.push(ClientRoutes.attendanceHistory),
               ),
               buildNavItem(
                 icon: Icons.flag_outlined,
-                title: "Raise Issue",
+                title: context.l10n.raiseIssue,
                 onTap: () => context.push(ClientRoutes.attendanceRaiseIssue),
               ),
               const SizedBox(height: 40),
@@ -1271,7 +1271,7 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
       ),
       body: invoice.when(
         loading: () => Center(child: CircularProgressIndicator(color: Color(0xFF1A56FF))),
-        error: (_, __) => Center(child: Text('Error')),
+        error: (_, __) => Center(child: Text(context.l10n.error)),
         data: (inv) => SafeArea(
           child: Column(
             children: [
@@ -1281,7 +1281,7 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
                   child: Column(
                     children: [
                       Text(
-                        'PAYMENT REQUIRED',
+                        context.l10n.paymentRequired,
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -1300,7 +1300,7 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        'Due by ${inv.dueDate}',
+                        context.l10n.dueBy(inv.dueDate),
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: context.colors.onSurfaceVariant,
@@ -1324,7 +1324,7 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            'Service: Interior Curated Setup',
+                            context.l10n.serviceSetup,
                             style: GoogleFonts.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
@@ -1339,8 +1339,8 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
                       _buildActionCard(
                         context: context,
                         icon: Icons.description_outlined,
-                        title: 'View Invoice',
-                        subtitle: '${inv.invoiceNumber} • PDF, 1.2MB',
+                        title: context.l10n.viewInvoice,
+                        subtitle: context.l10n.invoicePdfDesc(inv.invoiceNumber),
                         onTap: () => context.push(ClientRoutes.invoice),
                       ),
                       SizedBox(height: 16),
@@ -1349,8 +1349,8 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
                       _buildActionCard(
                         context: context,
                         icon: Icons.bar_chart_outlined,
-                        title: 'Payment Status',
-                        subtitle: 'Pending Authorization',
+                        title: context.l10n.paymentStatus,
+                        subtitle: context.l10n.pendingAuthorization,
                         onTap: () => context.push(ClientRoutes.paymentStatus),
                       ),
                       
@@ -1374,7 +1374,7 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           color: context.colors.onSurface,
                           child: Text(
-                            'CONFIRM BOOKING',
+                            context.l10n.confirmBooking,
                             style: GoogleFonts.inter(
                               color: context.theme.cardColor,
                               fontSize: 8,
@@ -1410,7 +1410,7 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          'Pay Now',
+                          context.l10n.payNow,
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -1498,10 +1498,10 @@ class ClientAssignedStaffScreen extends ConsumerWidget {
     final dashboard = ref.watch(clientDashboardProvider);
 
     return ClientPageScaffold(
-      title: 'Assigned Staff',
+      title: context.l10n.assignedStaff,
       body: dashboard.when(
         loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
+        error: (_, __) => DsErrorState(title: context.l10n.error),
         data: (data) {
           final staff = data.assignedStaff;
           return ListView(
@@ -1517,27 +1517,27 @@ class ClientAssignedStaffScreen extends ConsumerWidget {
               SizedBox(height: AppSpacing.lg),
               ClientMenuTile(
                 icon: Icons.badge_outlined,
-                title: 'Staff Profile',
+                title: context.l10n.staffProfile,
                 onTap: () => context.push(ClientRoutes.staffProfile(staff.id)),
               ),
               ClientMenuTile(
                 icon: Icons.work_history_outlined,
-                title: 'Experience',
+                title: context.l10n.experience,
                 onTap: () => context.push(ClientRoutes.staffExperience(staff.id)),
               ),
               ClientMenuTile(
                 icon: Icons.psychology_outlined,
-                title: 'Skills',
+                title: context.l10n.skills,
                 onTap: () => context.push(ClientRoutes.staffSkills(staff.id)),
               ),
               ClientMenuTile(
                 icon: Icons.schedule_outlined,
-                title: 'Attendance',
+                title: context.l10n.attendance,
                 onTap: () => context.push(ClientRoutes.staffAttendance(staff.id)),
               ),
               ClientMenuTile(
                 icon: Icons.trending_up_rounded,
-                title: 'Performance',
+                title: context.l10n.performance,
                 onTap: () => context.push(ClientRoutes.staffPerformance(staff.id)),
               ),
             ],
