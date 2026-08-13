@@ -14,6 +14,14 @@ class RmStage4CompleteScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
       extendBody: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A56FF)),
+          onPressed: () => context.pop(),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),

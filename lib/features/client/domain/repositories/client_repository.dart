@@ -21,6 +21,7 @@ abstract interface class ClientRepository {
   Future<Result<void>> requestReplacement(String reason);
   Future<Result<List<ClientNotification>>> getNotifications();
   Future<Result<void>> markNotificationRead(String id);
+  Future<Result<void>> makeDemoPayment(String invoiceId, double amount, String method);
   Future<Result<ClientProfile>> getProfile();
   Future<Result<void>> updateProfile(Map<String, String> data);
 }

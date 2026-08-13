@@ -4,13 +4,19 @@ import 'package:go_router/go_router.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../navigation/rm_routes.dart';
 
-class RmStage4SowAmendmentScreen extends StatelessWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/rm_providers.dart';
+
+class RmStage4SowAmendmentScreen extends ConsumerWidget {
   final String staffId;
 
   const RmStage4SowAmendmentScreen({super.key, required this.staffId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staff = ref.watch(rmStaffDetailProvider(staffId));
+    final staffName = staff?.name ?? 'Unknown Staff';
+
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
       extendBody: true,
@@ -23,7 +29,7 @@ class RmStage4SowAmendmentScreen extends StatelessWidget {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Training — Ramesh K.',
+          'Training — $staffName',
           style: GoogleFonts.libreCaslonText(
             color: const Color(0xFF1A56FF),
             fontSize: 20,
@@ -81,7 +87,7 @@ class RmStage4SowAmendmentScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 32),
-            _buildClientRequestCard(),
+            _buildClientRequestCard(staffName),
             const SizedBox(height: 32),
             _buildResponseArea(),
             const SizedBox(height: 8),
@@ -113,7 +119,7 @@ class RmStage4SowAmendmentScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildClientRequestCard() {
+  Widget _buildClientRequestCard(String staffName) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -165,7 +171,7 @@ class RmStage4SowAmendmentScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Submitted by Ramesh K. on Oct 24, 2023',
+                  'Submitted by $staffName on Oct 24, 2023',
                   style: GoogleFonts.inter(
                     color: const Color(0xFF6B7280),
                     fontSize: 11,

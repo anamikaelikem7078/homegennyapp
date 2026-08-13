@@ -8,16 +8,19 @@ import 'package:video_player/video_player.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../navigation/rm_routes.dart';
 
-class RmStage3VideoUploadScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/rm_providers.dart';
+
+class RmStage3VideoUploadScreen extends ConsumerStatefulWidget {
   final String staffId;
 
   const RmStage3VideoUploadScreen({super.key, required this.staffId});
 
   @override
-  State<RmStage3VideoUploadScreen> createState() => _RmStage3VideoUploadScreenState();
+  ConsumerState<RmStage3VideoUploadScreen> createState() => _RmStage3VideoUploadScreenState();
 }
 
-class _RmStage3VideoUploadScreenState extends State<RmStage3VideoUploadScreen> {
+class _RmStage3VideoUploadScreenState extends ConsumerState<RmStage3VideoUploadScreen> {
   final ImagePicker _picker = ImagePicker();
   XFile? _videoFile;
   VideoPlayerController? _videoPlayerController;
@@ -55,16 +58,27 @@ class _RmStage3VideoUploadScreenState extends State<RmStage3VideoUploadScreen> {
     });
 
     // Simulate upload delay
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 3), () async {
       if (mounted) {
-        setState(() {
-          _isUploading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Video uploaded successfully!')),
-        );
-        // Navigate to the next screen for demonstration
-        context.push(RmRoutes.stage3VideoReview(widget.staffId));
+        if (_videoFile != null) {
+          final staff = ref.read(rmStaffDetailProvider(widget.staffId));
+          if (staff != null) {
+            final updatedStaff = staff.copyWith(videoCertification: _videoFile!.path);
+            await ref.read(rmRepositoryProvider).updateStaff(updatedStaff);
+            ref.invalidate(rmStaffDetailProvider(widget.staffId));
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _isUploading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Video uploaded successfully!')),
+          );
+          // Navigate to the next screen for demonstration
+          context.push(RmRoutes.stage3VideoReview(widget.staffId));
+        }
       }
     });
   }

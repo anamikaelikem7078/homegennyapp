@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../../common/domain/models/staff_entity.dart';
+import '../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/utils/validators.dart';
 import '../navigation/rm_routes.dart';
+import '../providers/rm_providers.dart';
 
-class RmStaffIntakeScreen extends StatefulWidget {
+class RmStaffIntakeScreen extends ConsumerStatefulWidget {
   const RmStaffIntakeScreen({super.key});
 
   @override
-  State<RmStaffIntakeScreen> createState() => _RmStaffIntakeScreenState();
+  ConsumerState<RmStaffIntakeScreen> createState() => _RmStaffIntakeScreenState();
 }
 
-class _RmStaffIntakeScreenState extends State<RmStaffIntakeScreen> {
+class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
   
@@ -636,11 +640,30 @@ class _RmStaffIntakeScreenState extends State<RmStaffIntakeScreen> {
                       stops: const [0.0, 0.3],
                     ),
                   ),
-                  child: _buildButton('Complete Intake', () {
+                  child: _buildButton('Complete Intake', () async {
                     String code = _selectedRole == 'Driver' ? 'DR' : (_selectedRole == 'Caretaker' ? 'CT' : 'MD');
                     String randomId = (1000 + DateTime.now().millisecondsSinceEpoch % 9000).toString();
+                    
+                    final newStaffId = 'HG-$code-2024-$randomId';
+                    
+                    final rmId = ref.read(authProvider).user?.id ?? 'rm-demo-1';
+                    final staff = StaffEntity(
+                      id: newStaffId,
+                      staffCode: newStaffId,
+                      name: _nameController.text.isEmpty ? 'New Staff' : _nameController.text,
+                      phone: _phoneController.text.isEmpty ? '9999999999' : _phoneController.text,
+                      status: 'PIPELINE',
+                      pipelineStage: 'REGISTRATION',
+                      createdAt: DateTime.now(),
+                      updatedAt: DateTime.now(),
+                      rmId: rmId,
+                      clientId: 'client-demo-1', // Automatically assign to demo client for simplicity
+                    );
+                    
+                    await ref.read(rmRepositoryProvider).createStaff(staff);
+
                     setState(() {
-                      _generatedStaffId = 'HG-$code-2024-$randomId';
+                      _generatedStaffId = newStaffId;
                     });
                     _goToPage(5);
                   }),
@@ -679,98 +702,109 @@ class _RmStaffIntakeScreenState extends State<RmStaffIntakeScreen> {
 
   // 6. Intake Complete
   Widget _buildIntakeCompleteScreen() {
-    return Column(
-      children: [
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            IconButton(icon: const Icon(Icons.close, color: RmTheme.textPrimary), onPressed: () => context.pop()),
-            const Spacer(),
-            Text('RM', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: RmTheme.electricBlue)),
-            const SizedBox(width: 24),
-          ],
-        ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(color: RmTheme.electricBlue.withOpacity(0.05), borderRadius: BorderRadius.circular(32)),
-          child: const Icon(Icons.celebration, color: RmTheme.electricBlue, size: 80),
-        ),
-        const SizedBox(height: 32),
-        Text('Record Created!', style: GoogleFonts.libreCaslonText(fontSize: 36, fontWeight: FontWeight.w700, color: RmTheme.electricBlue)),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Text('The intake process has been successfully completed. The record is now securely stored.', textAlign: TextAlign.center, style: RmTheme.body(context).copyWith(fontSize: 16)),
-        ),
-        const SizedBox(height: 48),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: RmTheme.glassmorphismShadow,
-            ),
-            child: Row(
-              children: [
-                Container(width: 6, height: 120, decoration: const BoxDecoration(color: RmTheme.emeraldGreen, borderRadius: BorderRadius.horizontal(left: Radius.circular(16)))),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('STAFF ID', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
-                        const SizedBox(height: 4),
-                        Text(_generatedStaffId ?? 'HG-XX-2024-XXXX', style: GoogleFonts.libreCaslonText(fontSize: 22, fontWeight: FontWeight.w700, color: RmTheme.electricBlue)),
-                        const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1)),
-                        Text('CURRENT STAGE', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: RmTheme.offWhite, borderRadius: BorderRadius.circular(8)), child: Text('S1_INTAKE', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600))),
-                            const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Icon(Icons.arrow_forward, size: 16, color: RmTheme.electricBlue)),
-                            Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: RmTheme.electricBlue, borderRadius: BorderRadius.circular(8)), child: Text('S2_VERIFY', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white))),
-                          ],
-                        ),
-                      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
+                children: [
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      IconButton(icon: const Icon(Icons.close, color: RmTheme.textPrimary), onPressed: () => context.pop()),
+                      const Spacer(),
+                      Text('RM', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: RmTheme.electricBlue)),
+                      const SizedBox(width: 24),
+                    ],
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(color: RmTheme.electricBlue.withOpacity(0.05), borderRadius: BorderRadius.circular(32)),
+                    child: const Icon(Icons.celebration, color: RmTheme.electricBlue, size: 80),
+                  ),
+                  const SizedBox(height: 32),
+                  Text('Record Created!', style: GoogleFonts.libreCaslonText(fontSize: 36, fontWeight: FontWeight.w700, color: RmTheme.electricBlue)),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: Text('The intake process has been successfully completed. The record is now securely stored.', textAlign: TextAlign.center, style: RmTheme.body(context).copyWith(fontSize: 16)),
+                  ),
+                  const SizedBox(height: 48),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: RmTheme.glassmorphismShadow,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(width: 6, height: 120, decoration: const BoxDecoration(color: RmTheme.emeraldGreen, borderRadius: BorderRadius.horizontal(left: Radius.circular(16)))),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('STAFF ID', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
+                                  const SizedBox(height: 4),
+                                  Text(_generatedStaffId ?? 'HG-XX-2024-XXXX', style: GoogleFonts.libreCaslonText(fontSize: 22, fontWeight: FontWeight.w700, color: RmTheme.electricBlue)),
+                                  const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1)),
+                                  Text('CURRENT STAGE', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: RmTheme.offWhite, borderRadius: BorderRadius.circular(8)), child: Text('S1_INTAKE', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600))),
+                                      const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Icon(Icons.arrow_forward, size: 16, color: RmTheme.electricBlue)),
+                                      Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: RmTheme.electricBlue, borderRadius: BorderRadius.circular(8)), child: Text('S2_VERIFY', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white))),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: RmTheme.offWhite,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: RmTheme.borderSubtle),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildSummaryRow('Name', _nameController.text.isEmpty ? 'Not Provided' : _nameController.text),
+                          const SizedBox(height: 8),
+                          _buildSummaryRow('Phone', _phoneController.text.isEmpty ? 'Not Provided' : _phoneController.text),
+                          const SizedBox(height: 8),
+                          _buildSummaryRow('Role', _selectedRole ?? 'Not Selected'),
+                          const SizedBox(height: 8),
+                          _buildSummaryRow('Deposit', '₹2,000 ($_selectedPayment)'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: _buildButton('Go to Verification', () => context.pushReplacement(RmRoutes.verificationDashboard(_generatedStaffId ?? 'HG-XX-2024-XXXX'))),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 24),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: RmTheme.offWhite,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: RmTheme.borderSubtle),
-            ),
-            child: Column(
-              children: [
-                _buildSummaryRow('Name', _nameController.text.isEmpty ? 'Not Provided' : _nameController.text),
-                const SizedBox(height: 8),
-                _buildSummaryRow('Phone', _phoneController.text.isEmpty ? 'Not Provided' : _phoneController.text),
-                const SizedBox(height: 8),
-                _buildSummaryRow('Role', _selectedRole ?? 'Not Selected'),
-                const SizedBox(height: 8),
-                _buildSummaryRow('Deposit', '₹2,000 ($_selectedPayment)'),
-              ],
-            ),
-          ),
-        ),
-        const Spacer(),
-        Padding(
-          padding: const EdgeInsets.all(24),
-          child: _buildButton('Go to Verification', () => context.pushReplacement(RmRoutes.verificationDashboard(_generatedStaffId ?? 'HG-XX-2024-XXXX'))),
-        ),
-      ],
+        );
+      },
     );
   }
 

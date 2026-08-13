@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../common/data/datasources/auth_datasource.dart';
 import '../../common/data/repositories/auth_repository_impl.dart';
 import '../../common/domain/repositories/auth_repository.dart';
+import '../../common/presentation/providers/auth_provider.dart';
 import '../../features/client/data/datasources/client_datasource.dart';
 import '../../features/client/data/repositories/client_repository_impl.dart';
 import '../../features/client/domain/repositories/client_repository.dart';
@@ -107,7 +108,8 @@ final staffRemoteDataSourceProvider = Provider<StaffRemoteDataSource>((ref) {
 });
 
 final staffLocalDataSourceProvider = Provider<StaffLocalDataSource>((ref) {
-  return StaffLocalDataSource(ref.watch(hiveServiceProvider));
+  final user = ref.watch(authProvider).user;
+  return StaffLocalDataSource(ref.watch(hiveServiceProvider), user: user);
 });
 
 final staffDummyDataSourceProvider = Provider<StaffDummyDataSource>((ref) {
@@ -120,6 +122,7 @@ final clientRemoteDataSourceProvider = Provider<ClientRemoteDataSource>((ref) {
 });
 
 final clientLocalDataSourceProvider = Provider<ClientLocalDataSource>((ref) {
+  final user = ref.watch(authProvider).user;
   return ClientLocalDataSource(ref.watch(hiveServiceProvider));
 });
 

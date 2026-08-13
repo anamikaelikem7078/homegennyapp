@@ -4,16 +4,22 @@ import 'package:go_router/go_router.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../navigation/rm_routes.dart';
 
-class RmStage3TrainingScreen extends StatelessWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/rm_providers.dart';
+
+class RmStage3TrainingScreen extends ConsumerWidget {
   final String staffId;
 
   const RmStage3TrainingScreen({super.key, required this.staffId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staff = ref.watch(rmStaffDetailProvider(staffId));
+    final staffName = staff?.name ?? 'Unknown Staff';
+
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
-      appBar: _buildAppBar(context),
+      appBar: _buildAppBar(context, staffName),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
@@ -32,7 +38,7 @@ class RmStage3TrainingScreen extends StatelessWidget {
     );
   }
 
-  AppBar _buildAppBar(BuildContext context) {
+  AppBar _buildAppBar(BuildContext context, String staffName) {
     return AppBar(
       backgroundColor: RmTheme.offWhite,
       elevation: 0,
@@ -41,7 +47,7 @@ class RmStage3TrainingScreen extends StatelessWidget {
         onPressed: () => context.pop(),
       ),
       title: Text(
-        'Training — Ramesh K.',
+        'Training — $staffName',
         style: GoogleFonts.libreCaslonText(
           color: RmTheme.electricBlue,
           fontSize: 20,

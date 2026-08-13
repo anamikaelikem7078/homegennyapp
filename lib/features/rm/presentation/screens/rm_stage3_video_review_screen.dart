@@ -1,25 +1,33 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:video_player/video_player.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../navigation/rm_routes.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../common/domain/models/staff_entity.dart';
+import '../providers/rm_providers.dart';
 
-class RmStage3VideoReviewScreen extends StatelessWidget {
+class RmStage3VideoReviewScreen extends ConsumerWidget {
   final String staffId;
 
   const RmStage3VideoReviewScreen({super.key, required this.staffId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staff = ref.watch(rmStaffDetailProvider(staffId));
+
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
-      appBar: _buildAppBar(context),
+      appBar: _buildAppBar(context, staff),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildVideoPlayer(),
+            _buildVideoPlayer(staff),
             const SizedBox(height: 24),
             Text(
               'Stage 3 — Video Self-Certification playback.\nVerify identity and statement accuracy.',
@@ -31,7 +39,7 @@ class RmStage3VideoReviewScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 32),
-            _buildVerificationCard(),
+            _buildVerificationCard(staff),
             const SizedBox(height: 32),
             _buildDecisionHub(context),
             const SizedBox(height: 32),
@@ -42,7 +50,7 @@ class RmStage3VideoReviewScreen extends StatelessWidget {
     );
   }
 
-  AppBar _buildAppBar(BuildContext context) {
+  AppBar _buildAppBar(BuildContext context, StaffEntity? staff) {
     return AppBar(
       backgroundColor: RmTheme.offWhite,
       elevation: 0,
@@ -51,7 +59,7 @@ class RmStage3VideoReviewScreen extends StatelessWidget {
         onPressed: () => context.pop(),
       ),
       title: Text(
-        'Training — Ramesh K.',
+        'Training — ${staff?.name ?? 'Staff'}',
         style: GoogleFonts.libreCaslonText(
           color: RmTheme.electricBlue,
           fontSize: 20,
@@ -62,17 +70,50 @@ class RmStage3VideoReviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildVideoPlayer() {
+  Widget _buildVideoPlayer(StaffEntity? staff) {
+    if (staff?.videoCertification == null || staff!.videoCertification!.isEmpty) {
+      return Container(
+        width: double.infinity,
+        height: 220,
+        decoration: BoxDecoration(
+          color: RmTheme.textPrimary, // Mock video background
+          borderRadius: BorderRadius.circular(12),
+          image: const DecorationImage(
+            image: NetworkImage('https://images.unsplash.com/photo-1544717305-2782549b5136?q=80&w=600&auto=format&fit=crop'),
+            fit: BoxFit.cover,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  shape: BoxShape.rectangle,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(Icons.play_arrow, color: RmTheme.electricBlue, size: 40),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
     return Container(
       width: double.infinity,
       height: 220,
       decoration: BoxDecoration(
-        color: RmTheme.textPrimary, // Mock video background
+        color: Colors.black,
         borderRadius: BorderRadius.circular(12),
-        image: const DecorationImage(
-          image: NetworkImage('https://images.unsplash.com/photo-1544717305-2782549b5136?q=80&w=600&auto=format&fit=crop'),
-          fit: BoxFit.cover,
-        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.15),
@@ -81,45 +122,14 @@ class RmStage3VideoReviewScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: Stack(
-        children: [
-          // Play Button Overlay
-          Center(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
-                shape: BoxShape.rectangle,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.play_arrow, color: RmTheme.electricBlue, size: 40),
-            ),
-          ),
-          // Timestamps Overlay
-          Positioned(
-            bottom: 16,
-            left: 16,
-            child: Text(
-              '0:00 / 4:22',
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          // Fullscreen icon
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: const Icon(Icons.fullscreen, color: Colors.white, size: 24),
-          ),
-        ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: _VideoPlayerWidget(videoPath: staff.videoCertification!),
       ),
     );
   }
 
-  Widget _buildVerificationCard() {
+  Widget _buildVerificationCard(StaffEntity? staff) {
     return Container(
       decoration: BoxDecoration(
         color: RmTheme.cardSurface,
@@ -131,7 +141,7 @@ class RmStage3VideoReviewScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _buildStaffProfileSection(),
+          _buildStaffProfileSection(staff),
           Divider(color: RmTheme.borderSubtle, height: 1),
           _buildIntegrityReportSection(),
         ],
@@ -139,7 +149,7 @@ class RmStage3VideoReviewScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStaffProfileSection() {
+  Widget _buildStaffProfileSection(StaffEntity? staff) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Row(
@@ -159,7 +169,7 @@ class RmStage3VideoReviewScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Ramesh K.',
+                staff?.name ?? 'Ramesh K.',
                 style: GoogleFonts.libreCaslonText(
                   color: RmTheme.textPrimary,
                   fontSize: 20,
@@ -168,7 +178,7 @@ class RmStage3VideoReviewScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'ID: DR-2024-147',
+                'ID: ${staff?.staffCode ?? 'DR-2024-147'}',
                 style: GoogleFonts.inter(
                   color: RmTheme.textSecondary,
                   fontSize: 14,
@@ -393,6 +403,80 @@ class RmStage3VideoReviewScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _VideoPlayerWidget extends StatefulWidget {
+  final String videoPath;
+  const _VideoPlayerWidget({required this.videoPath});
+
+  @override
+  State<_VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
+}
+
+class _VideoPlayerWidgetState extends State<_VideoPlayerWidget> {
+  VideoPlayerController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb) {
+      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoPath));
+    } else {
+      _controller = VideoPlayerController.file(File(widget.videoPath));
+    }
+    _controller!.initialize().then((_) {
+      setState(() {});
+      _controller!.play();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return Stack(
+      children: [
+        Center(
+          child: AspectRatio(
+            aspectRatio: _controller!.value.aspectRatio,
+            child: VideoPlayer(_controller!),
+          ),
+        ),
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _controller!.value.isPlaying ? _controller!.pause() : _controller!.play();
+              });
+            },
+            child: Container(
+              color: Colors.transparent,
+              child: Center(
+                child: !_controller!.value.isPlaying
+                    ? Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          shape: BoxShape.rectangle,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(Icons.play_arrow, color: RmTheme.electricBlue, size: 40),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

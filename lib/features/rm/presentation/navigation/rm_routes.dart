@@ -2,6 +2,9 @@
 abstract final class RmRoutes {
   static const String dashboard = '/rm/dashboard';
   static const String pipeline = '/rm/pipeline';
+  static const String tasks = '/rm/tasks';
+  static const String alerts = '/rm/alerts';
+  static const String profile = '/rm/profile';
   static const String staffIntake = '/rm/staff-intake';
 
   static String staffDetail(String id) => '/rm/staff/$id';

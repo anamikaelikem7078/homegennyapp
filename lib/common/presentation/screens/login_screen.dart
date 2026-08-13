@@ -436,22 +436,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildDemoShortcut('Client Demo', '+15550000001'),
+            _buildDemoShortcut('Client Demo', '9800000004'),
             SizedBox(width: 16),
-            _buildDemoShortcut('Staff Demo', '+15550000002'),
+            _buildDemoShortcut('Staff Demo', '9800000002'),
             SizedBox(width: 16),
-            _buildDemoShortcut('RM Demo', '+15550000003'),
+            _buildDemoShortcut('RM Demo', '9800000001'),
           ],
         ),
       ],
-    );
+    ); 
   }
 
   Widget _buildDemoShortcut(String label, String phone) {
     return InkWell(
       onTap: () {
         _phoneController.text = phone;
-        _passwordController.text = 'demo1234';
+        _passwordController.text = 'HomeGenny@2024';
       },
       child: Text(
         label,

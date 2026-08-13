@@ -3,8 +3,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../rm/presentation/navigation/rm_routes.dart';
 
-class StaffActivePlacementScreen extends StatelessWidget {
+class StaffActivePlacementScreen extends StatefulWidget {
   const StaffActivePlacementScreen({super.key});
+
+  @override
+  State<StaffActivePlacementScreen> createState() => _StaffActivePlacementScreenState();
+}
+
+class _StaffActivePlacementScreenState extends State<StaffActivePlacementScreen> {
+  bool _isCheckedOut = false;
+  String _checkOutTime = '';
 
   @override
   Widget build(BuildContext context) {
@@ -16,8 +24,8 @@ class StaffActivePlacementScreen extends StatelessWidget {
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.menu, color: Color(0xFF1A56FF)),
-          onPressed: () {},
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A56FF)),
+          onPressed: () => context.pop(),
         ),
         title: Text(
           'HomeGenny',
@@ -78,7 +86,7 @@ class StaffActivePlacementScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: _buildStaffBottomNav(0),
+      // bottomNavigationBar removed as requested
     );
   }
 
@@ -309,18 +317,24 @@ class StaffActivePlacementScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF22C55E).withOpacity(0.15),
+              color: _isCheckedOut 
+                  ? const Color(0xFFE25611).withOpacity(0.15) 
+                  : const Color(0xFF22C55E).withOpacity(0.15),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.check_circle_outline, color: Color(0xFF15803D), size: 16),
+                Icon(
+                  _isCheckedOut ? Icons.logout : Icons.check_circle_outline, 
+                  color: _isCheckedOut ? const Color(0xFFE25611) : const Color(0xFF15803D), 
+                  size: 16
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  'CHECKED IN · 7:42 AM',
+                  _isCheckedOut ? 'CHECKED OUT · $_checkOutTime' : 'CHECKED IN · 7:42 AM',
                   style: GoogleFonts.inter(
-                    color: const Color(0xFF15803D),
+                    color: _isCheckedOut ? const Color(0xFFE25611) : const Color(0xFF15803D),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5,
@@ -330,28 +344,42 @@ class StaffActivePlacementScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => context.push(RmRoutes.staffDailyShift('demo')),
-              icon: const Icon(Icons.logout, size: 20),
-              label: Text(
-                'Check Out Now',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
+          if (!_isCheckedOut)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _isCheckedOut = true;
+                    _checkOutTime = TimeOfDay.now().format(context);
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Checked out successfully')),
+                  );
+                  Future.delayed(const Duration(seconds: 1), () {
+                    if (mounted) {
+                      context.go(RmRoutes.dashboard);
+                    }
+                  });
+                },
+                icon: const Icon(Icons.logout, size: 20),
+                label: Text(
+                  'Check Out Now',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE25611),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 4,
+                  shadowColor: const Color(0xFFE25611).withOpacity(0.4),
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE25611),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                elevation: 4,
-                shadowColor: const Color(0xFFE25611).withOpacity(0.4),
-              ),
             ),
-          ),
         ],
       ),
     );

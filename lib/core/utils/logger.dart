@@ -21,4 +21,9 @@ abstract final class AppLogger {
       debugPrint('[HomeGenny INFO] $message');
     }
   }
+  static void w(String message, [Object? error, StackTrace? stackTrace]) {
+    debugPrint('[HomeGenny WARN] $message');
+    if (error != null) debugPrint('[HomeGenny WARN] $error');
+    if (stackTrace != null) debugPrint('[HomeGenny WARN] $stackTrace');
+  }
 }

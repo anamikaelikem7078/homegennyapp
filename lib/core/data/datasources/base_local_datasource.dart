@@ -2,27 +2,27 @@ import '../../storage/hive_service.dart';
 
 /// Base Hive cache operations for feature local datasources.
 abstract class BaseLocalDataSource {
-  BaseLocalDataSource(this._hive);
+  BaseLocalDataSource(this.hive);
 
-  final HiveService _hive;
+  final HiveService hive;
 
   Future<void> saveJson(String key, Map<String, dynamic> json) async {
-    await _hive.saveCache(key, json);
+    await hive.saveCache(key, json);
   }
 
   Future<void> saveJsonList(String key, List<Map<String, dynamic>> json) async {
-    await _hive.saveCache(key, json);
+    await hive.saveCache(key, json);
   }
 
   Map<String, dynamic>? getJson(String key) {
-    final raw = _hive.getCache<dynamic>(key);
+    final raw = hive.getCache<dynamic>(key);
     if (raw == null) return null;
     if (raw is Map) return Map<String, dynamic>.from(raw);
     return null;
   }
 
   List<Map<String, dynamic>>? getJsonList(String key) {
-    final raw = _hive.getCache<dynamic>(key);
+    final raw = hive.getCache<dynamic>(key);
     if (raw == null) return null;
     if (raw is List) {
       return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -31,6 +31,6 @@ abstract class BaseLocalDataSource {
   }
 
   Future<void> delete(String key) async {
-    await _hive.saveCache(key, null);
+    await hive.saveCache(key, null);
   }
 }

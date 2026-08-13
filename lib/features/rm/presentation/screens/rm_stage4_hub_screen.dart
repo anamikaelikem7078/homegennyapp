@@ -4,13 +4,19 @@ import 'package:go_router/go_router.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../navigation/rm_routes.dart';
 
-class RmStage4HubScreen extends StatelessWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/rm_providers.dart';
+
+class RmStage4HubScreen extends ConsumerWidget {
   final String staffId;
 
   const RmStage4HubScreen({super.key, required this.staffId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staff = ref.watch(rmStaffDetailProvider(staffId));
+    final staffName = staff?.name ?? 'Unknown Staff';
+
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
       extendBody: true, // For floating bottom nav
@@ -23,7 +29,7 @@ class RmStage4HubScreen extends StatelessWidget {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Training — Ramesh K.',
+          'Training — $staffName',
           style: GoogleFonts.libreCaslonText(
             color: const Color(0xFF1A56FF),
             fontSize: 20,
@@ -66,7 +72,7 @@ class RmStage4HubScreen extends StatelessWidget {
               children: [
                 _buildHeaderCard(),
                 const SizedBox(height: 24),
-                _buildInstrumentStack(context),
+                _buildInstrumentStack(context, staffName),
                 const SizedBox(height: 32),
                 _buildPrimaryCTA(context),
               ],
@@ -170,10 +176,10 @@ class RmStage4HubScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInstrumentStack(BuildContext context) {
+  Widget _buildInstrumentStack(BuildContext context, String staffName) {
     return Column(
       children: [
-        _buildA1SignedCard(context),
+        _buildA1SignedCard(context, staffName),
         const SizedBox(height: 16),
         _buildA2PendingCard(context),
         const SizedBox(height: 16),
@@ -182,7 +188,7 @@ class RmStage4HubScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildA1SignedCard(BuildContext context) {
+  Widget _buildA1SignedCard(BuildContext context, String staffName) {
     return GestureDetector(
       onTap: () => context.push(RmRoutes.stage4A1(staffId)),
       child: _buildCard(
@@ -213,7 +219,7 @@ class RmStage4HubScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Signed on Oct 20\nby Ramesh K.',
+                    'Signed on Oct 20\nby $staffName',
                     style: GoogleFonts.inter(
                       color: const Color(0xFF6B7280),
                       fontSize: 12,

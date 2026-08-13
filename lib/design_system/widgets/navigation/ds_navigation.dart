@@ -272,7 +272,7 @@ class DsDrawer extends StatelessWidget {
                 },
               ),
             ),
-            ?footer,
+            if (footer != null) footer!,
           ],
         ),
       ),

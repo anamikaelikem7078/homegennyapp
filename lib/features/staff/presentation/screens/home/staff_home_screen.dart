@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
@@ -20,6 +21,8 @@ class StaffHomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboard = ref.watch(staffDashboardProvider);
+    final authState = ref.watch(authProvider);
+    final userName = authState.user?.name ?? 'Staff User';
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8), // Sophisticated off-white
@@ -83,7 +86,7 @@ class StaffHomeScreen extends ConsumerWidget {
               child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             children: [
-              _WelcomeHeader(name: data.profile.name),
+              _WelcomeHeader(name: userName),
               const SizedBox(height: 24),
               _ProfileSpotlightCard(
                 name: data.profile.name,
@@ -155,16 +158,18 @@ class _WelcomeHeader extends StatelessWidget {
   void _showNewRequestBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       backgroundColor: Colors.white,
       builder: (context) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Center(
@@ -254,6 +259,7 @@ class _WelcomeHeader extends StatelessWidget {
               ],
             ),
           ),
+         ),
         );
       },
     );
@@ -275,7 +281,7 @@ class _WelcomeHeader extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Welcome back,\nPriya Sharma',
+          'Welcome back,\n$name',
           style: GoogleFonts.libreCaslonText(
             fontSize: 32,
             color: const Color(0xFF0F172A),

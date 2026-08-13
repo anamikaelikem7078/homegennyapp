@@ -1272,7 +1272,7 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () => context.push(ClientRoutes.paymentGateway),
+                  onPressed: () => context.push(Uri(path: ClientRoutes.paymentGateway, queryParameters: {'invoiceId': inv.id, 'amount': inv.amount.toString()}).toString()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1A56FF),
                     foregroundColor: Colors.white,
@@ -1395,14 +1395,16 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
   }
 }
 
-class ClientUpiPaymentScreen extends StatefulWidget {
-  const ClientUpiPaymentScreen({super.key});
+class ClientUpiPaymentScreen extends ConsumerStatefulWidget {
+  const ClientUpiPaymentScreen({super.key, required this.invoiceId, required this.amount});
+  final String invoiceId;
+  final double amount;
 
   @override
-  State<ClientUpiPaymentScreen> createState() => _ClientUpiPaymentScreenState();
+  ConsumerState<ClientUpiPaymentScreen> createState() => _ClientUpiPaymentScreenState();
 }
 
-class _ClientUpiPaymentScreenState extends State<ClientUpiPaymentScreen> {
+class _ClientUpiPaymentScreenState extends ConsumerState<ClientUpiPaymentScreen> {
   final _pinController = TextEditingController();
   bool _isLoading = false;
 
@@ -1421,14 +1423,25 @@ class _ClientUpiPaymentScreenState extends State<ClientUpiPaymentScreen> {
       return;
     }
     setState(() => _isLoading = true);
-    // Simulate network delay
-    await Future.delayed(const Duration(seconds: 2));
+    
+    final repo = ref.read(clientRepositoryProvider);
+    final result = await repo.makeDemoPayment(widget.invoiceId, widget.amount, 'UPI');
+    
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    // Show success and pop back
-    context.showDsSnackBar(context.l10n.paymentSuccessful, type: DsSnackBarType.success);
-    context.pop();
+    result.fold(
+      onSuccess: (_) {
+        context.showDsSnackBar(context.l10n.paymentSuccessful, type: DsSnackBarType.success);
+        ref.invalidate(clientInvoiceProvider);
+        ref.invalidate(clientPaymentHistoryProvider);
+        ref.invalidate(clientDashboardProvider);
+        context.pop();
+      },
+      onError: (f) {
+        context.showDsSnackBar(f.message, type: DsSnackBarType.error);
+      },
+    );
   }
 
   @override

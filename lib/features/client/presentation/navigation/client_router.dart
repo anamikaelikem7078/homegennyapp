@@ -169,7 +169,14 @@ List<RouteBase> get clientRoutes => [
       ),
       GoRoute(
         path: ClientRoutes.paymentGateway,
-        builder: (_, __) => const ClientUpiPaymentScreen(),
+        builder: (context, state) {
+          final invoiceId = state.uri.queryParameters['invoiceId'] ?? '';
+          final amountStr = state.uri.queryParameters['amount'] ?? '0';
+          return ClientUpiPaymentScreen(
+            invoiceId: invoiceId, 
+            amount: double.tryParse(amountStr) ?? 0,
+          );
+        },
       ),
       GoRoute(
         path: '/client/payments/invoice/:id/download',

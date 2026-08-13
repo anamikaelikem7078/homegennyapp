@@ -17,14 +17,15 @@ import '../../domain/models/user_role.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_datasource.dart';
 import '../models/auth_dto.dart';
+import '../../../common/domain/models/staff_entity.dart';
 
 /// Authentication repository — remote + local cache.
 class AuthRepositoryImpl implements AuthRepository {
-  static const _demoPassword = 'demo1234';
+  static const _demoPassword = 'HomeGenny@2024';
 
-  static const _demoClientPhone = '+15550000001';
-  static const _demoStaffPhone = '+15550000002';
-  static const _demoRmPhone = '+15550000003';
+  static const _demoClientPhone = '9800000004';
+  static const _demoStaffPhone = '9800000002';
+  static const _demoRmPhone = '9800000001';
 
   static const _demoClientName = 'Demo Client';
   static const _demoStaffName = 'Demo Staff';
@@ -40,12 +41,14 @@ class AuthRepositoryImpl implements AuthRepository {
     AuthMapper? mapper,
   })  : _tokenHandler = tokenHandler,
         _secureStorage = secureStorage,
+        _hiveService = hiveService,
         _remote = remote ?? AuthRemoteDataSource(dioClient),
         _local = local ?? AuthLocalDataSource(hiveService),
         _mapper = mapper ?? AuthMapper();
 
   final JwtTokenHandler _tokenHandler;
   final SecureStorageService _secureStorage;
+  final HiveService _hiveService;
   final AuthRemoteDataSource _remote;
   final AuthLocalDataSource _local;
   final AuthMapper _mapper;
@@ -63,7 +66,25 @@ class AuthRepositoryImpl implements AuthRepository {
     required String phone,
     required String password,
   }) async {
+    final lowerPhone = phone.trim().toLowerCase();
+    
     if (isDemoCredentials(phone, password)) {
+      await _tokenHandler.saveTokens(
+        accessToken: 'demo-access-token',
+        refreshToken: 'demo-refresh-token',
+      );
+      await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
+      return const Success(AuthTokens(
+        accessToken: 'demo-access-token',
+        refreshToken: 'demo-refresh-token',
+      ));
+    }
+
+    // Check if phone matches any staff in Hive (dummy password check for prototype)
+    final isHiveStaff = _hiveService.staffBox.values
+        .cast<StaffEntity>()
+        .any((s) => s.phone == lowerPhone);
+    if (isHiveStaff && password == '123456') {
       await _tokenHandler.saveTokens(
         accessToken: 'demo-access-token',
         refreshToken: 'demo-refresh-token',
@@ -95,9 +116,15 @@ class AuthRepositoryImpl implements AuthRepository {
     required String otp,
   }) async {
     final lowerPhone = phone.trim().toLowerCase();
+    
+    final isHiveStaff = _hiveService.staffBox.values
+        .cast<StaffEntity>()
+        .any((s) => s.phone == lowerPhone);
+
     if (lowerPhone == _demoClientPhone ||
         lowerPhone == _demoStaffPhone ||
-        lowerPhone == _demoRmPhone) {
+        lowerPhone == _demoRmPhone ||
+        isHiveStaff) {
       if (otp != '1234') {
         return const Error(AuthFailure(message: 'Invalid demo OTP. Use 1234.'));
       }
@@ -135,6 +162,24 @@ class AuthRepositoryImpl implements AuthRepository {
     final savedPhone = await _secureStorage.read(StorageKeys.lastLoginEmail);
     final lowerPhone = savedPhone?.trim().toLowerCase();
     
+    // Check if user is a created staff
+    final staffMatches = _hiveService.staffBox.values
+        .cast<StaffEntity>()
+        .where((s) => s.phone == lowerPhone);
+        
+    if (staffMatches.isNotEmpty) {
+      final staff = staffMatches.first;
+      final user = UserModel(
+        id: staff.id,
+        name: staff.name,
+        email: staff.email ?? '',
+        role: UserRole.staff,
+      );
+      await _secureStorage.write(StorageKeys.userId, user.id);
+      await _secureStorage.write(StorageKeys.userRole, user.role.value);
+      return Success(user);
+    }
+
     if (lowerPhone == _demoClientPhone || lowerPhone == _demoStaffPhone || lowerPhone == _demoRmPhone) {
       late String demoName;
       late UserRole demoRole;

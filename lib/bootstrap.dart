@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'core/analytics/analytics_service.dart';
 import 'core/crash/crash_reporter.dart';
+import 'core/data/seed_data_service.dart';
 import 'core/di/injection.dart';
 import 'core/utils/logger.dart';
 
@@ -34,6 +35,9 @@ Future<void> bootstrap() async {
       final hiveService = container.read(hiveServiceProvider);
       await hiveService.init();
       AppLogger.i('Hive initialized');
+
+      final seedDataService = SeedDataService(hiveService);
+      await seedDataService.seedIfEmpty();
 
       final firebaseService = container.read(firebaseServiceProvider);
       await firebaseService.initialize();

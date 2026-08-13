@@ -22,12 +22,17 @@ class StaffRepositoryImpl implements StaffRepository {
   final StaffDummyDataSource _dummy;
 
   @override
-  Future<Result<StaffDashboardData>> getDashboard() => _executor.fetch(
-        remote: _remote.getDashboard,
-        cache: _local.cacheDashboard,
-        local: () async => _local.getDashboard(),
-        dummy: _dummy.getDashboard,
-      );
+  Future<Result<StaffDashboardData>> getDashboard() async {
+    final localData = _local.getDashboard();
+    if (localData != null) return Success(localData);
+
+    return _executor.fetch(
+      remote: _remote.getDashboard,
+      cache: _local.cacheDashboard,
+      local: () async => _local.getDashboard(),
+      dummy: _dummy.getDashboard,
+    );
+  }
 
   @override
   Future<Result<List<StaffTask>>> getTodaysTasks() => _executor.fetch(
@@ -44,12 +49,17 @@ class StaffRepositoryImpl implements StaffRepository {
       );
 
   @override
-  Future<Result<StaffProfile>> getProfile() => _executor.fetch(
-        remote: _remote.getProfile,
-        cache: _local.cacheProfile,
-        local: () async => _local.getProfile(),
-        dummy: _dummy.getProfile,
-      );
+  Future<Result<StaffProfile>> getProfile() async {
+    final localData = _local.getProfile();
+    if (localData != null) return Success(localData);
+
+    return _executor.fetch(
+      remote: _remote.getProfile,
+      cache: _local.cacheProfile,
+      local: () async => _local.getProfile(),
+      dummy: _dummy.getProfile,
+    );
+  }
 
   @override
   Future<Result<List<StaffDocument>>> getDocuments() => _executor.fetch(
@@ -64,8 +74,8 @@ class StaffRepositoryImpl implements StaffRepository {
       _executor.fetch(dummy: () => _dummy.getDocument(id));
 
   @override
-  Future<Result<void>> uploadDocument(String name, String type) =>
-      _executor.mutateVoid(dummy: () => _dummy.uploadDocument(name, type));
+  Future<Result<void>> uploadDocument(String name, String type, String filePath) =>
+      _executor.mutateVoid(dummy: () async { await _local.uploadDocument(name, type, filePath); await _dummy.uploadDocument(name, type, filePath); });
 
   @override
   Future<Result<void>> reuploadDocument(String id, String name) =>
@@ -93,19 +103,19 @@ class StaffRepositoryImpl implements StaffRepository {
 
   @override
   Future<Result<List<VideoCertPrompt>>> getVideoCertPrompts() =>
-      _executor.fetch(dummy: _dummy.getVideoCertPrompts);
+      _executor.fetch(local: () async => await _local.getVideoCertPrompts().then((l) => l.isEmpty ? null : l), dummy: _dummy.getVideoCertPrompts);
 
   @override
   Future<Result<void>> uploadVideoCert(String promptId) =>
-      _executor.mutateVoid(dummy: () => _dummy.uploadVideoCert(promptId));
+      _executor.mutateVoid(dummy: () async { await _local.uploadVideoCert(promptId); await _dummy.uploadVideoCert(promptId); });
 
   @override
   Future<Result<StaffAgreement>> getAgreement() =>
-      _executor.fetch(dummy: _dummy.getAgreement);
+      _executor.fetch(local: () async => _local.getAgreement(), dummy: _dummy.getAgreement);
 
   @override
   Future<Result<void>> signAgreement(String signature) =>
-      _executor.mutateVoid(dummy: () => _dummy.signAgreement(signature));
+      _executor.mutateVoid(dummy: () async { await _local.signAgreement(signature); await _dummy.signAgreement(signature); });
 
   @override
   Future<Result<DeploymentInfo>> getDeployment() =>
@@ -113,23 +123,23 @@ class StaffRepositoryImpl implements StaffRepository {
 
   @override
   Future<Result<AttendanceRecord?>> getTodayAttendance() =>
-      _executor.fetch(dummy: _dummy.getTodayAttendance);
+      _executor.fetch(local: () async => _local.getTodayAttendance(), dummy: _dummy.getTodayAttendance);
 
   @override
   Future<Result<CheckInResult>> checkIn({String? selfiePath}) =>
-      _executor.mutate(dummy: () => _dummy.checkIn(selfiePath: selfiePath));
+      _executor.mutate(dummy: () async { await _local.checkIn(); return _dummy.checkIn(selfiePath: selfiePath); });
 
   @override
   Future<Result<CheckInResult>> checkOut() =>
-      _executor.mutate(dummy: _dummy.checkOut);
+      _executor.mutate(dummy: () async { await _local.checkOut(); return _dummy.checkOut(); });
 
   @override
   Future<Result<List<AttendanceRecord>>> getAttendanceHistory() =>
-      _executor.fetch(dummy: _dummy.getAttendanceHistory);
+      _executor.fetch(local: () async => await _local.getAttendanceHistory().then((l) => l.isEmpty ? null : l), dummy: _dummy.getAttendanceHistory);
 
   @override
   Future<Result<MonthlyAttendance>> getMonthlyAttendance(String month) =>
-      _executor.fetch(dummy: () => _dummy.getMonthlyAttendance(month));
+      _executor.fetch(local: () async => await _local.getMonthlyAttendance(month), dummy: () => _dummy.getMonthlyAttendance(month));
 
   @override
   Future<Result<SalarySummary>> getSalarySummary() =>

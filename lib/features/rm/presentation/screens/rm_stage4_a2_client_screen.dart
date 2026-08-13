@@ -4,13 +4,19 @@ import 'package:go_router/go_router.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../navigation/rm_routes.dart';
 
-class RmStage4A2ClientScreen extends StatelessWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/rm_providers.dart';
+
+class RmStage4A2ClientScreen extends ConsumerWidget {
   final String staffId;
 
   const RmStage4A2ClientScreen({super.key, required this.staffId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staff = ref.watch(rmStaffDetailProvider(staffId));
+    final staffName = staff?.name ?? 'Unknown Staff';
+
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
       extendBody: true, // For floating bottom nav
@@ -23,7 +29,7 @@ class RmStage4A2ClientScreen extends StatelessWidget {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Training — Ramesh K.',
+          'Training — $staffName',
           style: GoogleFonts.libreCaslonText(
             color: const Color(0xFF1A56FF),
             fontSize: 20,
@@ -47,7 +53,7 @@ class RmStage4A2ClientScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Please review the details below before signing the agreement for Ramesh K.\'s placement.',
+              'Please review the details below before signing the agreement for $staffName\'s placement.',
               style: GoogleFonts.inter(
                 color: const Color(0xFF6B7280),
                 fontSize: 15,
@@ -57,7 +63,7 @@ class RmStage4A2ClientScreen extends StatelessWidget {
             const SizedBox(height: 32),
             _buildNoticeCard(),
             const SizedBox(height: 24),
-            _buildEngagementCard(),
+            _buildEngagementCard(staffName),
             const SizedBox(height: 48),
             _buildActionHub(context),
           ],
@@ -110,7 +116,7 @@ class RmStage4A2ClientScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEngagementCard() {
+  Widget _buildEngagementCard(String staffName) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -164,7 +170,7 @@ class RmStage4A2ClientScreen extends StatelessWidget {
           const SizedBox(height: 24),
           const Divider(height: 1, color: Color(0xFFE5E7EB)),
           const SizedBox(height: 24),
-          _buildDetailItem('STAFF NAME', 'Ramesh K.'),
+          _buildDetailItem('STAFF NAME', staffName),
           const SizedBox(height: 20),
           _buildDetailItem('ROLE', 'Senior DevOps Engineer'),
           const SizedBox(height: 20),

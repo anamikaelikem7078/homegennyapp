@@ -1,4 +1,13 @@
 import 'package:dio/dio.dart';
+import 'package:uuid/uuid.dart';
+import '../../../../common/domain/models/placement_entity.dart';
+import '../../../../common/domain/models/attendance_entity.dart';
+import '../../../../common/domain/models/invoice_entity.dart';
+import '../../../../common/domain/models/payment_entity.dart';
+import '../../../../common/domain/models/complaint_entity.dart';
+import '../../../../common/domain/models/replacement_request_entity.dart';
+import '../../../../common/domain/models/notification_entity.dart';
+import '../../../../common/domain/models/client_entity.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/constants/storage_keys.dart';
@@ -58,6 +67,21 @@ class ClientLocalDataSource extends BaseLocalDataSource {
     final json = getJson(StorageKeys.clientProfile);
     return json != null ? ClientDtoCodec.decodeProfile(json) : null;
   }
+
+  Future<ClientStaffProfile> getStaffProfile(String id) async {
+    return const ClientStaffProfile(id: 'dummy', name: '', role: '', rating: 0, shift: '', phone: '', joinedDate: '', experience: [], skills: [], performanceScore: 0, attendancePercent: 0, reviews: []);
+  }
+  Future<List<ClientAttendanceRecord>> getAttendanceHistory() async => [];
+  Future<void> raiseAttendanceIssue(String message) async {}
+  Future<ClientInvoice> getCurrentInvoice() async {
+    return const ClientInvoice(id: '', invoiceNumber: '', period: '', amount: '', dueDate: '', status: ClientPaymentStatus.pending, items: []);
+  }
+  Future<List<ClientPaymentHistory>> getPaymentHistory() async => [];
+  Future<List<ClientComplaint>> getComplaints() async => [];
+  Future<ClientReplacementRequest?> getReplacementStatus() async => null;
+  Future<void> requestReplacement(String reason) async {}
+  Future<List<ClientNotification>> getNotifications() async => [];
+  Future<void> markNotificationRead(String id) async {}
 }
 
 class ClientDummyDataSource {
@@ -91,6 +115,7 @@ class ClientDummyDataSource {
   Future<void> requestReplacement(String reason) => _api.requestReplacement(reason);
   Future<List<ClientNotification>> getNotifications() => _api.getNotifications();
   Future<void> markNotificationRead(String id) => _api.markNotificationRead(id);
+  Future<void> makeDemoPayment(String invoiceId, double amount, String method) => _api.makeDemoPayment(invoiceId, amount, method);
   Future<ClientProfile> getProfile() => _api.getProfile();
   Future<void> updateProfile(Map<String, String> data) => _api.updateProfile(data);
 }

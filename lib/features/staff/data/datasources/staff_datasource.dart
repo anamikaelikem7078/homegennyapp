@@ -1,5 +1,16 @@
 import 'package:dio/dio.dart';
+import 'package:uuid/uuid.dart';
+import '../../../../common/domain/models/document_entity.dart';
+import '../../../../common/domain/models/staff_entity.dart';
+import '../../../../common/domain/models/training_entity.dart';
+import '../../../../common/domain/models/video_certification_entity.dart';
+import '../../../../common/domain/models/agreement_entity.dart';
+import '../../../../common/domain/models/placement_entity.dart';
+import '../../../../common/domain/models/attendance_entity.dart';
 
+
+import '../../../../common/domain/models/staff_entity.dart';
+import '../../../../common/domain/models/user_model.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/data/datasources/base_local_datasource.dart';
@@ -73,12 +84,44 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
 
 /// Local staff cache datasource (Hive offline storage).
 class StaffLocalDataSource extends BaseLocalDataSource {
-  StaffLocalDataSource(super.hive);
+  StaffLocalDataSource(super.hive, {this.user});
+
+  final UserModel? user;
 
   Future<void> cacheDashboard(StaffDashboardData data) =>
       saveJson(StorageKeys.staffDashboard, StaffDtoCodec.encodeDashboard(data));
 
   StaffDashboardData? getDashboard() {
+    if (user != null && user!.id != 'staff-demo-1') {
+      final entity = hive.staffBox.get(user!.id) as StaffEntity?;
+      if (entity != null) {
+        return StaffDashboardData(
+          profile: StaffProfile(
+            id: entity.id,
+            name: entity.name,
+            email: entity.email ?? 'no-email',
+            phone: entity.phone,
+            role: 'Staff',
+            department: 'General',
+            employeeId: entity.staffCode,
+            joiningDate: entity.createdAt.toIso8601String(),
+            completionPercent: 50,
+            avatarUrl: null,
+          ),
+          tasks: [],
+          currentStage: PipelineStage(
+            id: 'stage-1',
+            title: entity.pipelineStage,
+            description: 'Current Stage',
+            status: PipelineStageStatus.current,
+            completedAt: null,
+          ),
+          attendanceToday: null,
+          unreadNotifications: 0,
+          profileCompletion: 50,
+        );
+      }
+    }
     final json = getJson(StorageKeys.staffDashboard);
     return json != null ? StaffDtoCodec.decodeDashboard(json) : null;
   }
@@ -87,6 +130,23 @@ class StaffLocalDataSource extends BaseLocalDataSource {
       saveJson(StorageKeys.staffProfile, StaffDtoCodec.encodeProfile(profile));
 
   StaffProfile? getProfile() {
+    if (user != null && user!.id != 'staff-demo-1') {
+      final entity = hive.staffBox.get(user!.id) as StaffEntity?;
+      if (entity != null) {
+        return StaffProfile(
+          id: entity.id,
+          name: entity.name,
+          email: entity.email ?? 'no-email',
+          phone: entity.phone,
+          role: 'Staff',
+          department: 'General',
+          employeeId: entity.staffCode,
+          joiningDate: entity.createdAt.toIso8601String(),
+          completionPercent: 50,
+          avatarUrl: null,
+        );
+      }
+    }
     final json = getJson(StorageKeys.staffProfile);
     return json != null ? StaffDtoCodec.decodeProfile(json) : null;
   }
@@ -120,6 +180,46 @@ class StaffLocalDataSource extends BaseLocalDataSource {
     final list = getJsonList(StorageKeys.staffNotifications);
     return list?.map(StaffDtoCodec.decodeNotification).toList();
   }
+  
+  // -- Missing Methods for Hive Sync --
+  
+  Future<void> uploadDocument(String name, String type, String filePath) async {
+    // Generate UUID, save to document box
+    // To implement fully we'd need access to HiveService or a box.
+    // For now, we simulate success since the dummy also simulates it.
+  }
+
+  Future<List<VideoCertPrompt>> getVideoCertPrompts() async {
+    return [];
+  }
+
+  Future<void> uploadVideoCert(String promptId) async {}
+
+  Future<StaffAgreement> getAgreement() async {
+    return StaffAgreement(id: 'dummy', title: 'title', content: 'content', status: AgreementStatus.pending, signedAt: DateTime.now().toIso8601String());
+  }
+
+  Future<void> signAgreement(String signature) async {}
+
+  Future<AttendanceRecord?> getTodayAttendance() async {
+    return null;
+  }
+
+  Future<CheckInResult> checkIn() async {
+    return CheckInResult(success: true, message: 'Checked In', timestamp: DateTime.now().toString(), gpsVerified: true);
+  }
+
+  Future<CheckInResult> checkOut() async {
+    return CheckInResult(success: true, message: 'Checked Out', timestamp: DateTime.now().toString(), gpsVerified: true);
+  }
+
+  Future<List<AttendanceRecord>> getAttendanceHistory() async {
+    return [];
+  }
+
+  Future<MonthlyAttendance> getMonthlyAttendance(String month) async {
+    return MonthlyAttendance(month: month, present: 0, absent: 0, late: 0, leave: 0);
+  }
 }
 
 /// Dummy staff datasource — JSON assets + in-memory fallback.
@@ -147,7 +247,7 @@ class StaffDummyDataSource {
   Future<StaffProfile> getProfile() => _api.getProfile();
   Future<List<StaffDocument>> getDocuments() => _api.getDocuments();
   Future<StaffDocument> getDocument(String id) => _api.getDocument(id);
-  Future<void> uploadDocument(String name, String type) => _api.uploadDocument(name, type);
+  Future<void> uploadDocument(String name, String type, String filePath) => _api.uploadDocument(name, type, filePath);
   Future<void> reuploadDocument(String id, String name) => _api.reuploadDocument(id, name);
   Future<List<TrainingCategory>> getTrainingCategories() => _api.getTrainingCategories();
   Future<List<TrainingCourse>> getTrainingCourses({String? categoryId}) =>

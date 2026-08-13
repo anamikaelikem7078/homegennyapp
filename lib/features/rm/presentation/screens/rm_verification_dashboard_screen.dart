@@ -5,13 +5,21 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../navigation/rm_routes.dart';
 
-class RmVerificationDashboardScreen extends StatelessWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/rm_providers.dart';
+
+class RmVerificationDashboardScreen extends ConsumerWidget {
   final String staffId;
 
   const RmVerificationDashboardScreen({super.key, required this.staffId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staff = ref.watch(rmStaffDetailProvider(staffId));
+    final staffName = staff?.name ?? 'Unknown Staff';
+    final initials = staffName.isNotEmpty ? staffName.substring(0, 2).toUpperCase() : '??';
+    final staffCode = staff?.staffCode ?? 'N/A';
+
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
       appBar: _buildAppBar(context),
@@ -22,7 +30,7 @@ class RmVerificationDashboardScreen extends StatelessWidget {
           children: [
             _buildHeader(context),
             const SizedBox(height: 32),
-            _buildProfileCard(context),
+            _buildProfileCard(context, staffName, initials, staffCode),
             const SizedBox(height: 32),
             _buildTrackCard(context, 'Track 1', 'Aadhaar eKYC', Icons.fingerprint, 'VERIFIED', RmTheme.emeraldGreen, () => context.push(RmRoutes.track1(staffId))),
             const SizedBox(height: 16),
@@ -131,7 +139,7 @@ class RmVerificationDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileCard(BuildContext context) {
+  Widget _buildProfileCard(BuildContext context, String staffName, String initials, String staffCode) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -154,7 +162,7 @@ class RmVerificationDashboardScreen extends StatelessWidget {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  'RK',
+                  initials,
                   style: GoogleFonts.libreCaslonText(
                     color: Colors.white,
                     fontSize: 24,
@@ -168,7 +176,7 @@ class RmVerificationDashboardScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Ramesh Kumar\nSingh',
+                      staffName,
                       style: GoogleFonts.libreCaslonText(
                         color: RmTheme.textPrimary,
                         fontSize: 22,
@@ -178,7 +186,7 @@ class RmVerificationDashboardScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'ID: DR-2024-147',
+                      'ID: $staffCode',
                       style: GoogleFonts.inter(
                         color: RmTheme.textSecondary,
                         fontSize: 13,

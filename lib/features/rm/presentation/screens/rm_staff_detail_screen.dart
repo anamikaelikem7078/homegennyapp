@@ -1,21 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import 'package:go_router/go_router.dart';
 import '../navigation/rm_routes.dart';
+import '../providers/rm_providers.dart';
+import '../../../../common/domain/models/staff_entity.dart';
 
-class RmStaffDetailScreen extends StatefulWidget {
+class RmStaffDetailScreen extends ConsumerStatefulWidget {
   final String staffId;
   const RmStaffDetailScreen({super.key, required this.staffId});
 
   @override
-  State<RmStaffDetailScreen> createState() => _RmStaffDetailScreenState();
+  ConsumerState<RmStaffDetailScreen> createState() =>
+      _RmStaffDetailScreenState();
 }
 
-class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
-  int _activeTabIndex = 2; // 0: Overview, 1: Documents, 2: Verify (Verify is active in mockup)
+class _RmStaffDetailScreenState extends ConsumerState<RmStaffDetailScreen> {
+  int _activeTabIndex =
+      2; // 0: Overview, 1: Documents, 2: Verify (Verify is active in mockup)
 
   @override
   Widget build(BuildContext context) {
+    final staff = ref.watch(rmStaffDetailProvider(widget.staffId));
+
+    if (staff == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: Text('Staff not found')),
+      );
+    }
+
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
       appBar: AppBar(
@@ -25,7 +40,12 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
           icon: const Icon(Icons.arrow_back, color: RmTheme.textPrimary),
           onPressed: () => context.pop(),
         ),
-        title: Text('Staff Details', style: RmTheme.headline(context).copyWith(fontSize: 18, color: RmTheme.textPrimary)),
+        title: Text(
+          'Staff Details',
+          style: RmTheme.headline(
+            context,
+          ).copyWith(fontSize: 18, color: RmTheme.textPrimary),
+        ),
         centerTitle: true,
         actions: [
           IconButton(
@@ -39,27 +59,24 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildProfileSummary(),
+            _buildProfileSummary(staff),
             const SizedBox(height: 16),
-            _buildOnboardingJourney(),
+            _buildOnboardingJourney(staff),
             const SizedBox(height: 24),
             _buildTabs(),
             const SizedBox(height: 16),
-            _buildTabContent(),
+            _buildTabContent(staff),
           ],
         ),
       ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildFooterActions(),
-          _buildBottomNav(context),
-        ],
+        children: [_buildFooterActions(staff), _buildBottomNav(context)],
       ),
     );
   }
 
-  Widget _buildProfileSummary() {
+  Widget _buildProfileSummary(StaffEntity staff) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -73,7 +90,8 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Image.network(
-              'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300',
+              staff.profileImage ??
+                  'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300',
               width: 80,
               height: 80,
               fit: BoxFit.cover,
@@ -81,8 +99,10 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Ramesh Kumar Singh',
-            style: RmTheme.headline(context).copyWith(color: RmTheme.electricBlue, fontSize: 18),
+            staff.name,
+            style: RmTheme.headline(
+              context,
+            ).copyWith(color: RmTheme.electricBlue, fontSize: 18),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
@@ -95,19 +115,18 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
                   color: RmTheme.textSecondary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: Text(widget.staffId, style: RmTheme.label(context).copyWith(color: RmTheme.electricBlue, fontSize: 12)),
+                child: Text(
+                  staff.staffCode,
+                  style: RmTheme.label(
+                    context,
+                  ).copyWith(color: RmTheme.electricBlue, fontSize: 12),
+                ),
               ),
               const SizedBox(width: 8),
-              Text('Senior Field Executive', style: RmTheme.body(context).copyWith(fontSize: 12)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.location_on_outlined, size: 14, color: RmTheme.textSecondary),
-              const SizedBox(width: 4),
-              Text('Bangalore Hub', style: RmTheme.body(context).copyWith(fontSize: 12)),
+              Text(
+                staff.phone,
+                style: RmTheme.body(context).copyWith(fontSize: 12),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -124,10 +143,20 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
                 Container(
                   width: 6,
                   height: 6,
-                  decoration: const BoxDecoration(color: RmTheme.amberWarning, shape: BoxShape.circle),
+                  decoration: const BoxDecoration(
+                    color: RmTheme.amberWarning,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: 6),
-                Text('ACTIVE - S4 AGREEMENTS', style: RmTheme.label(context).copyWith(color: RmTheme.amberWarning, fontSize: 10, fontWeight: FontWeight.w700)),
+                Text(
+                  '${staff.status} - ${staff.pipelineStage}',
+                  style: RmTheme.label(context).copyWith(
+                    color: RmTheme.amberWarning,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
           ),
@@ -136,7 +165,7 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
     );
   }
 
-  Widget _buildOnboardingJourney() {
+  Widget _buildOnboardingJourney(StaffEntity staff) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -147,7 +176,10 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Onboarding Progress', style: RmTheme.headline(context).copyWith(fontSize: 18)),
+          Text(
+            'Onboarding Progress',
+            style: RmTheme.headline(context).copyWith(fontSize: 18),
+          ),
           const SizedBox(height: 24),
           _buildTimelineItem('Intake', 'Completed Jan 12', true),
           _buildTimelineItem('Verification', 'Completed Jan 14', true),
@@ -173,18 +205,19 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
               ),
               child: const Icon(Icons.check, size: 16, color: Colors.white),
             ),
-            Container(
-              width: 1,
-              height: 36,
-              color: RmTheme.borderSubtle,
-            ),
+            Container(width: 1, height: 36, color: RmTheme.borderSubtle),
           ],
         ),
         const SizedBox(width: 16),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: RmTheme.label(context).copyWith(fontWeight: FontWeight.w500, fontSize: 14)),
+            Text(
+              title,
+              style: RmTheme.label(
+                context,
+              ).copyWith(fontWeight: FontWeight.w500, fontSize: 14),
+            ),
             const SizedBox(height: 2),
             Text(time, style: RmTheme.body(context).copyWith(fontSize: 12)),
           ],
@@ -221,27 +254,53 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: RmTheme.label(context).copyWith(color: RmTheme.electricBlue, fontWeight: FontWeight.w500, fontSize: 14)),
+              Text(
+                title,
+                style: RmTheme.label(context).copyWith(
+                  color: RmTheme.electricBlue,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: RmTheme.electricBlue.withOpacity(0.05),
-                  border: Border.all(color: RmTheme.electricBlue.withOpacity(0.1)),
+                  border: Border.all(
+                    color: RmTheme.electricBlue.withOpacity(0.1),
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.info_outline, size: 16, color: RmTheme.electricBlue),
+                    const Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: RmTheme.electricBlue,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('ACTION REQUIRED', style: RmTheme.label(context).copyWith(color: RmTheme.electricBlue, fontSize: 10, fontWeight: FontWeight.w600)),
+                          Text(
+                            'ACTION REQUIRED',
+                            style: RmTheme.label(context).copyWith(
+                              color: RmTheme.electricBlue,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           const SizedBox(height: 4),
-                          Text('Review and approve final contractor agreements.', style: RmTheme.body(context).copyWith(fontSize: 12, color: RmTheme.textPrimary)),
+                          Text(
+                            'Review and approve final contractor agreements.',
+                            style: RmTheme.body(context).copyWith(
+                              fontSize: 12,
+                              color: RmTheme.textPrimary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -298,19 +357,74 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
     );
   }
 
-  Widget _buildTabContent() {
-    if (_activeTabIndex == 2 || _activeTabIndex == 1) { // Showing docs for both for demo
+  Widget _buildTabContent(StaffEntity staff) {
+    if (_activeTabIndex == 0) {
+      // Overview
       return Column(
         children: [
-          _buildDocumentCard('Aadhaar Card', 'Uploaded Jan 12', Icons.assignment_ind_outlined),
+          _buildSummaryRow('Email', staff.email ?? 'Not Provided'),
           const SizedBox(height: 12),
-          _buildDocumentCard('PAN Card', 'Uploaded Jan 12', Icons.credit_card_outlined),
+          _buildSummaryRow('Address', staff.address ?? 'Not Provided'),
           const SizedBox(height: 12),
-          _buildDocumentCard('Driving License', 'Uploaded Jan 13', Icons.drive_eta_outlined),
+          _buildSummaryRow('Joined', staff.createdAt.toString().split(' ')[0]),
+        ],
+      );
+    } else if (_activeTabIndex == 1 || _activeTabIndex == 2) {
+      // Documents / Verify
+      return Column(
+        children: [
+          _buildDocumentCard(
+            'Aadhaar Card',
+            'Uploaded Jan 12',
+            Icons.assignment_ind_outlined,
+          ),
+          const SizedBox(height: 12),
+          _buildDocumentCard(
+            'PAN Card',
+            'Uploaded Jan 12',
+            Icons.credit_card_outlined,
+          ),
+          const SizedBox(height: 12),
+          _buildDocumentCard(
+            'Driving License',
+            'Uploaded Jan 13',
+            Icons.drive_eta_outlined,
+          ),
         ],
       );
     }
     return const Center(child: Text('Content Placeholder'));
+  }
+
+  Widget _buildSummaryRow(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: RmTheme.cardSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: RmTheme.borderSubtle),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: RmTheme.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: RmTheme.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDocumentCard(String title, String date, IconData icon) {
@@ -336,7 +450,12 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: RmTheme.label(context).copyWith(fontWeight: FontWeight.w500, fontSize: 14)),
+                Text(
+                  title,
+                  style: RmTheme.label(
+                    context,
+                  ).copyWith(fontWeight: FontWeight.w500, fontSize: 14),
+                ),
                 const SizedBox(height: 4),
                 Text(date, style: RmTheme.body(context).copyWith(fontSize: 12)),
               ],
@@ -351,9 +470,20 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.check_circle_outline, size: 12, color: RmTheme.emeraldGreen),
+                const Icon(
+                  Icons.check_circle_outline,
+                  size: 12,
+                  color: RmTheme.emeraldGreen,
+                ),
                 const SizedBox(width: 4),
-                Text('APPROVED', style: RmTheme.label(context).copyWith(color: RmTheme.emeraldGreen, fontSize: 10, fontWeight: FontWeight.w600)),
+                Text(
+                  'APPROVED',
+                  style: RmTheme.label(context).copyWith(
+                    color: RmTheme.emeraldGreen,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),
@@ -362,12 +492,10 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
     );
   }
 
-  Widget _buildFooterActions() {
+  Widget _buildFooterActions(StaffEntity staff) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: RmTheme.offWhite,
-      ),
+      decoration: const BoxDecoration(color: RmTheme.offWhite),
       child: SafeArea(
         top: false,
         bottom: false,
@@ -380,15 +508,26 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   side: const BorderSide(color: RmTheme.textPrimary),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                   backgroundColor: RmTheme.cardSurface,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.upload_file_outlined, size: 18, color: RmTheme.textPrimary),
+                    const Icon(
+                      Icons.upload_file_outlined,
+                      size: 18,
+                      color: RmTheme.textPrimary,
+                    ),
                     const SizedBox(width: 8),
-                    Text('Upload Files', style: RmTheme.label(context).copyWith(fontWeight: FontWeight.w500)),
+                    Text(
+                      'Upload Files',
+                      style: RmTheme.label(
+                        context,
+                      ).copyWith(fontWeight: FontWeight.w500),
+                    ),
                   ],
                 ),
               ),
@@ -397,19 +536,29 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
             Expanded(
               flex: 1,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: () {
+                  _onApproveStage(staff);
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: RmTheme.electricBlue,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Icon(Icons.check, size: 18),
                     const SizedBox(width: 8),
-                    Text('Approve Stage', style: RmTheme.label(context).copyWith(color: Colors.white, fontWeight: FontWeight.w500)),
+                    Text(
+                      'Approve Stage',
+                      style: RmTheme.label(context).copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -433,8 +582,18 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(Icons.dashboard_outlined, 'Dashboard', false, onTap: () => context.pushReplacement(RmRoutes.dashboard)),
-              _buildNavItem(Icons.view_kanban, 'Pipeline', true, onTap: () => context.pushReplacement(RmRoutes.pipeline)),
+              _buildNavItem(
+                Icons.dashboard_outlined,
+                'Dashboard',
+                false,
+                onTap: () => context.pushReplacement(RmRoutes.dashboard),
+              ),
+              _buildNavItem(
+                Icons.view_kanban,
+                'Pipeline',
+                true,
+                onTap: () => context.pushReplacement(RmRoutes.pipeline),
+              ),
               _buildNavItem(Icons.check_circle_outline, 'Tasks', false),
               _buildNavItem(Icons.notifications_outlined, 'Alerts', false),
               _buildNavItem(Icons.person_outline, 'Profile', false),
@@ -445,7 +604,12 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isActive, {VoidCallback? onTap}) {
+  Widget _buildNavItem(
+    IconData icon,
+    String label,
+    bool isActive, {
+    VoidCallback? onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -459,7 +623,11 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: isActive ? Colors.white : RmTheme.textPrimary, size: 20),
+            Icon(
+              icon,
+              color: isActive ? Colors.white : RmTheme.textPrimary,
+              size: 20,
+            ),
             const SizedBox(height: 4),
             Text(
               label,
@@ -473,5 +641,67 @@ class _RmStaffDetailScreenState extends State<RmStaffDetailScreen> {
         ),
       ),
     );
+  }
+
+  void _onApproveStage(StaffEntity staff) async {
+    final stages = [
+      'REGISTRATION',
+      'VERIFICATION',
+      'TRAINING',
+      'VIDEO_CERTIFICATION',
+      'AGREEMENT',
+      'DEPLOYMENT',
+      'TRIAL',
+      'ACTIVE_PLACEMENT',
+    ];
+
+    final currentIndex = stages.indexOf(staff.pipelineStage);
+    if (currentIndex >= 0 && currentIndex < stages.length - 1) {
+      final nextStage = stages[currentIndex + 1];
+      final updatedStaff = staff.copyWith(pipelineStage: nextStage);
+      await ref.read(rmRepositoryProvider).updateStaff(updatedStaff);
+
+      // Invalidate specific staff provider to refresh details
+      ref.invalidate(rmStaffDetailProvider(staff.id));
+      // Invalidate pipeline provider to reflect changes in dashboard/pipeline
+      ref.invalidate(rmPipelineProvider);
+      ref.invalidate(rmDashboardStatsProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Staff stage approved and advanced to $nextStage'),
+          ),
+        );
+
+        // Navigate to the next stage's screen for pipeline testing
+        switch (nextStage) {
+          case 'VERIFICATION':
+            context.push(RmRoutes.verificationDashboard(staff.id));
+            break;
+          case 'TRAINING':
+            context.push(RmRoutes.stage3Training(staff.id));
+            break;
+          case 'VIDEO_CERTIFICATION':
+            context.push(RmRoutes.stage3VideoReview(staff.id));
+            break;
+          case 'AGREEMENT':
+            context.push(RmRoutes.stage4Hub(staff.id));
+            break;
+          case 'TRIAL':
+            context.push(RmRoutes.stage5TrialCheckin(staff.id));
+            break;
+          case 'ACTIVE_PLACEMENT':
+            context.push(RmRoutes.staffActivePlacement(staff.id));
+            break;
+        }
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Staff is already in the final stage.')),
+        );
+      }
+    }
   }
 }

@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -825,9 +826,25 @@ class StaffVideoUploadScreen extends ConsumerStatefulWidget {
 
 class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen> {
   bool _uploading = false;
+  PlatformFile? _pickedFile;
+
+  Future<void> _pickVideo() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.video,
+    );
+    if (result != null) {
+      setState(() {
+        _pickedFile = result.files.first;
+      });
+    }
+  }
 
   Future<void> _upload() async {
     if (widget.promptId == null) return;
+    if (_pickedFile == null) {
+      context.showDsSnackBar('Please select a video', type: DsSnackBarType.warning);
+      return;
+    }
     setState(() => _uploading = true);
     final result =
         await ref.read(staffRepositoryProvider).uploadVideoCert(widget.promptId!);
@@ -954,59 +971,78 @@ class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen>
                   ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE5E5E5)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEEF2FF),
-                        borderRadius: BorderRadius.circular(12),
+              if (_pickedFile != null)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE5E5E5)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEEF2FF),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.description_outlined,
+                          color: Color(0xFF1A56FF),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.description_outlined,
-                        color: Color(0xFF1A56FF),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'HomeGenny_Draft_v12.mp4',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF1A1A1A),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _pickedFile!.name,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF1A1A1A),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '42.8 MB • High Quality (1080p)',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: const Color(0xFF737373),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${(_pickedFile!.size / (1024 * 1024)).toStringAsFixed(1)} MB',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: const Color(0xFF737373),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _uploading ? null : _pickVideo,
+                        child: const Icon(
+                          Icons.edit_outlined,
+                          color: Color(0xFFA3A3A3),
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                GestureDetector(
+                  onTap: _pickVideo,
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE5E5E5), style: BorderStyle.solid),
                     ),
-                    const SizedBox(width: 8),
-                    const Icon(
-                      Icons.edit_outlined,
-                      color: Color(0xFFA3A3A3),
-                      size: 20,
+                    child: Center(
+                      child: Text('Tap to select video', style: GoogleFonts.inter(color: Colors.blue)),
                     ),
-                  ],
+                  ),
                 ),
-              ),
               const SizedBox(height: 24),
               SizedBox(
                 height: 56,

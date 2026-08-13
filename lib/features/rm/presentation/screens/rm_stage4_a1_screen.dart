@@ -4,13 +4,19 @@ import 'package:go_router/go_router.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../navigation/rm_routes.dart';
 
-class RmStage4A1Screen extends StatelessWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/rm_providers.dart';
+
+class RmStage4A1Screen extends ConsumerWidget {
   final String staffId;
 
   const RmStage4A1Screen({super.key, required this.staffId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staff = ref.watch(rmStaffDetailProvider(staffId));
+    final staffName = staff?.name ?? 'Unknown Staff';
+
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
       appBar: AppBar(
@@ -21,7 +27,7 @@ class RmStage4A1Screen extends StatelessWidget {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Training — Ramesh K.',
+          'Training — $staffName',
           style: GoogleFonts.libreCaslonText(
             color: RmTheme.electricBlue,
             fontSize: 20,

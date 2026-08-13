@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import 'package:go_router/go_router.dart';
 import '../navigation/rm_routes.dart';
+import '../providers/rm_providers.dart';
+import '../../../../common/domain/models/staff_entity.dart';
+import '../widgets/rm_bottom_navigation.dart';
 
-class RmPipelineScreen extends StatefulWidget {
+class RmPipelineScreen extends ConsumerStatefulWidget {
   const RmPipelineScreen({super.key});
 
   @override
-  State<RmPipelineScreen> createState() => _RmPipelineScreenState();
+  ConsumerState<RmPipelineScreen> createState() => _RmPipelineScreenState();
 }
 
-class _RmPipelineScreenState extends State<RmPipelineScreen> {
+class _RmPipelineScreenState extends ConsumerState<RmPipelineScreen> {
   String _activeFilter = 'All Roles';
   final List<String> _filters = ['All Roles', 'Driver', 'Caretaker', 'Maid'];
 
@@ -33,7 +37,7 @@ class _RmPipelineScreenState extends State<RmPipelineScreen> {
         backgroundColor: RmTheme.electricBlue,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      bottomNavigationBar: _buildBottomNav(context),
+      bottomNavigationBar: const RmBottomNavigation(currentIndex: 1),
     );
   }
 
@@ -101,22 +105,19 @@ class _RmPipelineScreenState extends State<RmPipelineScreen> {
   }
 
   Widget _buildKanbanBoard(BuildContext context) {
-    final s1Items = [
-      {'name': 'Ramesh K.', 'id': 'DR-147', 'role': 'DRIVER', 'progress': 20.0, 'pending': '3 Pending', 'imageUrl': 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150'},
-      {'name': 'Sarah J.', 'id': 'MA-092', 'role': 'MAID', 'progress': 10.0, 'pending': '5 Pending', 'imageUrl': null},
-    ];
+    final pipeline = ref.watch(rmPipelineProvider);
 
-    final s2Items = [
-      {'name': 'Priya M.', 'id': 'CA-044', 'role': 'CARETAKER', 'progress': 45.0, 'pending': '2 Pending', 'imageUrl': 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150'},
-    ];
-
-    bool matchFilter(String role) {
+    bool matchFilter(StaffEntity staff) {
       if (_activeFilter == 'All Roles') return true;
-      return role.toLowerCase() == _activeFilter.toLowerCase();
+      // In a real app we'd map roles properly; here we simplify based on prefix or property if available
+      final roleHint = staff.staffCode.contains('-DR-') ? 'Driver' : (staff.staffCode.contains('-MA-') ? 'Maid' : 'Caretaker');
+      return roleHint.toLowerCase() == _activeFilter.toLowerCase();
     }
 
-    final filteredS1 = s1Items.where((item) => matchFilter(item['role'] as String)).toList();
-    final filteredS2 = s2Items.where((item) => matchFilter(item['role'] as String)).toList();
+    final s1Items = (pipeline['REGISTRATION'] ?? []).where(matchFilter).toList();
+    final s2Items = (pipeline['VERIFICATION'] ?? []).where(matchFilter).toList();
+    final s3Items = (pipeline['TRAINING'] ?? []).where(matchFilter).toList();
+    final s4Items = (pipeline['VIDEO_CERTIFICATION'] ?? []).where(matchFilter).toList();
 
     return ListView(
       scrollDirection: Axis.horizontal,
@@ -125,15 +126,29 @@ class _RmPipelineScreenState extends State<RmPipelineScreen> {
         _buildKanbanColumn(
           context,
           'S1 Intake',
-          filteredS1.length,
-          filteredS1.map((item) => _buildStaffCard(context, item['name'] as String, item['id'] as String, item['role'] as String, item['progress'] as double, item['pending'] as String, item['imageUrl'] as String?)).toList(),
+          s1Items.length,
+          s1Items.map((item) => _buildStaffCard(context, item.name, item.id, 'STAFF', 20.0, 'In Progress', item.profileImage)).toList(),
         ),
         const SizedBox(width: 16),
         _buildKanbanColumn(
           context,
           'S2 Verification',
-          filteredS2.length,
-          filteredS2.map((item) => _buildStaffCard(context, item['name'] as String, item['id'] as String, item['role'] as String, item['progress'] as double, item['pending'] as String, item['imageUrl'] as String?)).toList(),
+          s2Items.length,
+          s2Items.map((item) => _buildStaffCard(context, item.name, item.id, 'STAFF', 45.0, 'Pending docs', item.profileImage)).toList(),
+        ),
+        const SizedBox(width: 16),
+        _buildKanbanColumn(
+          context,
+          'S3 Training',
+          s3Items.length,
+          s3Items.map((item) => _buildStaffCard(context, item.name, item.id, 'STAFF', 60.0, 'In progress', item.profileImage)).toList(),
+        ),
+        const SizedBox(width: 16),
+        _buildKanbanColumn(
+          context,
+          'S4 Video & More',
+          s4Items.length,
+          s4Items.map((item) => _buildStaffCard(context, item.name, item.id, 'STAFF', 80.0, 'Pending video', item.profileImage)).toList(),
         ),
       ],
     );
@@ -290,66 +305,6 @@ class _RmPipelineScreenState extends State<RmPipelineScreen> {
                 ),
                 const Icon(Icons.more_horiz, color: RmTheme.textSecondary),
               ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          )
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(Icons.dashboard_outlined, 'Dashboard', false, onTap: () => context.pushReplacement(RmRoutes.dashboard)),
-              _buildNavItem(Icons.view_kanban, 'Pipeline', true),
-              _buildNavItem(Icons.check_circle_outline, 'Tasks', false),
-              _buildNavItem(Icons.notifications_outlined, 'Alerts', false),
-              _buildNavItem(Icons.person_outline, 'Profile', false),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, bool isActive, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: isActive
-            ? BoxDecoration(
-                color: RmTheme.electricBlue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              )
-            : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: isActive ? RmTheme.electricBlue : RmTheme.textSecondary),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: RmTheme.label(context).copyWith(
-                color: isActive ? RmTheme.electricBlue : RmTheme.textSecondary,
-                fontSize: 10,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-              ),
             ),
           ],
         ),

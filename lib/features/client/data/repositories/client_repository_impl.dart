@@ -10,10 +10,10 @@ class ClientRepositoryImpl implements ClientRepository {
     required ClientRemoteDataSource remote,
     required ClientLocalDataSource local,
     required ClientDummyDataSource dummy,
-  })  : _executor = executor,
-        _remote = remote,
-        _local = local,
-        _dummy = dummy;
+  }) : _executor = executor,
+       _remote = remote,
+       _local = local,
+       _dummy = dummy;
 
   final RepositoryExecutor _executor;
   final ClientRemoteDataSource _remote;
@@ -22,11 +22,11 @@ class ClientRepositoryImpl implements ClientRepository {
 
   @override
   Future<Result<ClientDashboardData>> getDashboard() => _executor.fetch(
-        remote: _remote.getDashboard,
-        cache: _local.cacheDashboard,
-        local: () async => _local.getDashboard(),
-        dummy: _dummy.getDashboard,
-      );
+    remote: _remote.getDashboard,
+    cache: _local.cacheDashboard,
+    local: () async => _local.getDashboard(),
+    dummy: _dummy.getDashboard,
+  );
 
   @override
   Future<Result<ClientStaffProfile>> getStaffProfile(String staffId) =>
@@ -38,7 +38,13 @@ class ClientRepositoryImpl implements ClientRepository {
 
   @override
   Future<Result<List<ClientAttendanceRecord>>> getAttendanceHistory() =>
-      _executor.fetch(dummy: _dummy.getAttendanceHistory);
+      _executor.fetch(
+        local: () async {
+          final l = await _local.getAttendanceHistory();
+          return l.isEmpty ? null : l;
+        },
+        dummy: _dummy.getAttendanceHistory,
+      );
 
   @override
   Future<Result<void>> raiseAttendanceIssue(String message) =>
@@ -50,26 +56,42 @@ class ClientRepositoryImpl implements ClientRepository {
 
   @override
   Future<Result<List<ClientPaymentHistory>>> getPaymentHistory() =>
-      _executor.fetch(dummy: _dummy.getPaymentHistory);
+      _executor.fetch(
+        local: () async {
+          final l = await _local.getPaymentHistory();
+          return l.isEmpty ? null : l;
+        },
+        dummy: _dummy.getPaymentHistory,
+      );
 
   @override
   Future<Result<String>> downloadInvoice(String invoiceId) =>
       _executor.mutate(dummy: () => _dummy.downloadInvoice(invoiceId));
 
   @override
-  Future<Result<List<ClientComplaint>>> getComplaints() =>
-      _executor.fetch(dummy: _dummy.getComplaints);
+  Future<Result<List<ClientComplaint>>> getComplaints() => _executor.fetch(
+    local: () async {
+      final l = await _local.getComplaints();
+      return l.isEmpty ? null : l;
+    },
+    dummy: _dummy.getComplaints,
+  );
 
   @override
   Future<Result<void>> raiseComplaint({
     required String subject,
     required String description,
     int imageCount = 0,
-  }) =>
-      _executor.mutateVoid(
-        remote: () => _remote.raiseComplaint(subject: subject, description: description).then((_) {}),
-        dummy: () => _dummy.raiseComplaint(subject: subject, description: description, imageCount: imageCount),
-      );
+  }) => _executor.mutateVoid(
+    remote: () async {
+      await _remote.raiseComplaint(subject: subject, description: description);
+    },
+    dummy: () => _dummy.raiseComplaint(
+      subject: subject,
+      description: description,
+      imageCount: imageCount,
+    ),
+  );
 
   @override
   Future<Result<ClientReplacementRequest?>> getReplacementStatus() =>
@@ -81,7 +103,13 @@ class ClientRepositoryImpl implements ClientRepository {
 
   @override
   Future<Result<List<ClientNotification>>> getNotifications() =>
-      _executor.fetch(dummy: _dummy.getNotifications);
+      _executor.fetch(
+        local: () async {
+          final l = await _local.getNotifications();
+          return l.isEmpty ? null : l;
+        },
+        dummy: _dummy.getNotifications,
+      );
 
   @override
   Future<Result<void>> markNotificationRead(String id) =>
@@ -89,13 +117,24 @@ class ClientRepositoryImpl implements ClientRepository {
 
   @override
   Future<Result<ClientProfile>> getProfile() => _executor.fetch(
-        remote: _remote.getProfile,
-        cache: _local.cacheProfile,
-        local: () async => _local.getProfile(),
-        dummy: _dummy.getProfile,
-      );
+    remote: _remote.getProfile,
+    cache: _local.cacheProfile,
+    local: () async => _local.getProfile(),
+    dummy: _dummy.getProfile,
+  );
 
   @override
   Future<Result<void>> updateProfile(Map<String, String> data) =>
       _executor.mutateVoid(dummy: () => _dummy.updateProfile(data));
+
+  @override
+  Future<Result<void>> makeDemoPayment(
+    String invoiceId,
+    double amount,
+    String method,
+  ) => _executor.mutateVoid(
+    dummy: () async {
+      await _dummy.makeDemoPayment(invoiceId, amount, method);
+    },
+  );
 }

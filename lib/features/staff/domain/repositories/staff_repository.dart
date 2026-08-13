@@ -9,7 +9,7 @@ abstract interface class StaffRepository {
   Future<Result<StaffProfile>> getProfile();
   Future<Result<List<StaffDocument>>> getDocuments();
   Future<Result<StaffDocument>> getDocument(String id);
-  Future<Result<void>> uploadDocument(String name, String type);
+  Future<Result<void>> uploadDocument(String name, String type, String filePath);
   Future<Result<void>> reuploadDocument(String id, String name);
   Future<Result<List<TrainingCategory>>> getTrainingCategories();
   Future<Result<List<TrainingCourse>>> getTrainingCourses({String? categoryId});

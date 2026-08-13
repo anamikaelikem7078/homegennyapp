@@ -1,24 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../common/presentation/providers/auth_provider.dart';
 import '../navigation/rm_routes.dart';
+import '../providers/rm_providers.dart';
+import '../widgets/rm_bottom_navigation.dart';
 
-class RmDashboardScreen extends StatelessWidget {
+class RmDashboardScreen extends ConsumerWidget {
   const RmDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isTablet = MediaQuery.of(context).size.width > 600;
+    final stats = ref.watch(rmDashboardStatsProvider);
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
 
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
-      appBar: _buildAppBar(),
+      appBar: _buildAppBar(user?.name, user?.avatarUrl),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildStatsGrid(isTablet),
+            _buildStatsGrid(isTablet, stats),
             const SizedBox(height: 24),
             _buildPipelineDistribution(),
             const SizedBox(height: 24),
@@ -28,24 +35,26 @@ class RmDashboardScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(context),
+      bottomNavigationBar: const RmBottomNavigation(currentIndex: 0),
     );
   }
 
-  AppBar _buildAppBar() {
+  AppBar _buildAppBar(String? userName, String? avatarUrl) {
     return AppBar(
       backgroundColor: RmTheme.offWhite,
       elevation: 0,
       title: Row(
         children: [
-          const CircleAvatar(
-            backgroundImage: NetworkImage('https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150'),
+          CircleAvatar(
+            backgroundImage: avatarUrl != null 
+              ? NetworkImage(avatarUrl)
+              : const NetworkImage('https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150'),
           ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Hello, Priya', style: RmTheme.headline(null).copyWith(fontSize: 18)),
+              Text('Hello, ${userName ?? 'Priya'}', style: RmTheme.headline(null).copyWith(fontSize: 18)),
               Text('Mumbai West', style: RmTheme.body(null).copyWith(fontSize: 12)),
             ],
           ),
@@ -77,7 +86,7 @@ class RmDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsGrid(bool isTablet) {
+  Widget _buildStatsGrid(bool isTablet, Map<String, int> stats) {
     return GridView.count(
       crossAxisCount: isTablet ? 4 : 2,
       shrinkWrap: true,
@@ -86,10 +95,10 @@ class RmDashboardScreen extends StatelessWidget {
       mainAxisSpacing: 16,
       childAspectRatio: isTablet ? 2.0 : 1.5,
       children: [
-        _buildStatCard('Total Staff', '142', Icons.people_outline, RmTheme.textPrimary),
-        _buildStatCard('Active Pipeline', '23', Icons.trending_up, RmTheme.electricBlue),
-        _buildStatCard('Alerts', '3', Icons.warning_amber_rounded, RmTheme.amberWarning),
-        _buildStatCard('Trials Active', '4', Icons.play_circle_outline, RmTheme.textPrimary),
+        _buildStatCard('Total Staff', '${stats['totalStaff'] ?? 0}', Icons.people_outline, RmTheme.textPrimary),
+        _buildStatCard('Active Pipeline', '${stats['pipeline'] ?? 0}', Icons.trending_up, RmTheme.electricBlue),
+        _buildStatCard('Alerts', '${stats['alerts'] ?? 0}', Icons.warning_amber_rounded, RmTheme.amberWarning),
+        _buildStatCard('Trials Active', '${stats['trialsActive'] ?? 0}', Icons.play_circle_outline, RmTheme.textPrimary),
       ],
     );
   }
@@ -372,65 +381,6 @@ class RmDashboardScreen extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildBottomNav(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          )
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(Icons.dashboard, 'Dashboard', true),
-              _buildNavItem(Icons.view_kanban_outlined, 'Pipeline', false, onTap: () => context.push(RmRoutes.pipeline)),
-              _buildNavItem(Icons.check_circle_outline, 'Tasks', false),
-              _buildNavItem(Icons.notifications_outlined, 'Alerts', false),
-              _buildNavItem(Icons.person_outline, 'Profile', false),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, bool isActive, {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: isActive
-            ? BoxDecoration(
-                color: RmTheme.electricBlue,
-                borderRadius: BorderRadius.circular(12),
-              )
-            : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: isActive ? Colors.white : RmTheme.textSecondary),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: RmTheme.label(null).copyWith(
-                color: isActive ? Colors.white : RmTheme.textSecondary,
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

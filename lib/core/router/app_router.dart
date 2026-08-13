@@ -18,6 +18,7 @@ import '../../features/client/presentation/navigation/client_router.dart';
 import '../presentation/screens/error_not_found_screen.dart';
 import 'app_routes.dart';
 import 'route_helpers.dart';
+import '../../common/domain/models/user_role.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -49,6 +50,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             location == AppRoutes.splash) {
           return authState.user?.role.dashboardRoute ??
               AppRoutes.clientDashboard;
+        }
+
+        // Role-based route guards
+        if (location.startsWith('/rm') && authState.user?.role != UserRole.rm) {
+          return authState.user?.role.dashboardRoute;
+        }
+        if (location.startsWith('/staff') && authState.user?.role != UserRole.staff) {
+          return authState.user?.role.dashboardRoute;
+        }
+        if (location.startsWith('/client') && authState.user?.role != UserRole.client) {
+          return authState.user?.role.dashboardRoute;
         }
       }
 

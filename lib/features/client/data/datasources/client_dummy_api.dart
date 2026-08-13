@@ -259,4 +259,5 @@ class ClientDummyApi {
       );
 
   Future<void> updateProfile(Map<String, String> data) => _simulate(null);
+  Future<void> makeDemoPayment(String invoiceId, double amount, String method) => _simulate(null);
 }

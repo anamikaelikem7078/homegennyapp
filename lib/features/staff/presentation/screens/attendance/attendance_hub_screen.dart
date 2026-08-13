@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
@@ -55,8 +56,8 @@ class StaffAttendanceHubScreen extends ConsumerWidget {
           // Sleek Precision Actions
           today.when(
             data: (record) {
-              final dashboard = ref.watch(staffDashboardProvider);
-              final userName = dashboard.value?.profile.name ?? 'Priya Sharma';
+              final authState = ref.watch(authProvider);
+              final userName = authState.user?.name ?? 'Rajesh Kumar';
               return _TactileAttendanceToggle(
                 userName: userName,
                 record: record,

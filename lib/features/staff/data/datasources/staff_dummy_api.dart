@@ -162,7 +162,7 @@ class StaffDummyApi {
     return _documents.firstWhere((d) => d.id == id);
   }
 
-  Future<void> uploadDocument(String name, String type) => _simulate(null);
+  Future<void> uploadDocument(String name, String type, String filePath) => _simulate(null);
 
   Future<void> reuploadDocument(String id, String name) => _simulate(null);
 

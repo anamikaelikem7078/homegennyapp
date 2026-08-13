@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../design_system/foundations/rm_theme.dart';
+import '../../../../common/presentation/providers/auth_provider.dart';
+import '../providers/rm_providers.dart';
 
-class RmTrack1AadhaarScreen extends StatelessWidget {
+class RmTrack1AadhaarScreen extends ConsumerWidget {
   final String staffId;
 
   const RmTrack1AadhaarScreen({super.key, required this.staffId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staff = ref.watch(rmStaffDetailProvider(staffId));
+    
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
       appBar: _buildAppBar(context),
@@ -23,7 +28,9 @@ class RmTrack1AadhaarScreen extends StatelessWidget {
             const SizedBox(height: 32),
             _buildStatusHeader(context),
             const SizedBox(height: 24),
-            _buildSubjectInfo(context),
+            _buildActionButtons(context, ref, staff?.id ?? staffId),
+            const SizedBox(height: 24),
+            _buildSubjectInfo(context, staff?.name ?? 'Unknown'),
             const SizedBox(height: 24),
             _buildStatusBreakdown(context),
             const SizedBox(height: 24),
@@ -148,7 +155,40 @@ class RmTrack1AadhaarScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSubjectInfo(BuildContext context) {
+  Widget _buildActionButtons(BuildContext context, WidgetRef ref, String sId) {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton(
+            onPressed: () async {
+              final rmId = ref.read(authProvider).user?.id ?? 'rm-demo-1';
+              // Assume document ID is somehow tied to staff ID, e.g. "doc-aadhaar-<staffId>"
+              await ref.read(rmRepositoryProvider).approveDocument('doc-aadhaar-$sId', rmId);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aadhaar Approved!')));
+              context.pop();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: RmTheme.emeraldGreen),
+            child: const Text('Approve', style: TextStyle(color: Colors.white)),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () async {
+              final rmId = ref.read(authProvider).user?.id ?? 'rm-demo-1';
+              await ref.read(rmRepositoryProvider).rejectDocument('doc-aadhaar-$sId', rmId, 'Mismatched details');
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aadhaar Rejected!')));
+              context.pop();
+            },
+            style: OutlinedButton.styleFrom(foregroundColor: RmTheme.crimsonDanger),
+            child: const Text('Reject'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubjectInfo(BuildContext context, String staffName) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -183,7 +223,7 @@ class RmTrack1AadhaarScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Ramesh K.',
+                    staffName,
                     style: GoogleFonts.inter(
                       color: RmTheme.textPrimary,
                       fontSize: 16,
@@ -192,7 +232,7 @@ class RmTrack1AadhaarScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Applicant ID: #DR-8821',
+                    'Applicant ID: #$staffId',
                     style: GoogleFonts.inter(
                       color: RmTheme.textSecondary,
                       fontSize: 12,

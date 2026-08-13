@@ -3,6 +3,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/route_helpers.dart';
 import '../screens/rm_dashboard_screen.dart';
 import '../screens/rm_pipeline_screen.dart';
+import '../screens/rm_tasks_screen.dart';
+import '../screens/rm_alerts_screen.dart';
+import '../screens/rm_profile_screen.dart';
 import '../screens/rm_staff_intake_screen.dart';
 import '../screens/rm_staff_detail_screen.dart';
 import '../screens/rm_verification_dashboard_screen.dart';
@@ -40,6 +43,21 @@ final List<RouteBase> rmRoutes = [
     path: '/rm/pipeline',
     name: 'rmPipeline',
     builder: (context, state) => const RmPipelineScreen(),
+  ),
+  fadeRoute(
+    path: '/rm/tasks',
+    name: 'rmTasks',
+    builder: (context, state) => const RmTasksScreen(),
+  ),
+  fadeRoute(
+    path: '/rm/alerts',
+    name: 'rmAlerts',
+    builder: (context, state) => const RmAlertsScreen(),
+  ),
+  fadeRoute(
+    path: '/rm/profile',
+    name: 'rmProfile',
+    builder: (context, state) => const RmProfileScreen(),
   ),
   slideRoute(
     path: '/rm/staff-intake',
