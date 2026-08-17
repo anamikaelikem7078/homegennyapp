@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../common/presentation/providers/auth_provider.dart';
-import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
@@ -116,31 +115,62 @@ class StaffAttendanceHubScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 16),
-          _HistoryLogItem(
-            title: 'Today',
-            subtitle: 'In: 09:02 AM',
-            tagLabel: 'PRESENT',
-            tagColor: const Color(0xFF1A56FF),
-            tagBgColor: const Color(0xFF1A56FF).withOpacity(0.1),
-            icon: Icons.calendar_today_outlined,
-          ),
-          const SizedBox(height: 12),
-          _HistoryLogItem(
-            title: 'Yesterday',
-            subtitle: 'Full Shift: 8h 15m',
-            tagLabel: 'PRESENT',
-            tagColor: const Color(0xFF64748B),
-            tagBgColor: const Color(0xFFF1F5F9),
-            icon: Icons.calendar_today_outlined,
-          ),
-          const SizedBox(height: 12),
-          _HistoryLogItem(
-            title: '12 Jul 2024',
-            subtitle: 'In: 09:30 AM (Late)',
-            tagLabel: 'LATE',
-            tagColor: const Color(0xFFEF4444),
-            tagBgColor: const Color(0xFFFEE2E2),
-            icon: Icons.history,
+          Consumer(
+            builder: (context, ref, _) {
+              final history = ref.watch(staffAttendanceHistoryProvider);
+              return history.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (err, _) => Text(
+                  'Failed to load history',
+                  style: GoogleFonts.inter(color: Colors.red),
+                ),
+                data: (records) {
+                  if (records.isEmpty) {
+                    return Text(
+                      'No attendance history yet',
+                      style: GoogleFonts.inter(color: const Color(0xFF64748B)),
+                    );
+                  }
+                  final recent = records.take(3).toList();
+                  return Column(
+                    children: [
+                      for (var i = 0; i < recent.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 12),
+                        Builder(builder: (context) {
+                          final r = recent[i];
+                          final isPresent = r.status == 'present';
+                          final isInProgress = r.status == 'in_progress';
+                          final subtitle = r.checkOut != null
+                              ? 'In: ${r.checkIn ?? '—'} · Out: ${r.checkOut}'
+                              : r.checkIn != null
+                                  ? 'In: ${r.checkIn}'
+                                  : 'Absent';
+                          return _HistoryLogItem(
+                            title: r.date,
+                            subtitle: subtitle,
+                            tagLabel: r.status.toUpperCase(),
+                            tagColor: isPresent
+                                ? const Color(0xFF1A56FF)
+                                : isInProgress
+                                    ? const Color(0xFFF59E0B)
+                                    : const Color(0xFFEF4444),
+                            tagBgColor: isPresent
+                                ? const Color(0xFF1A56FF).withOpacity(0.1)
+                                : isInProgress
+                                    ? const Color(0xFFF59E0B).withOpacity(0.1)
+                                    : const Color(0xFFFEE2E2),
+                            icon: Icons.calendar_today_outlined,
+                          );
+                        }),
+                      ],
+                    ],
+                  );
+                },
+              );
+            },
           ),
           const SizedBox(height: 32),
 

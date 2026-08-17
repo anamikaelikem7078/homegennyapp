@@ -1,69 +1,219 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../common/domain/models/staff_entity.dart';
-import '../../../../common/presentation/providers/auth_provider.dart';
-import '../../../../core/data/mutation_queue_service.dart';
 import '../../../../core/di/injection.dart';
-import '../../../../core/storage/hive_service.dart';
-import '../../data/repositories/rm_repository.dart';
+import '../../../../core/utils/result.dart';
+import '../../domain/models/rm_models.dart';
 
-final mutationQueueServiceProvider = Provider<MutationQueueService>((ref) {
-  return MutationQueueService(ref.watch(hiveServiceProvider));
+export '../../../../core/di/injection.dart' show rmRepositoryProvider;
+
+/// Reads follow the Staff/Client module convention: `FutureProvider` +
+/// `.fold()`, real API only (see `RmRepositoryImpl`). Mutations are called
+/// directly from screens via `ref.read(rmRepositoryProvider).method(...)`,
+/// which then `ref.invalidate(...)` the providers below to refresh —
+/// matching `check_in_screen.dart`'s pattern in the Staff module. There is
+/// intentionally no mutation-provider layer here.
+
+final rmDashboardProvider = FutureProvider<RmDashboard>((ref) async {
+  final result = await ref.watch(rmRepositoryProvider).getDashboard();
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
 });
 
-final rmRepositoryProvider = Provider<RmRepository>((ref) {
-  final hiveService = ref.watch(hiveServiceProvider);
-  final mutationQueue = ref.watch(mutationQueueServiceProvider);
-  return RmRepository(hiveService: hiveService, mutationQueue: mutationQueue);
+/// Kanban params — `null`/empty fields mean "no filter".
+class KanbanParams {
+  const KanbanParams({this.search, this.series, this.limit});
+  final String? search;
+  final String? series;
+  final int? limit;
+
+  @override
+  bool operator ==(Object other) =>
+      other is KanbanParams && other.search == search && other.series == series && other.limit == limit;
+
+  @override
+  int get hashCode => Object.hash(search, series, limit);
+}
+
+final rmKanbanProvider = FutureProvider.family<KanbanResult, KanbanParams>((ref, params) async {
+  final result = await ref
+      .watch(rmRepositoryProvider)
+      .getKanban(search: params.search, series: params.series, limit: params.limit);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
 });
 
-// Dashboard Stats Provider
-final rmDashboardStatsProvider = Provider<Map<String, int>>((ref) {
-  final authState = ref.watch(authProvider);
-  if (authState.user == null) return {};
-
-  final repository = ref.watch(rmRepositoryProvider);
-  
-  // We can watch the hive box for changes to rebuild this provider.
-  // Assuming hiveService.staffBox provides a stream of events.
-  // For the APK prototype we will explicitly invalidate providers when mutations occur, 
-  // or use ValueListenableBuilder at the widget level, but Riverpod is better.
-  
-  return repository.getDashboardStats(authState.user!.id);
+/// No `GET /rm/staff/:id` exists on the backend — staff detail is always
+/// resolved by finding the row inside the latest unfiltered kanban fetch.
+/// See the plan's "Architecture decisions #4".
+final staffByIdProvider = FutureProvider.family<StaffRow?, String>((ref, staffId) async {
+  final kanban = await ref.watch(rmKanbanProvider(const KanbanParams()).future);
+  return kanban.findById(staffId);
 });
 
-// Staff Pipeline Provider
-final rmPipelineProvider = Provider<Map<String, List<StaffEntity>>>((ref) {
-  final authState = ref.watch(authProvider);
-  if (authState.user == null) return {};
-
-  final repository = ref.watch(rmRepositoryProvider);
-  final allStaff = repository.getRmStaff(authState.user!.id);
-  
-  final Map<String, List<StaffEntity>> categorized = {
-    'REGISTRATION': [],
-    'VERIFICATION': [],
-    'TRAINING': [],
-    'VIDEO_CERTIFICATION': [],
-    'AGREEMENT': [],
-    'DEPLOYMENT': [],
-    'TRIAL': [],
-    'ACTIVE_PLACEMENT': [],
-  };
-
-  for (var staff in allStaff) {
-    if (categorized.containsKey(staff.pipelineStage)) {
-      categorized[staff.pipelineStage]!.add(staff);
-    } else {
-      categorized['REGISTRATION']!.add(staff); // fallback
-    }
-  }
-
-  return categorized;
+final rmTrialsProvider = FutureProvider<List<TrialRow>>((ref) async {
+  final result = await ref.watch(rmRepositoryProvider).getTrials();
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
 });
 
-// Staff Detail Provider
-final rmStaffDetailProvider = Provider.family<StaffEntity?, String>((ref, staffId) {
-  final repository = ref.watch(rmRepositoryProvider);
-  return repository.getStaffById(staffId);
+final rmDeferredProvider = FutureProvider<List<DeferredRow>>((ref) async {
+  final result = await ref.watch(rmRepositoryProvider).getDeferred();
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+final rmTerminalProvider = FutureProvider<List<StaffRow>>((ref) async {
+  final result = await ref.watch(rmRepositoryProvider).getTerminal();
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+final rmIncidentsProvider = FutureProvider.family<List<IncidentRow>, String?>((ref, status) async {
+  final result = await ref.watch(rmRepositoryProvider).getIncidents(status: status);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+final rmShiftsProvider = FutureProvider.family<List<ShiftLogRow>, String?>((ref, status) async {
+  final result = await ref.watch(rmRepositoryProvider).getShifts(status: status);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+final rmUpgradesProvider = FutureProvider<List<UpgradeRequestRow>>((ref) async {
+  final result = await ref.watch(rmRepositoryProvider).getUpgrades();
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+final rmLocationsProvider = FutureProvider<LocationsData>((ref) async {
+  final result = await ref.watch(rmRepositoryProvider).getLocations();
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+class AttendanceParams {
+  const AttendanceParams({required this.branchId, required this.month, required this.year});
+  final String branchId;
+  final int month;
+  final int year;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AttendanceParams && other.branchId == branchId && other.month == month && other.year == year;
+
+  @override
+  int get hashCode => Object.hash(branchId, month, year);
+}
+
+final rmAttendanceProvider = FutureProvider.family<AttendanceMonthResult, AttendanceParams>((ref, params) async {
+  final result = await ref
+      .watch(rmRepositoryProvider)
+      .getAttendance(branchId: params.branchId, month: params.month, year: params.year);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+class StaffPeriodParams {
+  const StaffPeriodParams({required this.staffId, required this.month, required this.year});
+  final String staffId;
+  final int month;
+  final int year;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StaffPeriodParams && other.staffId == staffId && other.month == month && other.year == year;
+
+  @override
+  int get hashCode => Object.hash(staffId, month, year);
+}
+
+final rmInvoicePreviewProvider = FutureProvider.family<InvoicePreview, StaffPeriodParams>((ref, params) async {
+  final result =
+      await ref.watch(rmRepositoryProvider).getInvoicePreview(params.staffId, month: params.month, year: params.year);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+final financeCustomersProvider = FutureProvider.family<List<FinanceCustomer>, String?>((ref, search) async {
+  final result = await ref.watch(rmRepositoryProvider).getFinanceCustomers(search: search);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+class PlacementListParams {
+  const PlacementListParams({this.staffId, this.clientId});
+  final String? staffId;
+  final String? clientId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PlacementListParams && other.staffId == staffId && other.clientId == clientId;
+
+  @override
+  int get hashCode => Object.hash(staffId, clientId);
+}
+
+final rmPlacementsProvider = FutureProvider.family<List<PlacementRow>, PlacementListParams>((ref, params) async {
+  final result = await ref.watch(rmRepositoryProvider).listPlacements(staffId: params.staffId, clientId: params.clientId);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+/// A staff member's most recent placement, or null if they have none yet.
+final staffPlacementProvider = FutureProvider.family<PlacementRow?, String>((ref, staffId) async {
+  final list = await ref.watch(rmPlacementsProvider(PlacementListParams(staffId: staffId)).future);
+  if (list.isEmpty) return null;
+  return list.reduce((a, b) => (a.createdAt ?? '').compareTo(b.createdAt ?? '') >= 0 ? a : b);
+});
+
+final rmAssessmentsProvider = FutureProvider<List<Assessment>>((ref) async {
+  final result = await ref.watch(rmRepositoryProvider).listAssessments();
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+/// A staff member's assessments, most recent first.
+final staffAssessmentsProvider = FutureProvider.family<List<Assessment>, String>((ref, staffId) async {
+  final all = await ref.watch(rmAssessmentsProvider.future);
+  final mine = all.where((a) => a.staffId == staffId).toList()
+    ..sort((a, b) => (b.createdAt ?? '').compareTo(a.createdAt ?? ''));
+  return mine;
+});
+
+class AgreementListParams {
+  const AgreementListParams({this.staffId, this.clientId});
+  final String? staffId;
+  final String? clientId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is AgreementListParams && other.staffId == staffId && other.clientId == clientId;
+
+  @override
+  int get hashCode => Object.hash(staffId, clientId);
+}
+
+/// The client selected for a staff member's S4 Agreements instruments —
+/// session-local, chosen once via the client picker and carried across the
+/// A1/A2/A3 screens for that staff.
+final agreementClientProvider = StateProvider.family<FinanceCustomer?, String>((ref, staffId) => null);
+
+final rmAgreementsProvider = FutureProvider.family<List<Agreement>, AgreementListParams>((ref, params) async {
+  final result = await ref.watch(rmRepositoryProvider).listAgreements(staffId: params.staffId, clientId: params.clientId);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+final rmSowListProvider = FutureProvider.family<List<ScopeOfWork>, String>((ref, placementId) async {
+  final result = await ref.watch(rmRepositoryProvider).listSow(placementId);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+final rmVideoCertPromptsProvider = FutureProvider.family<VideoCertPrompts, String>((ref, series) async {
+  final result = await ref.watch(rmRepositoryProvider).getVideoCertPrompts(series);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+final rmVideoCertsProvider = FutureProvider.family<List<VideoCertItem>, String>((ref, staffId) async {
+  final result = await ref.watch(rmRepositoryProvider).listVideoCerts(staffId);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
+/// Session-local (not persisted) verification-track "attempted" flags —
+/// see the plan's "Architecture decisions #6": there's a real
+/// `GET /verification/:staffId` now, so this is used only as a fallback
+/// when that call fails (e.g. pre-redeploy backend), not as the primary
+/// source of truth.
+final verificationSessionProvider =
+    StateProvider.family<Set<String>, String>((ref, staffId) => <String>{});
+
+final rmVerificationStatusProvider = FutureProvider.family<Map<String, String>, String>((ref, staffId) async {
+  final result = await ref.watch(rmRepositoryProvider).getVerificationStatus(staffId);
+  return result.fold(onSuccess: (d) => d, onError: (_) => const {});
 });

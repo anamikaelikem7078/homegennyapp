@@ -11,12 +11,23 @@ abstract interface class AuthRepository {
     required String password,
   });
 
-  Future<Result<AuthTokens>> verifyOtp({
+  Future<Result<bool>> verifyOtp({
     required String phone,
     required String otp,
   });
 
-  Future<Result<void>> forgotPassword({required String email});
+  Future<Result<void>> forgotPassword({required String phone});
+
+  Future<Result<void>> resetPassword({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  });
+
+  Future<Result<void>> changePassword({
+    required String otp,
+    required String newPassword,
+  });
 
   Future<Result<UserModel>> getUserProfile();
 

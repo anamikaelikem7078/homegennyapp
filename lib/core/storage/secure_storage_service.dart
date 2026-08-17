@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Wrapper around Flutter Secure Storage for sensitive data.
@@ -15,8 +16,19 @@ class SecureStorageService {
     await _storage.write(key: key, value: value);
   }
 
+  /// A stored value that can't be decrypted is treated as absent rather than
+  /// left to throw. On Flutter Web, the underlying WebCrypto decrypt can
+  /// throw a raw `OperationError` (e.g. after the browser's storage
+  /// partition/wrapping key changes between sessions) — every caller here
+  /// already treats "no token" as "not logged in" and re-authenticates, so
+  /// self-healing to null is strictly safer than an opaque crash.
   Future<String?> read(String key) async {
-    return _storage.read(key: key);
+    try {
+      return await _storage.read(key: key);
+    } catch (e) {
+      if (kDebugMode) debugPrint('SecureStorageService: read($key) failed, treating as absent: $e');
+      return null;
+    }
   }
 
   Future<void> delete(String key) async {

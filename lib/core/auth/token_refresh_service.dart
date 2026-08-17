@@ -59,14 +59,20 @@ class TokenRefreshService {
 
     try {
       AppLogger.i('Refreshing access token...');
+      final userId = await _secureStorage.read(StorageKeys.userId);
+      if (userId == null || userId.isEmpty) {
+        throw const TokenRefreshException('No user id available for refresh');
+      }
+
       final response = await _refreshDio.post<Map<String, dynamic>>(
         ApiConstants.authRefreshToken,
-        data: {'refresh_token': refreshToken},
+        data: {'userId': userId, 'refresh_token': refreshToken},
       );
 
       final data = response.data;
-      final newAccessToken = data?['access_token'] as String?;
-      final newRefreshToken = data?['refresh_token'] as String? ?? refreshToken;
+      final responseData = (data?['data'] as Map<String, dynamic>?) ?? data;
+      final newAccessToken = responseData?['access_token'] as String?;
+      final newRefreshToken = responseData?['refresh_token'] as String? ?? refreshToken;
 
       if (newAccessToken == null || newAccessToken.isEmpty) {
         throw const TokenRefreshException('Invalid refresh response');

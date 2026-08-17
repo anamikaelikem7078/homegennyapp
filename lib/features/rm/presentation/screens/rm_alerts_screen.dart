@@ -1,173 +1,159 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/presentation/async_value_widget.dart';
+import '../../../../core/utils/result.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
+import '../../domain/models/rm_models.dart';
+import '../providers/rm_providers.dart';
 import '../widgets/rm_bottom_navigation.dart';
 
+/// Incidents — repurposed from the former "Alerts" tab, which had no
+/// backend equivalent (hardcoded mock notification list). Incidents
+/// (`GET`/`POST /rm/incidents`) is a real, required RM module needing a
+/// home; this reuses the existing bottom-nav slot.
 class RmAlertsScreen extends ConsumerWidget {
   const RmAlertsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Mock notifications list
-    final alerts = [
-      {
-        'type': 'warning',
-        'title': 'Trial Ending Tomorrow',
-        'message': 'Preeti K. (Maid) completes 7-day trial tomorrow at the Patel household. Action required.',
-        'time': '2 hours ago',
-      },
-      {
-        'type': 'danger',
-        'title': 'Document Rejected',
-        'message': 'Aadhaar verification failed for new candidate Suresh M. Please follow up.',
-        'time': '4 hours ago',
-      },
-      {
-        'type': 'info',
-        'title': 'Stage 3 Training Complete',
-        'message': 'Rahul S. has completed all Stage 3 training modules.',
-        'time': '5 hours ago',
-      },
-      {
-        'type': 'success',
-        'title': 'First Payment Received',
-        'message': 'Client Sharma Household processed their first deployment payment.',
-        'time': '1 day ago',
-      },
-      {
-        'type': 'warning',
-        'title': 'Overdue EOR Signature',
-        'message': 'The A1 Employer of Record agreement for Amit R. is 2 days overdue.',
-        'time': '1 day ago',
-      },
-    ];
+    final incidentsAsync = ref.watch(rmIncidentsProvider(null));
 
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
       appBar: AppBar(
-        title: Text('Alerts & Notifications', style: RmTheme.headline(context).copyWith(fontSize: 20)),
         backgroundColor: RmTheme.cardSurface,
         elevation: 0,
+        title: const Text('Incidents'),
         actions: [
-          TextButton(
-            onPressed: () {},
-            child: Text(
-              'Mark All Read',
-              style: GoogleFonts.inter(
-                color: RmTheme.electricBlue,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
+          IconButton(icon: const Icon(Icons.add), onPressed: () => _showCreateSheet(context, ref)),
         ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: alerts.length,
-        itemBuilder: (context, index) {
-          return _buildAlertCard(alerts[index]);
-        },
+      body: RefreshIndicator(
+        onRefresh: () async => ref.invalidate(rmIncidentsProvider(null)),
+        child: AsyncValueWidget<List<IncidentRow>>(
+          value: incidentsAsync,
+          onRetry: () => ref.invalidate(rmIncidentsProvider(null)),
+          builder: (incidents) {
+            if (incidents.isEmpty) return const Center(child: Text('No incidents on file.'));
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: incidents.length,
+              itemBuilder: (context, index) {
+                final i = incidents[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListTile(
+                    leading: Icon(_iconFor(i.type), color: RmTheme.crimsonDanger),
+                    title: Text(i.title),
+                    subtitle: Text('${IncidentTypes.label(i.type)}${i.staff != null ? ' · ${i.staff!.fullName}' : ''}\n${i.status}'),
+                    isThreeLine: i.staff != null,
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
       bottomNavigationBar: const RmBottomNavigation(currentIndex: 3),
     );
   }
 
-  Widget _buildAlertCard(Map<String, String> alert) {
-    Color iconColor;
-    Color bgColor;
-    IconData icon;
+  IconData _iconFor(String type) => switch (type) {
+        IncidentTypes.clientComplaint => Icons.sentiment_dissatisfied_outlined,
+        IncidentTypes.staffMisconduct => Icons.person_off_outlined,
+        IncidentTypes.safetyIssue => Icons.warning_amber_rounded,
+        IncidentTypes.attendanceFraud => Icons.gpp_bad_outlined,
+        IncidentTypes.drivingViolation => Icons.car_crash_outlined,
+        IncidentTypes.lateExit => Icons.exit_to_app,
+        _ => Icons.report_problem_outlined,
+      };
 
-    switch (alert['type']) {
-      case 'danger':
-        iconColor = RmTheme.crimsonDanger;
-        bgColor = RmTheme.crimsonDanger.withOpacity(0.1);
-        icon = Icons.error_outline;
-        break;
-      case 'success':
-        iconColor = RmTheme.emeraldGreen;
-        bgColor = RmTheme.emeraldGreen.withOpacity(0.1);
-        icon = Icons.check_circle_outline;
-        break;
-      case 'info':
-        iconColor = RmTheme.electricBlue;
-        bgColor = RmTheme.electricBlue.withOpacity(0.1);
-        icon = Icons.info_outline;
-        break;
-      case 'warning':
-      default:
-        iconColor = RmTheme.amberWarning;
-        bgColor = RmTheme.amberWarning.withOpacity(0.1);
-        icon = Icons.warning_amber_rounded;
-        break;
+  void _showCreateSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => _CreateIncidentSheet(ref: ref),
+    );
+  }
+}
+
+class _CreateIncidentSheet extends StatefulWidget {
+  const _CreateIncidentSheet({required this.ref});
+  final WidgetRef ref;
+
+  @override
+  State<_CreateIncidentSheet> createState() => _CreateIncidentSheetState();
+}
+
+class _CreateIncidentSheetState extends State<_CreateIncidentSheet> {
+  String _type = IncidentTypes.clientComplaint;
+  final _titleController = TextEditingController();
+  final _descController = TextEditingController();
+  final _staffIdController = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descController.dispose();
+    _staffIdController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Title is required')));
+      return;
     }
+    setState(() => _submitting = true);
+    final result = await widget.ref.read(rmRepositoryProvider).createIncident({
+      'type': _type,
+      'title': _titleController.text.trim(),
+      if (_descController.text.trim().isNotEmpty) 'description': _descController.text.trim(),
+      if (_staffIdController.text.trim().isNotEmpty) 'staff_id': _staffIdController.text.trim(),
+    });
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    result.fold(
+      onSuccess: (_) {
+        widget.ref.invalidate(rmIncidentsProvider(null));
+        widget.ref.invalidate(rmDashboardProvider);
+        Navigator.of(context).pop();
+      },
+      onError: (f) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(f.message), backgroundColor: RmTheme.crimsonDanger)),
+    );
+  }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: RmTheme.borderSubtle),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: MediaQuery.of(context).viewInsets.bottom + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: bgColor,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: iconColor, size: 24),
+          const Text('New Incident', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _type,
+            items: [for (final t in IncidentTypes.all) DropdownMenuItem(value: t, child: Text(IncidentTypes.label(t)))],
+            onChanged: (v) => setState(() => _type = v ?? _type),
+            decoration: const InputDecoration(labelText: 'Type', border: OutlineInputBorder()),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        alert['title']!,
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                          color: RmTheme.textPrimary,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      alert['time']!,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: RmTheme.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  alert['message']!,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: RmTheme.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 12),
+          TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder())),
+          const SizedBox(height: 12),
+          TextField(controller: _descController, maxLines: 3, decoration: const InputDecoration(labelText: 'Description (optional)', border: OutlineInputBorder())),
+          const SizedBox(height: 12),
+          TextField(controller: _staffIdController, decoration: const InputDecoration(labelText: 'Staff ID (optional)', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _submitting ? null : _submit,
+              style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue),
+              child: _submitting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('File Incident'),
             ),
           ),
         ],

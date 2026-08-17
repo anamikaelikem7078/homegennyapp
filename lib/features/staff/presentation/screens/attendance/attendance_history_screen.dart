@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../design_system/design_system.dart';
-import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
 
@@ -73,9 +72,12 @@ class StaffAttendanceHistoryScreen extends ConsumerWidget {
             onRetry: () => ref.invalidate(staffAttendanceHistoryProvider),
           ),
           data: (records) {
-            // Dynamically calculate PRESENT and LATE totals
-            final presentCount = records.where((r) => r.status == AttendanceDayStatus.present).length;
-            final lateCount = records.where((r) => r.status == AttendanceDayStatus.late).length;
+            // Dynamically calculate PRESENT and IN-PROGRESS totals — the
+            // backend's real status values are "present" | "in_progress" |
+            // "absent" (see GET /staff/attendance/history), there is no
+            // "late"/"leave" distinction.
+            final presentCount = records.where((r) => r.status == 'present').length;
+            final inProgressCount = records.where((r) => r.status == 'in_progress').length;
 
             return Column(
               children: [
@@ -134,7 +136,7 @@ class StaffAttendanceHistoryScreen extends ConsumerWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'LATE',
+                                      'IN PROGRESS',
                                       style: GoogleFonts.inter(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
@@ -144,7 +146,7 @@ class StaffAttendanceHistoryScreen extends ConsumerWidget {
                                     ),
                                     const SizedBox(height: 8),
                                     Text(
-                                      '$lateCount',
+                                      '$inProgressCount',
                                       style: GoogleFonts.libreCaslonText(
                                         fontSize: 36,
                                         fontWeight: FontWeight.w700,
@@ -174,27 +176,24 @@ class StaffAttendanceHistoryScreen extends ConsumerWidget {
                             separatorBuilder: (_, index) => const SizedBox(height: 16),
                             itemBuilder: (_, index) {
                               final record = records[index];
-                              final statusType = record.status;
-                              
-                              String badgeLabel = 'PRESENT';
-                              Color badgeColor = successColor;
-                              switch (statusType) {
-                                case AttendanceDayStatus.present:
+
+                              // Real backend status values: "present" |
+                              // "in_progress" | "absent" (no "late"/"leave").
+                              String badgeLabel;
+                              Color badgeColor;
+                              switch (record.status) {
+                                case 'present':
                                   badgeLabel = 'PRESENT';
                                   badgeColor = successColor;
-                                  break;
-                                case AttendanceDayStatus.late:
-                                  badgeLabel = 'LATE';
+                                case 'in_progress':
+                                  badgeLabel = 'IN PROGRESS';
                                   badgeColor = warningColor;
-                                  break;
-                                case AttendanceDayStatus.absent:
+                                case 'absent':
                                   badgeLabel = 'ABSENT';
                                   badgeColor = errorColor;
-                                  break;
-                                case AttendanceDayStatus.leave:
-                                  badgeLabel = 'LEAVE';
+                                default:
+                                  badgeLabel = record.status.toUpperCase();
                                   badgeColor = leaveColor;
-                                  break;
                               }
 
                               return Container(

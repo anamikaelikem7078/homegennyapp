@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../common/domain/models/staff_entity.dart';
-import '../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/utils/result.dart';
 import '../../../../core/utils/validators.dart';
+import '../../domain/models/pipeline_stage.dart';
+import '../../domain/models/rm_models.dart';
 import '../navigation/rm_routes.dart';
 import '../providers/rm_providers.dart';
 
+/// S1 intake — the backend runs the restricted-list check *inside*
+/// `POST /rm/intake` itself (no separate pre-check endpoint exists), so this
+/// wizard collects every field across its steps and submits once at the
+/// end; the outcome (`RESTRICTED` vs `ADVANCE_S2`) determines which result
+/// screen is shown, instead of a fake pre-check.
 class RmStaffIntakeScreen extends ConsumerStatefulWidget {
   const RmStaffIntakeScreen({super.key});
 
@@ -18,36 +24,78 @@ class RmStaffIntakeScreen extends ConsumerStatefulWidget {
 
 class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
   final PageController _pageController = PageController();
-  int _currentIndex = 0;
-  
-  String? _selectedRole = 'Driver';
-  String? _selectedPayment = 'Cash';
-  String _selectedGender = 'Male';
-  String? _generatedStaffId;
+  bool _submitting = false;
 
-  final TextEditingController _dobController = TextEditingController();
-  final TextEditingController _aadhaarController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _receiptController = TextEditingController();
+  String _selectedSeries = StaffSeries.driver;
+  String _selectedPayment = 'Cash (Collected)';
+
+  final _aadhaarController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _dobController = TextEditingController();
+
+  IntakeResult? _result;
+  String? _submitError;
 
   @override
   void dispose() {
-    _dobController.dispose();
+    _pageController.dispose();
     _aadhaarController.dispose();
     _phoneController.dispose();
     _nameController.dispose();
-    _receiptController.dispose();
-    _pageController.dispose();
+    _addressController.dispose();
+    _emailController.dispose();
+    _dobController.dispose();
     super.dispose();
-  }
-
-  void _nextPage() {
-    _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
   }
 
   void _goToPage(int index) {
     _pageController.animateToPage(index, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _submitting = true;
+      _submitError = null;
+    });
+
+    final body = <String, dynamic>{
+      'aadhaar_number': _aadhaarController.text.trim(),
+      'mobile': _phoneController.text.trim(),
+      'full_name': _nameController.text.trim(),
+      'series': _selectedSeries,
+      'deposit_amount': StaffSeries.depositFor(_selectedSeries),
+      'deposit_collected': _selectedPayment.startsWith('Cash'),
+      if (_dobController.text.trim().isNotEmpty) 'date_of_birth': _dobController.text.trim(),
+      if (_addressController.text.trim().isNotEmpty) 'address': _addressController.text.trim(),
+      if (_emailController.text.trim().isNotEmpty) 'email': _emailController.text.trim(),
+    };
+
+    final result = await ref.read(rmRepositoryProvider).submitIntake(body);
+    if (!mounted) return;
+
+    result.fold(
+      onSuccess: (intake) {
+        setState(() {
+          _submitting = false;
+          _result = intake;
+        });
+        ref.invalidate(rmKanbanProvider);
+        ref.invalidate(rmDashboardProvider);
+        _goToPage(3);
+      },
+      onError: (failure) {
+        setState(() {
+          _submitting = false;
+          _submitError = failure.message;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(failure.message), backgroundColor: RmTheme.crimsonDanger),
+        );
+      },
+    );
   }
 
   @override
@@ -58,30 +106,22 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
         child: PageView(
           controller: _pageController,
           physics: const NeverScrollableScrollPhysics(),
-          onPageChanged: (index) => setState(() => _currentIndex = index),
           children: [
-            _buildRestrictedCheckScreen(), // 0
-            _buildRestrictedResultScreen(), // 1
-            _buildClearResultScreen(), // 2
-            _buildPersonalDetailsScreen(), // 3
-            _buildDepositCollectionScreen(), // 4
-            _buildIntakeCompleteScreen(), // 5
+            _buildIdentityScreen(), // 0
+            _buildPersonalDetailsScreen(), // 1
+            _buildDepositScreen(), // 2
+            _buildResultScreen(), // 3
           ],
         ),
       ),
     );
   }
 
-  // --- Widgets for Styling ---
   Widget _buildGlassCard({required Widget child}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: RmTheme.glassmorphismShadow,
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: RmTheme.glassmorphismShadow),
       child: child,
     );
   }
@@ -92,160 +132,40 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Text(
           'HomeGenny',
-          style: GoogleFonts.libreCaslonText(
-            fontSize: 28,
-            fontWeight: FontWeight.w700,
-            color: RmTheme.electricBlue,
-            fontStyle: FontStyle.italic,
-          ),
+          style: GoogleFonts.libreCaslonText(fontSize: 28, fontWeight: FontWeight.w700, color: RmTheme.electricBlue, fontStyle: FontStyle.italic),
         ),
       ),
     );
   }
 
-  Widget _buildButton(String text, VoidCallback onPressed, {bool isOutlined = false}) {
+  Widget _buildButton(String text, VoidCallback? onPressed, {bool isOutlined = false, bool loading = false}) {
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: isOutlined
           ? OutlinedButton(
               onPressed: onPressed,
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: RmTheme.crimsonDanger, width: 1.5),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                text.toUpperCase(),
-                style: GoogleFonts.inter(
-                  color: RmTheme.crimsonDanger,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.2,
-                ),
-              ),
+              style: OutlinedButton.styleFrom(side: const BorderSide(color: RmTheme.crimsonDanger, width: 1.5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              child: Text(text.toUpperCase(), style: GoogleFonts.inter(color: RmTheme.crimsonDanger, fontWeight: FontWeight.w600, letterSpacing: 1.2)),
             )
           : ElevatedButton(
               onPressed: onPressed,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: RmTheme.electricBlue,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    text,
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                  if (!text.toUpperCase().contains('FORM') && !text.toUpperCase().contains('EXIT')) ...[
-                    const SizedBox(width: 8),
-                    const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
-                  ]
-                ],
-              ),
-            ),
-    );
-  }
-
-  // --- Screens ---
-
-  // 1. Restricted List Check
-  Widget _buildRestrictedCheckScreen() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
-            const Spacer(),
-            _buildHeaderLogo(),
-            const Spacer(),
-            const SizedBox(width: 48), // Balance for arrow
-          ],
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: RmTheme.offWhite,
-            shape: BoxShape.circle,
-            border: Border.all(color: RmTheme.borderSubtle),
-          ),
-          child: const Icon(Icons.admin_panel_settings_outlined, color: RmTheme.electricBlue, size: 32),
-        ),
-        const SizedBox(height: 24),
-        Text('Restricted List Check', style: RmTheme.headline(context).copyWith(fontSize: 28)),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Text(
-            'Enter details to verify against the global restricted database. This check must be completed BEFORE creating any staff record.',
-            textAlign: TextAlign.center,
-            style: RmTheme.body(context),
-          ),
-        ),
-        const SizedBox(height: 32),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: _buildGlassCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: RmTheme.amberWarning.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: RmTheme.amberWarning.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              style: ElevatedButton.styleFrom(backgroundColor: RmTheme.electricBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+              child: loading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline, color: RmTheme.amberWarning, size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'A restricted list check must pass BEFORE any record is created. No documents, no agreements, no tests at this stage.',
-                            style: RmTheme.body(context).copyWith(color: RmTheme.textPrimary, fontSize: 13),
-                          ),
-                        ),
+                        Text(text, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildFloatingInput('AADHAAR (LAST 4 DIGITS)', '•••• •••• 4821', controller: _aadhaarController),
-                  const SizedBox(height: 16),
-                  _buildFloatingInput('PHONE NUMBER', '+91 98765 43210', controller: _phoneController),
-                  const SizedBox(height: 32),
-                  _buildButton('Run Check', () {
-                    String? phoneError = Validators.phone(_phoneController.text);
-                    if (_aadhaarController.text.trim().isEmpty || phoneError != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(phoneError != null ? 'Please enter a valid Phone Number' : 'Please enter Aadhaar')));
-                      return;
-                    }
-                    _goToPage(2);
-                  }), // Go to Clear
-                  const SizedBox(height: 16),
-                  Center(
-                    child: TextButton(
-                      onPressed: () => _goToPage(1),
-                      child: Text('Simulate Restricted (Demo)', style: GoogleFonts.inter(color: RmTheme.textSecondary)),
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ),
-        ),
-      ],
     );
   }
 
-  Widget _buildFloatingInput(String label, String hint, {TextEditingController? controller, bool readOnly = false, VoidCallback? onTap}) {
+  Widget _buildFloatingInput(String label, String hint, {TextEditingController? controller, TextInputType? keyboardType}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -253,8 +173,7 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
         const SizedBox(height: 8),
         TextField(
           controller: controller,
-          readOnly: readOnly,
-          onTap: onTap,
+          keyboardType: keyboardType,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.inter(color: RmTheme.textSecondary.withOpacity(0.5)),
@@ -268,242 +187,110 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
     );
   }
 
-  // 2. Check Result: Restricted
-  Widget _buildRestrictedResultScreen() {
+  // 0. Identity inputs — collected up front, submitted together with
+  // everything else; the backend does the restricted-list check server-side
+  // when the full form is submitted on the deposit page.
+  Widget _buildIdentityScreen() {
     return Column(
       children: [
         Row(
           children: [
-            IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => _goToPage(0)),
+            IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
             const Spacer(),
             _buildHeaderLogo(),
             const Spacer(),
             const SizedBox(width: 48),
           ],
         ),
-        const Spacer(),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: RmTheme.offWhite, shape: BoxShape.circle, border: Border.all(color: RmTheme.borderSubtle)),
+          child: const Icon(Icons.admin_panel_settings_outlined, color: RmTheme.electricBlue, size: 32),
+        ),
+        const SizedBox(height: 24),
+        Text('New Staff Intake', style: RmTheme.headline(context).copyWith(fontSize: 28)),
+        const SizedBox(height: 12),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: _buildGlassCard(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: RmTheme.crimsonDanger.withOpacity(0.1), shape: BoxShape.circle),
-                  child: const Icon(Icons.block, color: RmTheme.crimsonDanger, size: 64),
-                ),
-                const SizedBox(height: 24),
-                Text('RESTRICTED', style: GoogleFonts.libreCaslonText(fontSize: 32, fontWeight: FontWeight.w700, color: RmTheme.crimsonDanger)),
-                const SizedBox(height: 16),
-                Text('Applicant matches restricted database.', style: RmTheme.body(context), textAlign: TextAlign.center),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: RmTheme.offWhite,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: RmTheme.borderSubtle),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: RmTheme.crimsonDanger.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.warning_amber_rounded, color: RmTheme.crimsonDanger, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: RichText(
-                          text: TextSpan(
-                            style: RmTheme.body(context).copyWith(color: RmTheme.textPrimary),
-                            children: [
-                              TextSpan(text: 'Do NOT disclose reason. ', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: RmTheme.crimsonDanger)),
-                              const TextSpan(text: 'Log exit immediately.'),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                _buildButton('LOG EXIT', () => context.pop(), isOutlined: true),
-                const SizedBox(height: 16),
-                Center(
-                  child: TextButton(
-                    onPressed: () => _goToPage(0),
-                    child: Text('Back to Demo', style: GoogleFonts.inter(color: RmTheme.textSecondary)),
-                  ),
-                ),
-              ],
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            'The backend checks this Aadhaar + phone against the restricted list when the form is submitted — no separate pre-check step exists.',
+            textAlign: TextAlign.center,
+            style: RmTheme.body(context),
+          ),
+        ),
+        const SizedBox(height: 32),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _buildGlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildFloatingInput('AADHAAR NUMBER', '999988887777', controller: _aadhaarController, keyboardType: TextInputType.number),
+                  const SizedBox(height: 16),
+                  _buildFloatingInput('PHONE NUMBER', '9911100001', controller: _phoneController, keyboardType: TextInputType.phone),
+                  const SizedBox(height: 32),
+                  _buildButton('Continue', () {
+                    final phoneError = Validators.phone(_phoneController.text);
+                    if (_aadhaarController.text.trim().isEmpty || phoneError != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(phoneError != null ? 'Please enter a valid phone number' : 'Please enter Aadhaar number')),
+                      );
+                      return;
+                    }
+                    _goToPage(1);
+                  }),
+                ],
+              ),
             ),
           ),
         ),
-        const Spacer(),
       ],
     );
   }
 
-  // 3. Check Result: Clear
-  Widget _buildClearResultScreen() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => _goToPage(0)),
-            const Spacer(),
-            _buildHeaderLogo(),
-            const Spacer(),
-            const SizedBox(width: 48),
-          ],
-        ),
-        const Spacer(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: _buildGlassCard(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: RmTheme.emeraldGreen.withOpacity(0.1), shape: BoxShape.circle),
-                  child: const Icon(Icons.check_circle_outline, color: RmTheme.emeraldGreen, size: 64),
-                ),
-                const SizedBox(height: 24),
-                Text('CLEAR', style: GoogleFonts.libreCaslonText(fontSize: 32, fontWeight: FontWeight.w700, color: RmTheme.emeraldGreen)),
-                const SizedBox(height: 16),
-                RichText(
-                  textAlign: TextAlign.center,
-                  text: TextSpan(
-                    style: RmTheme.body(context).copyWith(fontSize: 16),
-                    children: [
-                      const TextSpan(text: 'No match found. Applicant is '),
-                      TextSpan(text: 'eligible', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: RmTheme.textPrimary)),
-                      const TextSpan(text: ' for registration.'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                _buildButton('PROCEED TO INTAKE FORM', () => _goToPage(3)),
-              ],
-            ),
-          ),
-        ),
-        const Spacer(),
-      ],
-    );
-  }
-
-  // 4. Personal Details
+  // 1. Personal details + series
   Widget _buildPersonalDetailsScreen() {
     return _buildFormPage(
-      step: 1,
+      step: 2,
       title: 'Personal Details',
-      subtitle: 'Please enter the staff member\'s basic information exactly as it appears on their official ID.',
+      subtitle: "Enter the staff member's information exactly as it appears on their official ID.",
+      onBack: () => _goToPage(0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildFloatingInput('Full Legal Name', 'e.g., Ramesh Kumar Singh', controller: _nameController),
           const SizedBox(height: 20),
-          _buildFloatingInput(
-            'Date of Birth',
-            'mm/dd/yyyy',
-            controller: _dobController,
-            readOnly: true,
-            onTap: () async {
-              final DateTime? picked = await showDatePicker(
-                context: context,
-                initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
-                firstDate: DateTime(1900),
-                lastDate: DateTime.now(),
-                builder: (context, child) {
-                  return Theme(
-                    data: Theme.of(context).copyWith(
-                      colorScheme: const ColorScheme.light(
-                        primary: RmTheme.electricBlue, // header background color
-                        onPrimary: Colors.white, // header text color
-                        onSurface: RmTheme.textPrimary, // body text color
-                      ),
-                    ),
-                    child: child!,
-                  );
-                },
-              );
-              if (picked != null) {
-                setState(() {
-                  _dobController.text = "${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}/${picked.year}";
-                });
-              }
-            },
-          ),
+          _buildFloatingInput('Date of Birth (YYYY-MM-DD)', '1998-04-12', controller: _dobController),
           const SizedBox(height: 20),
-          Text('Gender', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: RmTheme.textPrimary)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildGenderChip('Male'),
-              const SizedBox(width: 8),
-              _buildGenderChip('Female'),
-              const SizedBox(width: 8),
-              _buildGenderChip('Other'),
-            ],
-          ),
+          _buildFloatingInput('Address', 'Sector 12, Noida', controller: _addressController),
+          const SizedBox(height: 20),
+          _buildFloatingInput('Email (optional)', 'name@example.com', controller: _emailController, keyboardType: TextInputType.emailAddress),
           const SizedBox(height: 32),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Staff Series', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: RmTheme.textPrimary)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: RmTheme.borderSubtle, borderRadius: BorderRadius.circular(12)),
-                child: Text('Select primary role', style: GoogleFonts.inter(fontSize: 10, color: RmTheme.textSecondary)),
-              ),
-            ],
-          ),
+          Text('Staff Series', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: RmTheme.textPrimary)),
           const SizedBox(height: 16),
-          _buildRoleCard('Driver', '(DR)', Icons.directions_car),
-          const SizedBox(height: 12),
-          _buildRoleCard('Caretaker', '(CT)', Icons.elderly),
-          const SizedBox(height: 12),
-          _buildRoleCard('Maid', '(MD)', Icons.cleaning_services),
-          const SizedBox(height: 32),
-          _buildButton('Next Step', () => _goToPage(4)),
+          for (final series in StaffSeries.all) ...[
+            _buildSeriesCard(series),
+            const SizedBox(height: 12),
+          ],
+          const SizedBox(height: 20),
+          _buildButton('Next Step', () {
+            if (_nameController.text.trim().isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter the full name')));
+              return;
+            }
+            _goToPage(2);
+          }),
         ],
       ),
     );
   }
 
-  Widget _buildGenderChip(String label) {
-    bool isSelected = _selectedGender == label;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedGender = label),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? RmTheme.electricBlue.withOpacity(0.05) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: isSelected ? RmTheme.electricBlue : RmTheme.borderSubtle),
-            boxShadow: isSelected ? RmTheme.sophisticatedShadow : null,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              color: isSelected ? RmTheme.electricBlue : RmTheme.textSecondary,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleCard(String role, String code, IconData icon) {
-    bool isSelected = _selectedRole == role;
+  Widget _buildSeriesCard(String series) {
+    final isSelected = _selectedSeries == series;
     return GestureDetector(
-      onTap: () => setState(() => _selectedRole = role),
+      onTap: () => setState(() => _selectedSeries = series),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
@@ -514,22 +301,13 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
         ),
         child: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: isSelected ? RmTheme.electricBlue : RmTheme.offWhite,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: isSelected ? Colors.white : RmTheme.textSecondary, size: 20),
-            ),
-            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(role, style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: RmTheme.textPrimary, fontSize: 15)),
+                  Text(StaffSeries.label(series), style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: RmTheme.textPrimary, fontSize: 15)),
                   const SizedBox(height: 2),
-                  Text('Series code $code', style: GoogleFonts.inter(fontSize: 11, color: RmTheme.textSecondary)),
+                  Text('Deposit ₹${StaffSeries.depositFor(series)}', style: GoogleFonts.inter(fontSize: 11, color: RmTheme.textSecondary)),
                 ],
               ),
             ),
@@ -540,136 +318,70 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
     );
   }
 
-  // 5. Deposit Collection
-  Widget _buildDepositCollectionScreen() {
+  // 2. Deposit collection — final submit
+  Widget _buildDepositScreen() {
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
-              IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => _goToPage(3)),
+              IconButton(icon: const Icon(Icons.arrow_back), onPressed: _submitting ? null : () => _goToPage(1)),
               const Spacer(),
-              _buildStepper(4),
+              _buildStepper(3),
               const Spacer(),
-              const SizedBox(width: 48), // Balance
+              const SizedBox(width: 48),
             ],
           ),
         ),
         Expanded(
-          child: Stack(
-            children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Deposit Collection', style: RmTheme.headline(context).copyWith(fontSize: 32, color: RmTheme.electricBlue)),
-                    const SizedBox(height: 4),
-                    Text('Step 4 of 4 — Finalize intake', style: RmTheme.body(context)),
-                    const SizedBox(height: 32),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: RmTheme.borderSubtle.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4)),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('SERIES', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              const Icon(Icons.directions_car, color: RmTheme.electricBlue, size: 20),
-                              const SizedBox(width: 8),
-                              Text('Driver (DR)', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500, color: RmTheme.textPrimary)),
-                            ],
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            child: Divider(height: 1, color: Colors.white),
-                          ),
-                          Text('REFUNDABLE DEPOSIT', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
-                          const SizedBox(height: 8),
-                          Text('₹2,000', style: GoogleFonts.libreCaslonText(fontSize: 36, fontWeight: FontWeight.w700, color: RmTheme.electricBlue)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Text('PAYMENT METHOD', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: RmTheme.textPrimary, letterSpacing: 1.0)),
-                    const SizedBox(height: 16),
-                    _buildPaymentTile('Cash (Collected)', Icons.money),
-                    const SizedBox(height: 12),
-                    _buildPaymentTile('UPI Transfer', Icons.qr_code_scanner),
-                    const SizedBox(height: 12),
-                    _buildPaymentTile('Bank Transfer', Icons.account_balance),
-                    const SizedBox(height: 32),
-                    Text('RECEIPT DETAILS', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: RmTheme.textPrimary, letterSpacing: 1.0)),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _receiptController,
-                      decoration: InputDecoration(
-                        hintText: 'Enter receipt number or notes',
-                        hintStyle: GoogleFonts.inter(color: RmTheme.textSecondary.withOpacity(0.5)),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      ),
-                    ),
-                    const SizedBox(height: 120), // padding for floating button
-                  ],
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Deposit Collection', style: RmTheme.headline(context).copyWith(fontSize: 32, color: RmTheme.electricBlue)),
+                const SizedBox(height: 4),
+                Text('Step 3 of 3 — submits the intake to the backend', style: RmTheme.body(context)),
+                const SizedBox(height: 32),
+                Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [RmTheme.offWhite.withOpacity(0.0), RmTheme.offWhite],
-                      stops: const [0.0, 0.3],
-                    ),
+                    color: RmTheme.borderSubtle.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white, width: 2),
                   ),
-                  child: _buildButton('Complete Intake', () async {
-                    String code = _selectedRole == 'Driver' ? 'DR' : (_selectedRole == 'Caretaker' ? 'CT' : 'MD');
-                    String randomId = (1000 + DateTime.now().millisecondsSinceEpoch % 9000).toString();
-                    
-                    final newStaffId = 'HG-$code-2024-$randomId';
-                    
-                    final rmId = ref.read(authProvider).user?.id ?? 'rm-demo-1';
-                    final staff = StaffEntity(
-                      id: newStaffId,
-                      staffCode: newStaffId,
-                      name: _nameController.text.isEmpty ? 'New Staff' : _nameController.text,
-                      phone: _phoneController.text.isEmpty ? '9999999999' : _phoneController.text,
-                      status: 'PIPELINE',
-                      pipelineStage: 'REGISTRATION',
-                      createdAt: DateTime.now(),
-                      updatedAt: DateTime.now(),
-                      rmId: rmId,
-                      clientId: 'client-demo-1', // Automatically assign to demo client for simplicity
-                    );
-                    
-                    await ref.read(rmRepositoryProvider).createStaff(staff);
-
-                    setState(() {
-                      _generatedStaffId = newStaffId;
-                    });
-                    _goToPage(5);
-                  }),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('SERIES', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
+                      const SizedBox(height: 8),
+                      Text(StaffSeries.label(_selectedSeries), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w500)),
+                      const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1, color: Colors.white)),
+                      Text('REFUNDABLE DEPOSIT', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
+                      const SizedBox(height: 8),
+                      Text('₹${StaffSeries.depositFor(_selectedSeries)}', style: GoogleFonts.libreCaslonText(fontSize: 36, fontWeight: FontWeight.w700, color: RmTheme.electricBlue)),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 32),
+                Text('PAYMENT METHOD', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: RmTheme.textPrimary, letterSpacing: 1.0)),
+                const SizedBox(height: 16),
+                _buildPaymentTile('Cash (Collected)', Icons.money),
+                const SizedBox(height: 12),
+                _buildPaymentTile('Pending Collection', Icons.schedule),
+                if (_submitError != null) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: RmTheme.crimsonDanger.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
+                    child: Text(_submitError!, style: TextStyle(color: RmTheme.crimsonDanger)),
+                  ),
+                ],
+                const SizedBox(height: 32),
+                _buildButton('Complete Intake', _submitting ? null : _submit, loading: _submitting),
+              ],
+            ),
           ),
         ),
       ],
@@ -677,7 +389,7 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
   }
 
   Widget _buildPaymentTile(String method, IconData icon) {
-    bool isSelected = _selectedPayment == method;
+    final isSelected = _selectedPayment == method;
     return GestureDetector(
       onTap: () => setState(() => _selectedPayment = method),
       child: Container(
@@ -700,139 +412,137 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
     );
   }
 
-  // 6. Intake Complete
-  Widget _buildIntakeCompleteScreen() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: IntrinsicHeight(
-              child: Column(
-                children: [
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      IconButton(icon: const Icon(Icons.close, color: RmTheme.textPrimary), onPressed: () => context.pop()),
-                      const Spacer(),
-                      Text('RM', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: RmTheme.electricBlue)),
-                      const SizedBox(width: 24),
-                    ],
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(color: RmTheme.electricBlue.withOpacity(0.05), borderRadius: BorderRadius.circular(32)),
-                    child: const Icon(Icons.celebration, color: RmTheme.electricBlue, size: 80),
-                  ),
-                  const SizedBox(height: 32),
-                  Text('Record Created!', style: GoogleFonts.libreCaslonText(fontSize: 36, fontWeight: FontWeight.w700, color: RmTheme.electricBlue)),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: Text('The intake process has been successfully completed. The record is now securely stored.', textAlign: TextAlign.center, style: RmTheme.body(context).copyWith(fontSize: 16)),
-                  ),
-                  const SizedBox(height: 48),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: RmTheme.glassmorphismShadow,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(width: 6, height: 120, decoration: const BoxDecoration(color: RmTheme.emeraldGreen, borderRadius: BorderRadius.horizontal(left: Radius.circular(16)))),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('STAFF ID', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
-                                  const SizedBox(height: 4),
-                                  Text(_generatedStaffId ?? 'HG-XX-2024-XXXX', style: GoogleFonts.libreCaslonText(fontSize: 22, fontWeight: FontWeight.w700, color: RmTheme.electricBlue)),
-                                  const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1)),
-                                  Text('CURRENT STAGE', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: RmTheme.offWhite, borderRadius: BorderRadius.circular(8)), child: Text('S1_INTAKE', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600))),
-                                      const Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Icon(Icons.arrow_forward, size: 16, color: RmTheme.electricBlue)),
-                                      Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: RmTheme.electricBlue, borderRadius: BorderRadius.circular(8)), child: Text('S2_VERIFY', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white))),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: RmTheme.offWhite,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: RmTheme.borderSubtle),
-                      ),
-                      child: Column(
-                        children: [
-                          _buildSummaryRow('Name', _nameController.text.isEmpty ? 'Not Provided' : _nameController.text),
-                          const SizedBox(height: 8),
-                          _buildSummaryRow('Phone', _phoneController.text.isEmpty ? 'Not Provided' : _phoneController.text),
-                          const SizedBox(height: 8),
-                          _buildSummaryRow('Role', _selectedRole ?? 'Not Selected'),
-                          const SizedBox(height: 8),
-                          _buildSummaryRow('Deposit', '₹2,000 ($_selectedPayment)'),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: _buildButton('Go to Verification', () => context.pushReplacement(RmRoutes.verificationDashboard(_generatedStaffId ?? 'HG-XX-2024-XXXX'))),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
+  // 3. Result — branches on the real backend outcome.
+  Widget _buildResultScreen() {
+    final result = _result;
+    if (result == null) return const SizedBox.shrink();
+    if (result.isRestricted) return _buildRestrictedResult(result);
+    return _buildSuccessResult(result);
   }
 
-  Widget _buildSummaryRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildRestrictedResult(IntakeResult result) {
+    return Column(
       children: [
-        Text(label, style: GoogleFonts.inter(fontSize: 12, color: RmTheme.textSecondary)),
-        Text(value, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: RmTheme.textPrimary)),
+        Row(children: [IconButton(icon: const Icon(Icons.close), onPressed: () => context.pop()), const Spacer(), _buildHeaderLogo(), const Spacer(), const SizedBox(width: 48)]),
+        const Spacer(),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: _buildGlassCard(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: RmTheme.crimsonDanger.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.block, color: RmTheme.crimsonDanger, size: 64)),
+                const SizedBox(height: 24),
+                Text('RESTRICTED', style: GoogleFonts.libreCaslonText(fontSize: 32, fontWeight: FontWeight.w700, color: RmTheme.crimsonDanger)),
+                const SizedBox(height: 16),
+                Text('${result.staff.fullName} matches the restricted database.', style: RmTheme.body(context), textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                Text('Record created at TERMINAL — staff code ${result.staff.staffCode}.', style: RmTheme.body(context).copyWith(fontSize: 12)),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(color: RmTheme.offWhite, borderRadius: BorderRadius.circular(12), border: Border.all(color: RmTheme.borderSubtle)),
+                  child: Row(
+                    children: [
+                      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: RmTheme.crimsonDanger.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.warning_amber_rounded, color: RmTheme.crimsonDanger, size: 20)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: RichText(
+                          text: TextSpan(
+                            style: RmTheme.body(context).copyWith(color: RmTheme.textPrimary),
+                            children: [
+                              TextSpan(text: 'Do NOT disclose reason. ', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: RmTheme.crimsonDanger)),
+                              const TextSpan(text: 'Log exit immediately.'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                _buildButton('LOG EXIT', () => context.pop(), isOutlined: true),
+              ],
+            ),
+          ),
+        ),
+        const Spacer(),
       ],
     );
   }
 
-  // --- Helpers ---
-  Widget _buildFormPage({required int step, required String title, required String subtitle, required Widget child}) {
+  Widget _buildSuccessResult(IntakeResult result) {
+    final staff = result.staff;
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: IntrinsicHeight(
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                Row(children: [IconButton(icon: const Icon(Icons.close, color: RmTheme.textPrimary), onPressed: () => context.pop()), const Spacer(), Text('RM', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: RmTheme.electricBlue)), const SizedBox(width: 24)]),
+                const Spacer(),
+                Container(padding: const EdgeInsets.all(32), decoration: BoxDecoration(color: RmTheme.electricBlue.withOpacity(0.05), borderRadius: BorderRadius.circular(32)), child: const Icon(Icons.celebration, color: RmTheme.electricBlue, size: 80)),
+                const SizedBox(height: 32),
+                Text('Record Created!', style: GoogleFonts.libreCaslonText(fontSize: 36, fontWeight: FontWeight.w700, color: RmTheme.electricBlue)),
+                const SizedBox(height: 16),
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 40), child: Text('The intake was submitted to the backend and the record is now live.', textAlign: TextAlign.center, style: RmTheme.body(context).copyWith(fontSize: 16))),
+                const SizedBox(height: 48),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: RmTheme.glassmorphismShadow),
+                    child: Row(
+                      children: [
+                        Container(width: 6, height: 120, decoration: const BoxDecoration(color: RmTheme.emeraldGreen, borderRadius: BorderRadius.horizontal(left: Radius.circular(16)))),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('STAFF ID', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
+                                const SizedBox(height: 4),
+                                Text(staff.staffCode, style: GoogleFonts.libreCaslonText(fontSize: 22, fontWeight: FontWeight.w700, color: RmTheme.electricBlue)),
+                                const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1)),
+                                Text('CURRENT STAGE', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: RmTheme.textSecondary, letterSpacing: 1.0)),
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(color: RmTheme.electricBlue, borderRadius: BorderRadius.circular(8)),
+                                  child: Text(PipelineStages.label(staff.pipelineStage), style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: _buildButton(
+                    staff.pipelineStage == PipelineStages.s2Verify ? 'Go to Verification' : 'View Staff',
+                    () => context.pushReplacement(RmRoutes.staffDetail(staff.id)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFormPage({required int step, required String title, required String subtitle, required Widget child, required VoidCallback onBack}) {
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => _goToPage(step == 1 ? 2 : (step == 4 ? 3 : step - 1))),
-              const Spacer(),
-              _buildStepper(step),
-              const Spacer(),
-              const SizedBox(width: 48), // Balance
-            ],
-          ),
+          child: Row(children: [IconButton(icon: const Icon(Icons.arrow_back), onPressed: onBack), const Spacer(), _buildStepper(step), const Spacer(), const SizedBox(width: 48)]),
         ),
         Expanded(
           child: SingleChildScrollView(
@@ -855,24 +565,19 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
 
   Widget _buildStepper(int currentStep) {
     return Row(
-      children: List.generate(4, (index) {
-        int step = index + 1;
-        bool isActive = step == currentStep;
+      children: List.generate(3, (index) {
+        final step = index + 1;
+        final isActive = step == currentStep;
         return Row(
           children: [
             Container(
               width: 32,
               height: 32,
               alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: isActive ? RmTheme.electricBlue : Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(color: isActive ? RmTheme.electricBlue : RmTheme.borderSubtle),
-              ),
+              decoration: BoxDecoration(color: isActive ? RmTheme.electricBlue : Colors.white, shape: BoxShape.circle, border: Border.all(color: isActive ? RmTheme.electricBlue : RmTheme.borderSubtle)),
               child: Text('$step', style: GoogleFonts.inter(color: isActive ? Colors.white : RmTheme.textSecondary, fontWeight: FontWeight.w600)),
             ),
-            if (step < 4)
-              Container(width: 16, height: 1, color: RmTheme.borderSubtle, margin: const EdgeInsets.symmetric(horizontal: 4)),
+            if (step < 3) Container(width: 16, height: 1, color: RmTheme.borderSubtle, margin: const EdgeInsets.symmetric(horizontal: 4)),
           ],
         );
       }),

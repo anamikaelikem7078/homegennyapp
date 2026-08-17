@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../auth/jwt_token_handler.dart';
 import '../auth/token_refresh_service.dart';
@@ -25,7 +26,27 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final isConnected = await _networkInfo.isConnected;
+    // `_networkInfo.isConnected` (connectivity_plus) and secure-storage
+    // reads below are platform channel calls that can throw on some
+    // platforms (observed as opaque "OperationError"/DioExceptionType.unknown
+    // failures on Flutter Web — connectivity_plus's web implementation and
+    // flutter_secure_storage's web WebCrypto path are both known to be
+    // flakier there than on mobile). An uncaught exception here previously
+    // meant the request was never dispatched at all — no HTTP call, no
+    // response, just a swallowed opaque error — which looked identical to a
+    // real network failure but wasn't one. None of this should ever block
+    // dispatching the actual request, so every step degrades instead of
+    // throwing: connectivity check failure proceeds optimistically (a truly
+    // offline device will still fail at the real network layer, and Dio
+    // reports that clearly), token refresh/read failure proceeds
+    // unauthenticated (the real 401 handler in `onError` takes over).
+    bool isConnected = true;
+    try {
+      isConnected = await _networkInfo.isConnected;
+    } catch (e) {
+      if (kDebugMode) debugPrint('AuthInterceptor: connectivity check threw, proceeding anyway: $e');
+      isConnected = true;
+    }
     if (!isConnected) {
       return handler.reject(
         DioException(
@@ -38,18 +59,24 @@ class AuthInterceptor extends Interceptor {
 
     final isAuthEndpoint = _isAuthEndpoint(options.path);
     if (!isAuthEndpoint) {
-      if (await _tokenHandler.shouldRefreshToken()) {
-        try {
-          await _refreshService.refreshAccessToken();
-        } on TokenRefreshException {
-          // Proceed with existing token; 401 handler will redirect.
+      try {
+        if (await _tokenHandler.shouldRefreshToken()) {
+          try {
+            await _refreshService.refreshAccessToken();
+          } on TokenRefreshException {
+            // Proceed with existing token; 401 handler will redirect.
+          }
         }
-      }
 
-      final token = await _tokenHandler.getAccessToken();
-      if (token != null && token.isNotEmpty) {
-        options.headers[ApiConstants.headerAuthorization] =
-            '${ApiConstants.bearerPrefix}$token';
+        final token = await _tokenHandler.getAccessToken();
+        if (token != null && token.isNotEmpty) {
+          options.headers[ApiConstants.headerAuthorization] =
+              '${ApiConstants.bearerPrefix}$token';
+        }
+      } catch (e) {
+        // Fall through and send the request without a token rather than
+        // never sending it at all.
+        if (kDebugMode) debugPrint('AuthInterceptor: token read/refresh threw, sending request unauthenticated: $e');
       }
     }
 

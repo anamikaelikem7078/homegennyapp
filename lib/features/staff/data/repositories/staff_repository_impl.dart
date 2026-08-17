@@ -34,11 +34,17 @@ class StaffRepositoryImpl implements StaffRepository {
     );
   }
 
+  // Note: there is no separate /staff/tasks/today endpoint on the backend —
+  // todayTasks is embedded in GET /staff/dashboard, so today's tasks are
+  // derived from the dashboard fetch rather than a dedicated remote call.
   @override
-  Future<Result<List<StaffTask>>> getTodaysTasks() => _executor.fetch(
-        remote: _remote.getTodaysTasks,
-        dummy: _dummy.getTodaysTasks,
-      );
+  Future<Result<List<StaffTask>>> getTodaysTasks() async {
+    final result = await getDashboard();
+    return result.fold(
+      onSuccess: (d) => Success(d.todayTasks),
+      onError: (f) => Error(f),
+    );
+  }
 
   @override
   Future<Result<List<PipelineStage>>> getPipeline() => _executor.fetch(
@@ -62,6 +68,13 @@ class StaffRepositoryImpl implements StaffRepository {
   }
 
   @override
+  Future<Result<void>> updateProfile({String? address, String? email}) =>
+      _executor.mutateVoid(
+        remote: () => _remote.updateProfile(address: address, email: email),
+        dummy: () => _dummy.updateProfile(address: address, email: email),
+      );
+
+  @override
   Future<Result<List<StaffDocument>>> getDocuments() => _executor.fetch(
         remote: _remote.getDocuments,
         cache: _local.cacheDocuments,
@@ -75,7 +88,15 @@ class StaffRepositoryImpl implements StaffRepository {
 
   @override
   Future<Result<void>> uploadDocument(String name, String type, String filePath) =>
-      _executor.mutateVoid(dummy: () async { await _local.uploadDocument(name, type, filePath); await _dummy.uploadDocument(name, type, filePath); });
+      _executor.mutateVoid(
+        remote: () async {
+          await _remote.uploadDocument(filePath: filePath, name: name, type: type);
+        },
+        dummy: () async {
+          await _local.uploadDocument(name, type, filePath);
+          await _dummy.uploadDocument(name, type, filePath);
+        },
+      );
 
   @override
   Future<Result<void>> reuploadDocument(String id, String name) =>
@@ -118,24 +139,55 @@ class StaffRepositoryImpl implements StaffRepository {
       _executor.mutateVoid(dummy: () async { await _local.signAgreement(signature); await _dummy.signAgreement(signature); });
 
   @override
-  Future<Result<DeploymentInfo>> getDeployment() =>
-      _executor.fetch(dummy: _dummy.getDeployment);
+  Future<Result<DeploymentInfo>> getDeployment() => _executor.fetch(
+        remote: _remote.getDeployment,
+        cache: _local.cacheDeployment,
+        local: () async => _local.getDeployment(),
+        dummy: _dummy.getDeployment,
+      );
+
+  // Note: there is no separate GET /staff/attendance/today endpoint — "today"
+  // is derived from the attendance-history list (the most recent entry
+  // matching today's date), matching the backend's actual data model.
+  @override
+  Future<Result<AttendanceRecord?>> getTodayAttendance() async {
+    final result = await getAttendanceHistory();
+    return result.fold(
+      onSuccess: (history) {
+        final today = DateTime.now().toIso8601String().substring(0, 10);
+        for (final r in history) {
+          if (r.date == today) return Success(r);
+        }
+        return Success(history.isNotEmpty ? history.first : null);
+      },
+      onError: (f) => Error(f),
+    );
+  }
 
   @override
-  Future<Result<AttendanceRecord?>> getTodayAttendance() =>
-      _executor.fetch(local: () async => _local.getTodayAttendance(), dummy: _dummy.getTodayAttendance);
+  Future<Result<CheckInResult>> checkIn({double? latitude, double? longitude}) =>
+      _executor.mutate(
+        remote: () => _remote.checkIn(latitude: latitude, longitude: longitude),
+        dummy: () => _dummy.checkIn(latitude: latitude, longitude: longitude),
+      );
 
   @override
-  Future<Result<CheckInResult>> checkIn({String? selfiePath}) =>
-      _executor.mutate(dummy: () async { await _local.checkIn(); return _dummy.checkIn(selfiePath: selfiePath); });
+  Future<Result<CheckInResult>> checkOut({double? latitude, double? longitude}) =>
+      _executor.mutate(
+        remote: () => _remote.checkOut(latitude: latitude, longitude: longitude),
+        dummy: () => _dummy.checkOut(latitude: latitude, longitude: longitude),
+      );
 
   @override
-  Future<Result<CheckInResult>> checkOut() =>
-      _executor.mutate(dummy: () async { await _local.checkOut(); return _dummy.checkOut(); });
-
-  @override
-  Future<Result<List<AttendanceRecord>>> getAttendanceHistory() =>
-      _executor.fetch(local: () async => await _local.getAttendanceHistory().then((l) => l.isEmpty ? null : l), dummy: _dummy.getAttendanceHistory);
+  Future<Result<List<AttendanceRecord>>> getAttendanceHistory() => _executor.fetch(
+        remote: _remote.getAttendanceHistory,
+        cache: _local.cacheAttendanceHistory,
+        local: () async {
+          final l = await _local.getAttendanceHistory();
+          return l.isEmpty ? null : l;
+        },
+        dummy: _dummy.getAttendanceHistory,
+      );
 
   @override
   Future<Result<MonthlyAttendance>> getMonthlyAttendance(String month) =>

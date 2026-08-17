@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../common/presentation/providers/auth_provider.dart';
+import '../../../../core/router/app_routes.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
+import '../../domain/models/rm_models.dart';
 import '../providers/rm_providers.dart';
 import '../widgets/rm_bottom_navigation.dart';
 
@@ -16,7 +18,8 @@ class RmProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
-    final stats = ref.watch(rmDashboardStatsProvider);
+    final dashboard = ref.watch(rmDashboardProvider);
+    final kpis = dashboard.maybeWhen(data: (d) => d.kpis, orElse: () => const RmDashboardKpis());
 
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
@@ -40,7 +43,7 @@ class RmProfileScreen extends ConsumerWidget {
             const SizedBox(height: 24),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildStatsCard(stats),
+              child: _buildStatsCard(kpis),
             ),
             const SizedBox(height: 32),
             _buildSectionTitle('Account Settings'),
@@ -65,9 +68,15 @@ class RmProfileScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: ElevatedButton.icon(
-                onPressed: () {
-                  ref.read(authProvider.notifier).logout();
-                  context.go('/login');
+                onPressed: () async {
+                  // Must await logout (clears tokens + calls the real
+                  // /auth/logout) before navigating — firing context.go
+                  // immediately let the login screen render while the app
+                  // still had a valid session, and if the async logout
+                  // failed it would fail out of sight, unobserved.
+                  await ref.read(authProvider.notifier).logout();
+                  if (!context.mounted) return;
+                  context.go(AppRoutes.login);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: RmTheme.crimsonDanger.withOpacity(0.1),
@@ -125,15 +134,19 @@ class RmProfileScreen extends ConsumerWidget {
                 ),
                 child: CircleAvatar(
                   radius: 56,
-                  backgroundImage: user?.avatarUrl != null 
-                    ? NetworkImage(user!.avatarUrl!) 
-                    : const NetworkImage('https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150'),
+                  backgroundImage: user?.avatarUrl != null ? NetworkImage(user!.avatarUrl!) : null,
                   backgroundColor: RmTheme.surfaceSecondary,
+                  child: user?.avatarUrl == null
+                      ? Text(
+                          (user?.name.trim().isNotEmpty ?? false) ? user!.name.trim()[0].toUpperCase() : 'R',
+                          style: GoogleFonts.libreCaslonText(fontSize: 40, color: RmTheme.electricBlue),
+                        )
+                      : null,
                 ),
               ),
               const SizedBox(height: 16),
               Text(
-                user?.name ?? 'Priya Sharma',
+                user?.name ?? 'RM',
                 style: GoogleFonts.libreCaslonText(
                   fontSize: 28,
                   fontWeight: FontWeight.w600,
@@ -158,7 +171,7 @@ class RmProfileScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                user?.email ?? 'priya.s@homegenny.com',
+                user?.email ?? '',
                 style: GoogleFonts.inter(
                   fontSize: 14,
                   color: RmTheme.textSecondary,
@@ -171,7 +184,7 @@ class RmProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatsCard(Map<String, int> stats) {
+  Widget _buildStatsCard(RmDashboardKpis kpis) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -193,11 +206,11 @@ class RmProfileScreen extends ConsumerWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildStatItem('Total Staff', stats['totalStaff'] ?? 45, Icons.people_outline),
+              _buildStatItem('Total Staff', kpis.totalStaff, Icons.people_outline),
               _buildDivider(),
-              _buildStatItem('Active Trials', stats['trialsActive'] ?? 12, Icons.play_circle_outline),
+              _buildStatItem('Active Trials', kpis.trialPlacements, Icons.play_circle_outline),
               _buildDivider(),
-              _buildStatItem('Pending', stats['pipeline'] ?? 8, Icons.pending_actions),
+              _buildStatItem('Pending Verify', kpis.pendingVerification, Icons.pending_actions),
             ],
           ),
         ),

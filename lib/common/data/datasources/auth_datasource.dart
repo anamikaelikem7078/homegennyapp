@@ -21,7 +21,7 @@ class AuthRemoteDataSource extends BaseRemoteDataSource {
     return AuthTokensDto.fromJson(data);
   }
 
-  Future<AuthTokensDto> verifyOtp({
+  Future<bool> verifyOtp({
     required String phone,
     required String otp,
   }) async {
@@ -29,13 +29,42 @@ class AuthRemoteDataSource extends BaseRemoteDataSource {
       ApiConstants.authVerifyOtp,
       data: {'phone': phone, 'otp': otp},
     );
-    return AuthTokensDto.fromJson(data);
+    return data['valid'] == true;
   }
 
-  Future<void> forgotPassword({required String email}) async {
+  Future<void> forgotPassword({required String phone}) async {
     await postJson(
       ApiConstants.authForgotPassword,
-      data: {'email': email},
+      data: {'phone': phone},
+    );
+  }
+
+  Future<void> resetPassword({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) async {
+    await postJson(
+      ApiConstants.authResetPassword,
+      data: {'phone': phone, 'otp': otp, 'new_password': newPassword},
+    );
+  }
+
+  Future<void> changePassword({
+    required String otp,
+    required String newPassword,
+  }) async {
+    await postJson(
+      ApiConstants.authChangePassword,
+      // POST /auth/change-password expects camelCase `newPassword` —
+      // verified against the live controller signature, unlike
+      // /auth/reset-password (snake_case `new_password`, a different
+      // route). Sending snake_case here left the server reading
+      // `body.newPassword` as undefined, which failed password-strength
+      // validation regardless of what password was actually entered —
+      // surfacing as a misleading "must be 8-72 characters..." error on
+      // passwords that already satisfied every stated rule.
+      data: {'otp': otp, 'newPassword': newPassword},
     );
   }
 
@@ -86,6 +115,7 @@ class AuthMapper {
   AuthTokens toTokens(AuthTokensDto dto) => AuthTokens(
         accessToken: dto.accessToken,
         refreshToken: dto.refreshToken,
+        mustChangePassword: dto.mustChangePassword,
       );
 
   UserModel toUser(UserDto dto) => UserModel(

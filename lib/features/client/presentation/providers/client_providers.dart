@@ -14,6 +14,15 @@ final clientDashboardProvider = FutureProvider<ClientDashboardData>((ref) async 
   );
 });
 
+final clientAssignedStaffProvider =
+    FutureProvider<List<ClientAssignedStaff>>((ref) async {
+  final result = await ref.watch(clientRepositoryProvider).getAssignedStaff();
+  return result.fold(
+    onSuccess: (d) => d,
+    onError: (f) => throw Exception(f.message),
+  );
+});
+
 final clientStaffProfileProvider =
     FutureProvider.family<ClientStaffProfile, String>((ref, staffId) async {
   final result = await ref.watch(clientRepositoryProvider).getStaffProfile(staffId);
@@ -40,8 +49,8 @@ final clientAttendanceHistoryProvider =
   );
 });
 
-final clientInvoiceProvider = FutureProvider<ClientInvoice>((ref) async {
-  final result = await ref.watch(clientRepositoryProvider).getCurrentInvoice();
+final clientInvoicesProvider = FutureProvider<List<ClientInvoice>>((ref) async {
+  final result = await ref.watch(clientRepositoryProvider).getInvoices();
   return result.fold(
     onSuccess: (d) => d,
     onError: (f) => throw Exception(f.message),

@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../common/presentation/providers/auth_provider.dart';
 import '../../common/presentation/screens/biometric_login_screen.dart';
 import '../../common/presentation/screens/forgot_password_screen.dart';
+import '../../common/presentation/screens/reset_password_screen.dart';
+import '../../common/presentation/screens/change_password_screen.dart';
 import '../../common/presentation/screens/login_screen.dart';
 import '../../common/presentation/screens/no_internet_screen.dart';
 import '../../common/presentation/screens/otp_screen.dart';
@@ -22,14 +24,40 @@ import '../../common/domain/models/user_role.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
+/// Notifies GoRouter to re-run [redirect] on the current location whenever
+/// auth state changes, without rebuilding the router itself — rebuilding
+/// the GoRouter instance resets its navigation stack back to
+/// [AppRoutes.splash], which caused an infinite splash loop every time
+/// auth state changed after the initial navigation (e.g. the fetchProfile
+/// call following OTP verification).
+class _AuthRouterRefreshNotifier extends ChangeNotifier {
+  _AuthRouterRefreshNotifier(Ref ref) {
+    _subscription = ref.listen<AuthState>(
+      authProvider,
+      (_, _) => notifyListeners(),
+    );
+  }
+
+  late final ProviderSubscription<AuthState> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.close();
+    super.dispose();
+  }
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  final refreshNotifier = _AuthRouterRefreshNotifier(ref);
+  ref.onDispose(refreshNotifier.dispose);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     debugLogDiagnostics: false,
+    refreshListenable: refreshNotifier,
     redirect: (context, state) {
+      final authState = ref.read(authProvider);
       final location = state.matchedLocation;
       final isAuthenticated = authState.status == AuthStatus.authenticated;
       final isSessionExpired = authState.status == AuthStatus.sessionExpired;
@@ -89,6 +117,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.forgotPassword,
         name: 'forgotPassword',
         builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      fadeRoute(
+        path: AppRoutes.resetPassword,
+        name: 'resetPassword',
+        builder: (context, state) {
+          final phone = state.uri.queryParameters['phone'] ?? '';
+          return ResetPasswordScreen(phone: phone);
+        },
+      ),
+      fadeRoute(
+        path: AppRoutes.changePassword,
+        name: 'changePassword',
+        builder: (context, state) => const ChangePasswordScreen(),
       ),
       fadeRoute(
         path: AppRoutes.biometricLogin,

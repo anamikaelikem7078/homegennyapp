@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/auth/jwt_token_handler.dart';
 import '../../../core/data/repository_executor.dart';
 import '../../../core/exceptions/exception_handler.dart';
@@ -67,33 +68,40 @@ class AuthRepositoryImpl implements AuthRepository {
     required String password,
   }) async {
     final lowerPhone = phone.trim().toLowerCase();
-    
-    if (isDemoCredentials(phone, password)) {
-      await _tokenHandler.saveTokens(
-        accessToken: 'demo-access-token',
-        refreshToken: 'demo-refresh-token',
-      );
-      await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
-      return const Success(AuthTokens(
-        accessToken: 'demo-access-token',
-        refreshToken: 'demo-refresh-token',
-      ));
-    }
 
-    // Check if phone matches any staff in Hive (dummy password check for prototype)
-    final isHiveStaff = _hiveService.staffBox.values
-        .cast<StaffEntity>()
-        .any((s) => s.phone == lowerPhone);
-    if (isHiveStaff && password == '123456') {
-      await _tokenHandler.saveTokens(
-        accessToken: 'demo-access-token',
-        refreshToken: 'demo-refresh-token',
-      );
-      await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
-      return const Success(AuthTokens(
-        accessToken: 'demo-access-token',
-        refreshToken: 'demo-refresh-token',
-      ));
+    // Demo/local-prototype shortcuts only apply in dummy-API mode. Without
+    // this guard, any real account using the backend's documented default
+    // password (`HomeGenny@2024`, assigned to every Admin/HR-provisioned
+    // user) collides with `isDemoCredentials` and gets a fake token instead
+    // of a real login — this broke real RM login during testing.
+    if (AppConfig.useDummyApi) {
+      if (isDemoCredentials(phone, password)) {
+        await _tokenHandler.saveTokens(
+          accessToken: 'demo-access-token',
+          refreshToken: 'demo-refresh-token',
+        );
+        await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
+        return const Success(AuthTokens(
+          accessToken: 'demo-access-token',
+          refreshToken: 'demo-refresh-token',
+        ));
+      }
+
+      // Check if phone matches any staff in Hive (dummy password check for prototype)
+      final isHiveStaff = _hiveService.staffBox.values
+          .cast<StaffEntity>()
+          .any((s) => s.phone == lowerPhone);
+      if (isHiveStaff && password == '123456') {
+        await _tokenHandler.saveTokens(
+          accessToken: 'demo-access-token',
+          refreshToken: 'demo-refresh-token',
+        );
+        await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
+        return const Success(AuthTokens(
+          accessToken: 'demo-access-token',
+          refreshToken: 'demo-refresh-token',
+        ));
+      }
     }
 
     try {
@@ -104,6 +112,14 @@ class AuthRepositoryImpl implements AuthRepository {
         refreshToken: tokens.refreshToken,
       );
       await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
+      
+      if (dto.user != null) {
+        final user = _mapper.toUser(dto.user!);
+        await _secureStorage.write(StorageKeys.userId, user.id);
+        await _secureStorage.write(StorageKeys.userRole, user.role.value);
+        await _local.cacheUser(dto.user!);
+      }
+
       return Success(tokens);
     } catch (e, stack) {
       return Error(ExceptionHandler.handle(e, stack));
@@ -111,46 +127,67 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Result<AuthTokens>> verifyOtp({
+  Future<Result<bool>> verifyOtp({
     required String phone,
     required String otp,
   }) async {
     final lowerPhone = phone.trim().toLowerCase();
-    
-    final isHiveStaff = _hiveService.staffBox.values
-        .cast<StaffEntity>()
-        .any((s) => s.phone == lowerPhone);
 
-    if (lowerPhone == _demoClientPhone ||
-        lowerPhone == _demoStaffPhone ||
-        lowerPhone == _demoRmPhone ||
-        isHiveStaff) {
-      if (otp != '1234') {
-        return const Error(AuthFailure(message: 'Invalid demo OTP. Use 1234.'));
+    if (AppConfig.useDummyApi) {
+      final isHiveStaff = _hiveService.staffBox.values
+          .cast<StaffEntity>()
+          .any((s) => s.phone == lowerPhone);
+
+      if (lowerPhone == _demoClientPhone ||
+          lowerPhone == _demoStaffPhone ||
+          lowerPhone == _demoRmPhone ||
+          isHiveStaff) {
+        if (otp != '1234') {
+          return const Error(AuthFailure(message: 'Invalid demo OTP. Use 1234.'));
+        }
+        return const Success(true);
       }
-      return const Success(AuthTokens(
-        accessToken: 'demo-access-token',
-        refreshToken: 'demo-refresh-token',
-      ));
     }
 
     try {
-      final dto = await _remote.verifyOtp(phone: phone, otp: otp);
-      final tokens = _mapper.toTokens(dto);
-      await _tokenHandler.saveTokens(
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      );
-      return Success(tokens);
+      final valid = await _remote.verifyOtp(phone: phone, otp: otp);
+      return Success(valid);
     } catch (e, stack) {
       return Error(ExceptionHandler.handle(e, stack));
     }
   }
 
   @override
-  Future<Result<void>> forgotPassword({required String email}) async {
+  Future<Result<void>> forgotPassword({required String phone}) async {
     try {
-      await _remote.forgotPassword(email: email);
+      await _remote.forgotPassword(phone: phone);
+      return const Success(null);
+    } catch (e, stack) {
+      return Error(ExceptionHandler.handle(e, stack));
+    }
+  }
+
+  @override
+  Future<Result<void>> resetPassword({
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) async {
+    try {
+      await _remote.resetPassword(phone: phone, otp: otp, newPassword: newPassword);
+      return const Success(null);
+    } catch (e, stack) {
+      return Error(ExceptionHandler.handle(e, stack));
+    }
+  }
+
+  @override
+  Future<Result<void>> changePassword({
+    required String otp,
+    required String newPassword,
+  }) async {
+    try {
+      await _remote.changePassword(otp: otp, newPassword: newPassword);
       return const Success(null);
     } catch (e, stack) {
       return Error(ExceptionHandler.handle(e, stack));
@@ -161,58 +198,60 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Result<UserModel>> getUserProfile() async {
     final savedPhone = await _secureStorage.read(StorageKeys.lastLoginEmail);
     final lowerPhone = savedPhone?.trim().toLowerCase();
-    
-    // Check if user is a created staff
-    final staffMatches = _hiveService.staffBox.values
-        .cast<StaffEntity>()
-        .where((s) => s.phone == lowerPhone);
-        
-    if (staffMatches.isNotEmpty) {
-      final staff = staffMatches.first;
-      final user = UserModel(
-        id: staff.id,
-        name: staff.name,
-        email: staff.email ?? '',
-        role: UserRole.staff,
-      );
-      await _secureStorage.write(StorageKeys.userId, user.id);
-      await _secureStorage.write(StorageKeys.userRole, user.role.value);
-      return Success(user);
-    }
 
-    if (lowerPhone == _demoClientPhone || lowerPhone == _demoStaffPhone || lowerPhone == _demoRmPhone) {
-      late String demoName;
-      late UserRole demoRole;
+    if (AppConfig.useDummyApi) {
+      // Check if user is a created staff
+      final staffMatches = _hiveService.staffBox.values
+          .cast<StaffEntity>()
+          .where((s) => s.phone == lowerPhone);
 
-      if (lowerPhone == _demoStaffPhone) {
-        demoName = _demoStaffName;
-        demoRole = UserRole.staff;
-      } else if (lowerPhone == _demoRmPhone) {
-        demoName = _demoRmName;
-        demoRole = UserRole.rm;
-      } else {
-        demoName = _demoClientName;
-        demoRole = UserRole.client;
+      if (staffMatches.isNotEmpty) {
+        final staff = staffMatches.first;
+        final user = UserModel(
+          id: staff.id,
+          name: staff.name,
+          email: staff.email ?? '',
+          role: UserRole.staff,
+        );
+        await _secureStorage.write(StorageKeys.userId, user.id);
+        await _secureStorage.write(StorageKeys.userRole, user.role.value);
+        return Success(user);
       }
 
-      final demoUser = UserModel(
-        id: 'demo-user-${demoRole.value}',
-        name: demoName,
-        email: 'demo@homegenny.com',
-        role: demoRole,
-      );
-      await _secureStorage.write(StorageKeys.userId, demoUser.id);
-      await _secureStorage.write(StorageKeys.userRole, demoUser.role.value);
-      await _local.cacheUser(
-        UserDto(
-          id: demoUser.id,
-          name: demoUser.name,
-          email: demoUser.email,
-          phone: '',
-          role: demoUser.role,
-        ),
-      );
-      return Success(demoUser);
+      if (lowerPhone == _demoClientPhone || lowerPhone == _demoStaffPhone || lowerPhone == _demoRmPhone) {
+        late String demoName;
+        late UserRole demoRole;
+
+        if (lowerPhone == _demoStaffPhone) {
+          demoName = _demoStaffName;
+          demoRole = UserRole.staff;
+        } else if (lowerPhone == _demoRmPhone) {
+          demoName = _demoRmName;
+          demoRole = UserRole.rm;
+        } else {
+          demoName = _demoClientName;
+          demoRole = UserRole.client;
+        }
+
+        final demoUser = UserModel(
+          id: 'demo-user-${demoRole.value}',
+          name: demoName,
+          email: 'demo@homegenny.com',
+          role: demoRole,
+        );
+        await _secureStorage.write(StorageKeys.userId, demoUser.id);
+        await _secureStorage.write(StorageKeys.userRole, demoUser.role.value);
+        await _local.cacheUser(
+          UserDto(
+            id: demoUser.id,
+            name: demoUser.name,
+            email: demoUser.email,
+            phone: '',
+            role: demoUser.role,
+          ),
+        );
+        return Success(demoUser);
+      }
     }
 
     try {

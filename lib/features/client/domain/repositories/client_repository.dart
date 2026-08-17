@@ -4,11 +4,16 @@ import '../models/client_models.dart';
 /// Client module repository contract.
 abstract interface class ClientRepository {
   Future<Result<ClientDashboardData>> getDashboard();
+  Future<Result<List<ClientAssignedStaff>>> getAssignedStaff();
   Future<Result<ClientStaffProfile>> getStaffProfile(String staffId);
   Future<Result<ClientTodayAttendance>> getTodayAttendance();
   Future<Result<List<ClientAttendanceRecord>>> getAttendanceHistory();
-  Future<Result<void>> raiseAttendanceIssue(String message);
-  Future<Result<ClientInvoice>> getCurrentInvoice();
+  Future<Result<void>> raiseAttendanceIssue({
+    required String message,
+    String? staffId,
+    String? title,
+  });
+  Future<Result<List<ClientInvoice>>> getInvoices();
   Future<Result<List<ClientPaymentHistory>>> getPaymentHistory();
   Future<Result<String>> downloadInvoice(String invoiceId);
   Future<Result<List<ClientComplaint>>> getComplaints();
@@ -16,6 +21,7 @@ abstract interface class ClientRepository {
     required String subject,
     required String description,
     int imageCount,
+    List<String>? imagePaths,
   });
   Future<Result<ClientReplacementRequest?>> getReplacementStatus();
   Future<Result<void>> requestReplacement(String reason);

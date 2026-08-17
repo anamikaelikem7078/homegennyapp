@@ -10,6 +10,9 @@ import '../../features/client/domain/repositories/client_repository.dart';
 import '../../features/staff/data/datasources/staff_datasource.dart';
 import '../../features/staff/data/repositories/staff_repository_impl.dart';
 import '../../features/staff/domain/repositories/staff_repository.dart';
+import '../../features/rm/data/datasources/rm_datasource.dart';
+import '../../features/rm/data/repositories/rm_repository_impl.dart';
+import '../../features/rm/domain/repositories/rm_repository.dart';
 import '../auth/jwt_token_handler.dart';
 import '../auth/token_refresh_service.dart';
 import '../data/datasources/json_asset_loader.dart';
@@ -130,6 +133,11 @@ final clientDummyDataSourceProvider = Provider<ClientDummyDataSource>((ref) {
   return ClientDummyDataSource(jsonLoader: ref.watch(jsonAssetLoaderProvider));
 });
 
+// ── RM datasources ──
+final rmRemoteDataSourceProvider = Provider<RmRemoteDataSource>((ref) {
+  return RmRemoteDataSource(ref.watch(dioClientProvider));
+});
+
 // ── Repositories ──
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepositoryImpl(
@@ -157,5 +165,12 @@ final clientRepositoryProvider = Provider<ClientRepository>((ref) {
     remote: ref.watch(clientRemoteDataSourceProvider),
     local: ref.watch(clientLocalDataSourceProvider),
     dummy: ref.watch(clientDummyDataSourceProvider),
+  );
+});
+
+final rmRepositoryProvider = Provider<RmRepository>((ref) {
+  return RmRepositoryImpl(
+    executor: ref.watch(repositoryExecutorProvider),
+    remote: ref.watch(rmRemoteDataSourceProvider),
   );
 });

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -11,7 +10,6 @@ import '../../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../../core/router/app_routes.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
-import '../../widgets/client_scaffold.dart';
 import '../../../../../core/theme/theme_provider.dart';
 
 /// Profile tab.
@@ -1064,7 +1062,7 @@ class ClientPaymentDetailsScreen extends ConsumerWidget {
                   const Divider(color: Color(0xFFF3F4F6), height: 1),
                   SizedBox(height: 24),
 
-                  _buildDetailRow(context, 'Payment Method', p.paymentMethod),
+                  _buildDetailRow(context, 'Payment Method', p.paymentMethod ?? 'Not set'),
                   SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1079,7 +1077,7 @@ class ClientPaymentDetailsScreen extends ConsumerWidget {
                       Row(
                         children: [
                           Text(
-                            p.upiId,
+                            p.upiId ?? 'Not set',
                             style: GoogleFonts.inter(
                               color: context.colors.onSurface,
                               fontSize: 13,
@@ -1100,7 +1098,7 @@ class ClientPaymentDetailsScreen extends ConsumerWidget {
                   _buildDetailRow(
                     context,
                     'Linked Account',
-                    '**** ${p.accountLast4}',
+                    p.accountLast4 != null ? '**** ${p.accountLast4}' : 'Not set',
                   ),
                   SizedBox(height: 24),
 

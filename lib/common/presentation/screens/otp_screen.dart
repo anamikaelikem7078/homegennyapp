@@ -48,8 +48,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   Future<void> _verify() async {
     final otp = _otpController.text.trim();
-    if (otp.length < 4) {
-      context.showAppSnackBar('Please enter all 4 digits', isError: true);
+    if (otp.length < 6) {
+      context.showAppSnackBar('Please enter all 6 digits', isError: true);
       return;
     }
 
@@ -64,7 +64,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (!mounted) return;
 
     if (profileOk) {
-      context.go(AppRoutes.biometricLogin);
+      final role = ref.read(authProvider).user?.role ?? UserRole.client;
+      context.go(role.dashboardRoute);
     }
   }
 
@@ -154,7 +155,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                           controller: _otpController,
                           focusNode: _focusNode,
                           keyboardType: TextInputType.number,
-                          maxLength: 4,
+                          maxLength: 6,
                           autofillHints: const [AutofillHints.oneTimeCode],
                           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           decoration: const InputDecoration(counterText: ''),
@@ -163,14 +164,14 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                       // Visual Boxes
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: List.generate(4, (index) {
+                        children: List.generate(6, (index) {
                           final text = _otpController.text;
                           final digit = index < text.length ? text[index] : '';
-                          final isFocused = index == text.length || (index == 3 && text.length == 4);
+                          final isFocused = index == text.length || (index == 5 && text.length == 6);
                           
                           return Container(
-                            width: 64,
-                            height: 72,
+                            width: 48,
+                            height: 64,
 
                             decoration: BoxDecoration(
                               color: Colors.white,

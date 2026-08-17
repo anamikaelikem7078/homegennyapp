@@ -1,4 +1,4 @@
-/// Payment status for client invoices.
+/// Payment status for dummy-only payment history entries.
 enum ClientPaymentStatus { pending, paid, overdue, processing }
 
 /// Complaint status.
@@ -7,96 +7,92 @@ enum ClientComplaintStatus { open, inProgress, resolved, closed }
 /// Replacement request status.
 enum ClientReplacementStatus { pending, inReview, approved, rejected, completed }
 
-/// Client dashboard summary.
+/// Client dashboard summary — matches `GET /client/dashboard` exactly (a flat
+/// object; the backend does not nest staff/attendance data under it).
 class ClientDashboardData {
   const ClientDashboardData({
     required this.clientName,
-    required this.assignedStaff,
-    required this.attendanceSummary,
-    required this.pendingPaymentAmount,
-    required this.pendingPaymentDue,
-    required this.unreadNotifications,
-    required this.activeComplaints,
-    required this.replacementStatus,
+    required this.activePlacementsCount,
+    required this.todayAttendanceStatus,
+    required this.pendingInvoicesCount,
+    required this.totalUnpaidAmount,
   });
 
   final String clientName;
-  final ClientAssignedStaff assignedStaff;
-  final ClientAttendanceSummary attendanceSummary;
-  final String pendingPaymentAmount;
-  final String pendingPaymentDue;
-  final int unreadNotifications;
-  final int activeComplaints;
-  final ClientReplacementStatus? replacementStatus;
+  final int activePlacementsCount;
+  final String todayAttendanceStatus;
+  final int pendingInvoicesCount;
+  final double totalUnpaidAmount;
 }
 
-/// Assigned staff overview for dashboard.
+/// Assigned staff entry — matches `GET /client/assigned-staff` item shape
+/// exactly. The backend does not provide rating, shift, on-duty status, or
+/// an avatar for this list.
 class ClientAssignedStaff {
   const ClientAssignedStaff({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.rating,
-    required this.shift,
-    required this.isOnDuty,
-    this.avatarUrl,
+    required this.staffId,
+    required this.deploymentDate,
+    required this.status,
+    this.staffCode,
+    this.fullName,
+    this.series,
   });
 
-  final String id;
-  final String name;
-  final String role;
-  final double rating;
-  final String shift;
-  final bool isOnDuty;
-  final String? avatarUrl;
+  final String staffId;
+  final String? staffCode;
+  final String? fullName;
+  final String? series;
+  final String deploymentDate;
+  final String status;
 }
 
-/// Attendance summary for dashboard.
+/// Attendance aggregate for the attendance-summary screen, computed
+/// client-side from `GET /client/attendance/history` (which returns
+/// `totalPresent`/`totalAbsent` counts) — not a direct API response shape.
 class ClientAttendanceSummary {
   const ClientAttendanceSummary({
     required this.presentDays,
     required this.totalDays,
     required this.attendancePercent,
-    required this.lastCheckIn,
   });
 
   final int presentDays;
   final int totalDays;
   final double attendancePercent;
-  final String lastCheckIn;
 }
 
-/// Full staff profile for client view.
+/// Full staff profile for client view — matches `GET /client/staff/:id/profile`
+/// exactly for the fields the backend supports. Experience, skills, reviews,
+/// and performance score are not backed by any endpoint yet and default to
+/// empty/absent rather than fabricated content.
 class ClientStaffProfile {
   const ClientStaffProfile({
-    required this.id,
-    required this.name,
-    required this.role,
-    required this.rating,
-    required this.shift,
-    required this.phone,
-    required this.joinedDate,
-    required this.experience,
-    required this.skills,
-    required this.performanceScore,
-    required this.attendancePercent,
-    required this.reviews,
-    this.avatarUrl,
+    required this.staffId,
+    required this.staffCode,
+    required this.fullName,
+    required this.series,
+    required this.isVerified,
+    required this.pvStatus,
+    required this.videoCertAvailable,
+    this.experience = const [],
+    this.skills = const [],
+    this.reviews = const [],
+    this.performanceScore,
+    this.attendancePercent,
   });
 
-  final String id;
-  final String name;
-  final String role;
-  final double rating;
-  final String shift;
-  final String phone;
-  final String joinedDate;
+  final String staffId;
+  final String staffCode;
+  final String fullName;
+  final String series;
+  final bool isVerified;
+  final String pvStatus;
+  final bool videoCertAvailable;
   final List<ClientExperience> experience;
   final List<String> skills;
-  final double performanceScore;
-  final double attendancePercent;
   final List<ClientReview> reviews;
-  final String? avatarUrl;
+  final double? performanceScore;
+  final double? attendancePercent;
 }
 
 class ClientExperience {
@@ -127,61 +123,72 @@ class ClientReview {
   final String reviewerName;
 }
 
-/// Attendance record.
+/// Attendance history record — matches `GET /client/attendance/history`
+/// `history[]` item shape exactly. No id or hours-worked field is provided.
 class ClientAttendanceRecord {
   const ClientAttendanceRecord({
-    required this.id,
     required this.date,
-    required this.checkIn,
-    required this.checkOut,
     required this.status,
-    required this.hoursWorked,
+    this.checkIn,
+    this.checkOut,
   });
 
-  final String id;
   final String date;
-  final String checkIn;
-  final String? checkOut;
   final String status;
-  final String hoursWorked;
-}
-
-/// Today's attendance for assigned staff.
-class ClientTodayAttendance {
-  const ClientTodayAttendance({
-    required this.staffName,
-    required this.checkIn,
-    required this.checkOut,
-    required this.status,
-    required this.location,
-  });
-
-  final String staffName;
   final String? checkIn;
   final String? checkOut;
-  final String status;
-  final String location;
 }
 
-/// Payment invoice.
+/// Today's attendance for assigned staff — matches `GET /client/attendance/today`
+/// exactly. No location field is provided.
+class ClientTodayAttendance {
+  const ClientTodayAttendance({
+    required this.todayStatus,
+    this.staffCode,
+    this.staffName,
+    this.checkInTime,
+    this.checkOutTime,
+    this.gpsVerified = false,
+  });
+
+  final String? staffCode;
+  final String? staffName;
+  final String todayStatus;
+  final String? checkInTime;
+  final String? checkOutTime;
+  final bool gpsVerified;
+}
+
+/// Invoice — matches `GET /client/invoices` `invoices[]` item shape exactly.
+/// `id` is actually the invoice number string (not a DB uuid). There is no
+/// nested line-items array from the backend; [items] is derived client-side
+/// from the three numeric components for display purposes.
 class ClientInvoice {
   const ClientInvoice({
     required this.id,
-    required this.invoiceNumber,
-    required this.period,
-    required this.amount,
-    required this.dueDate,
+    required this.billingMonth,
+    required this.salaryComponent,
+    required this.managementFee,
+    required this.gstAmount,
+    required this.totalAmount,
     required this.status,
-    required this.items,
+    required this.dueDate,
   });
 
   final String id;
-  final String invoiceNumber;
-  final String period;
-  final String amount;
+  final String billingMonth;
+  final double salaryComponent;
+  final double managementFee;
+  final double gstAmount;
+  final double totalAmount;
+  final String status;
   final String dueDate;
-  final ClientPaymentStatus status;
-  final List<ClientInvoiceItem> items;
+
+  List<ClientInvoiceItem> get items => [
+    if (salaryComponent != 0) ClientInvoiceItem(description: 'Staff Salary', amount: salaryComponent),
+    if (managementFee != 0) ClientInvoiceItem(description: 'Management Fee', amount: managementFee),
+    if (gstAmount != 0) ClientInvoiceItem(description: 'GST', amount: gstAmount),
+  ];
 }
 
 class ClientInvoiceItem {
@@ -191,10 +198,10 @@ class ClientInvoiceItem {
   });
 
   final String description;
-  final String amount;
+  final double amount;
 }
 
-/// Payment history entry.
+/// Payment history entry (dummy-only — no backing endpoint exists yet).
 class ClientPaymentHistory {
   const ClientPaymentHistory({
     required this.id,
@@ -213,7 +220,8 @@ class ClientPaymentHistory {
   final String invoiceNumber;
 }
 
-/// Complaint entry.
+/// Complaint entry (dummy-only — GET /client/complaints does not exist on
+/// the backend; only POST does).
 class ClientComplaint {
   const ClientComplaint({
     required this.id,
@@ -236,7 +244,8 @@ class ClientComplaint {
   final String? resolution;
 }
 
-/// Replacement request.
+/// Replacement request (dummy-only — POST /client/replacements is a
+/// documented backend placeholder with no persisted schema yet).
 class ClientReplacementRequest {
   const ClientReplacementRequest({
     required this.id,
@@ -259,7 +268,7 @@ class ClientReplacementRequest {
   final String? remarks;
 }
 
-/// Client notification.
+/// Client notification (dummy-only — not in the documented Client API list).
 class ClientNotification {
   const ClientNotification({
     required this.id,
@@ -278,7 +287,8 @@ class ClientNotification {
   final String type;
 }
 
-/// Client profile data.
+/// Client profile data — matches `GET /client/profile` exactly. Payment
+/// fields are always null server-side (no schema exists for them yet).
 class ClientProfile {
   const ClientProfile({
     required this.name,
@@ -287,9 +297,9 @@ class ClientProfile {
     required this.address,
     required this.city,
     required this.pincode,
-    required this.paymentMethod,
-    required this.accountLast4,
-    required this.upiId,
+    this.paymentMethod,
+    this.accountLast4,
+    this.upiId,
   });
 
   final String name;
@@ -298,7 +308,7 @@ class ClientProfile {
   final String address;
   final String city;
   final String pincode;
-  final String paymentMethod;
-  final String accountLast4;
-  final String upiId;
+  final String? paymentMethod;
+  final String? accountLast4;
+  final String? upiId;
 }

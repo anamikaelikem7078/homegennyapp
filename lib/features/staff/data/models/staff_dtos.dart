@@ -2,64 +2,68 @@ import '../../domain/models/staff_models.dart';
 
 /// Staff module DTOs with JSON serialization and domain mapping.
 abstract final class StaffDtoCodec {
-  // ── Dashboard ──
+  // ── Dashboard ── (matches GET /staff/dashboard exactly — flat, camelCase)
   static Map<String, dynamic> encodeDashboard(StaffDashboardData d) => {
-        'profile': encodeProfile(d.profile),
-        'tasks': d.tasks.map(encodeTask).toList(),
-        'current_stage': encodePipelineStage(d.currentStage),
-        'attendance_today': d.attendanceToday != null ? encodeAttendance(d.attendanceToday!) : null,
-        'unread_notifications': d.unreadNotifications,
-        'profile_completion': d.profileCompletion,
+        'staffCode': d.staffCode,
+        'fullName': d.fullName,
+        'series': d.series,
+        'pipelineStage': d.pipelineStage,
+        'completionPct': d.completionPct,
+        'assignedRm': {'name': d.assignedRmName, 'phone': d.assignedRmPhone},
+        'todayTasks': d.todayTasks.map(encodeTask).toList(),
       };
 
-  static StaffDashboardData decodeDashboard(Map<String, dynamic> json) =>
-      StaffDashboardData(
-        profile: decodeProfile(json['profile'] as Map<String, dynamic>),
-        tasks: (json['tasks'] as List<dynamic>)
-            .map((e) => decodeTask(e as Map<String, dynamic>))
-            .toList(),
-        currentStage: decodePipelineStage(json['current_stage'] as Map<String, dynamic>),
-        attendanceToday: json['attendance_today'] != null
-            ? decodeAttendance(json['attendance_today'] as Map<String, dynamic>)
-            : null,
-        unreadNotifications: json['unread_notifications'] as int? ?? 0,
-        profileCompletion: json['profile_completion'] as int? ?? 0,
-      );
+  static StaffDashboardData decodeDashboard(Map<String, dynamic> json) {
+    final rm = json['assignedRm'] as Map<String, dynamic>?;
+    return StaffDashboardData(
+      staffCode: json['staffCode'] as String? ?? '',
+      fullName: json['fullName'] as String? ?? '',
+      series: json['series'] as String? ?? '',
+      pipelineStage: json['pipelineStage'] as String? ?? '',
+      completionPct: json['completionPct'] as int? ?? 0,
+      assignedRmName: rm?['name'] as String? ?? '',
+      assignedRmPhone: rm?['phone'] as String? ?? '',
+      todayTasks: ((json['todayTasks'] as List<dynamic>?) ?? [])
+          .map((e) => decodeTask(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 
-  // ── Profile ──
+  // ── Profile ── (matches GET /staff/profile exactly)
   static Map<String, dynamic> encodeProfile(StaffProfile p) => {
-        'id': p.id, 'name': p.name, 'email': p.email, 'phone': p.phone,
-        'role': p.role, 'department': p.department, 'employee_id': p.employeeId,
-        'joining_date': p.joiningDate, 'completion_percent': p.completionPercent,
-        'avatar_url': p.avatarUrl,
+        'id': p.id,
+        'staffCode': p.staffCode,
+        'fullName': p.fullName,
+        'mobile': p.mobile,
+        'email': p.email,
+        'series': p.series,
+        'pipelineStage': p.pipelineStage,
+        'address': p.address,
+        'dateOfBirth': p.dateOfBirth,
       };
 
   static StaffProfile decodeProfile(Map<String, dynamic> json) => StaffProfile(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        email: json['email'] as String,
-        phone: json['phone'] as String,
-        role: json['role'] as String,
-        department: json['department'] as String,
-        employeeId: json['employee_id'] as String,
-        joiningDate: json['joining_date'] as String,
-        completionPercent: json['completion_percent'] as int,
-        avatarUrl: json['avatar_url'] as String?,
+        id: json['id'] as String? ?? '',
+        staffCode: json['staffCode'] as String? ?? '',
+        fullName: json['fullName'] as String? ?? '',
+        mobile: json['mobile'] as String? ?? '',
+        email: json['email'] as String? ?? '',
+        series: json['series'] as String? ?? '',
+        pipelineStage: json['pipelineStage'] as String? ?? '',
+        address: json['address'] as String?,
+        dateOfBirth: json['dateOfBirth']?.toString(),
       );
 
-  // ── Task ──
+  // ── Task ── (matches GET /staff/dashboard `todayTasks[]` item exactly —
+  // hardcoded server-side per the backend, but decoded like any real field)
   static Map<String, dynamic> encodeTask(StaffTask t) => {
-        'id': t.id, 'title': t.title, 'description': t.description,
-        'due_time': t.dueTime, 'priority': t.priority.name, 'is_completed': t.isCompleted,
+        'id': t.id, 'title': t.title, 'done': t.done,
       };
 
   static StaffTask decodeTask(Map<String, dynamic> json) => StaffTask(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        description: json['description'] as String,
-        dueTime: json['due_time'] as String,
-        priority: TaskPriority.values.byName(json['priority'] as String),
-        isCompleted: json['is_completed'] as bool,
+        id: json['id'].toString(),
+        title: json['title'] as String? ?? '',
+        done: json['done'] as bool? ?? false,
       );
 
   // ── Pipeline ──
@@ -91,19 +95,49 @@ abstract final class StaffDtoCodec {
         rejectionReason: json['rejection_reason'] as String?,
       );
 
-  // ── Attendance ──
+  // ── Attendance ── (matches GET /staff/attendance/history `history[]` item
+  // exactly — snake_case check_in/check_out, lowercase status)
   static Map<String, dynamic> encodeAttendance(AttendanceRecord r) => {
-        'id': r.id, 'date': r.date, 'check_in': r.checkIn, 'check_out': r.checkOut,
-        'status': r.status.name, 'location': r.location,
+        'date': r.date, 'check_in': r.checkIn, 'check_out': r.checkOut,
+        'status': r.status, 'location': r.location,
       };
 
   static AttendanceRecord decodeAttendance(Map<String, dynamic> json) => AttendanceRecord(
-        id: json['id'] as String,
-        date: json['date'] as String,
+        date: json['date'] as String? ?? '',
         checkIn: json['check_in'] as String?,
         checkOut: json['check_out'] as String?,
-        status: AttendanceDayStatus.values.byName(json['status'] as String),
+        status: json['status'] as String? ?? 'absent',
         location: json['location'] as String?,
+      );
+
+  // ── Deployment ── (matches GET /staff/deployment exactly)
+  static Map<String, dynamic> encodeDeployment(DeploymentInfo d) => {
+        'hasActivePlacement': d.hasActivePlacement,
+        'placementId': d.placementId,
+        'clientName': d.clientName,
+        'deploymentAddress': d.deploymentAddress,
+        'deploymentDate': d.deploymentDate,
+        'trialStatus': d.trialStatus,
+      };
+
+  static DeploymentInfo decodeDeployment(Map<String, dynamic> json) => DeploymentInfo(
+        hasActivePlacement: json['hasActivePlacement'] as bool? ?? false,
+        placementId: json['placementId'] as String?,
+        clientName: json['clientName'] as String?,
+        deploymentAddress: json['deploymentAddress'] as String?,
+        deploymentDate: json['deploymentDate'] as String?,
+        trialStatus: json['trialStatus'] as String?,
+      );
+
+  // ── Check-in / check-out result ── (matches both
+  // POST /staff/attendance/check-in and .../check-out response exactly)
+  static CheckInResult decodeCheckInResult(Map<String, dynamic> json) => CheckInResult(
+        success: json['success'] as bool? ?? true,
+        attendanceId: json['attendanceId'] as String? ?? '',
+        status: json['status'] as String? ?? 'CHECKED_IN',
+        timestamp: json['timestamp'] as String? ?? '',
+        latitude: (json['latitude'] as num?)?.toDouble(),
+        longitude: (json['longitude'] as num?)?.toDouble(),
       );
 
   // ── Notification ──

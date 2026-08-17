@@ -40,15 +40,19 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   Future<void> _sendResetLink() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final phone = _emailController.text.trim();
     final success = await ref
         .read(forgotPasswordViewModelProvider.notifier)
-        .sendResetLink(email: _emailController.text.trim());
+        .sendResetLink(email: phone);
 
     if (!mounted) return;
 
     if (success) {
-      context.showAppSnackBar('Reset link sent to your email');
-      context.go(AppRoutes.login);
+      context.showAppSnackBar('OTP sent');
+      context.go(Uri(
+        path: AppRoutes.resetPassword,
+        queryParameters: {'phone': phone},
+      ).toString());
     }
   }
 

@@ -3,80 +3,112 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/presentation/async_value_widget.dart';
+import '../../domain/models/pipeline_stage.dart';
+import '../../domain/models/rm_models.dart';
 import '../navigation/rm_routes.dart';
 import '../providers/rm_providers.dart';
-import '../../../../common/domain/models/staff_entity.dart';
+import '../widgets/advance_stage_action.dart';
 
-class RmStaffDetailScreen extends ConsumerStatefulWidget {
+/// Stage-aware staff detail hub — every action here depends on the staff's
+/// real `pipeline_stage` and placement status; the screen never shows every
+/// possible action at once (§31).
+class RmStaffDetailScreen extends ConsumerWidget {
+  const RmStaffDetailScreen({super.key, required this.staffId, this.initialStaff});
+
   final String staffId;
-  const RmStaffDetailScreen({super.key, required this.staffId});
+  /// Fast-path row passed via `context.push(..., extra: staffRow)` from a
+  /// kanban card tap — shown immediately while `staffByIdProvider`
+  /// refreshes in the background. See the plan's "Architecture decisions #4".
+  final StaffRow? initialStaff;
 
   @override
-  ConsumerState<RmStaffDetailScreen> createState() =>
-      _RmStaffDetailScreenState();
-}
-
-class _RmStaffDetailScreenState extends ConsumerState<RmStaffDetailScreen> {
-  int _activeTabIndex =
-      2; // 0: Overview, 1: Documents, 2: Verify (Verify is active in mockup)
-
-  @override
-  Widget build(BuildContext context) {
-    final staff = ref.watch(rmStaffDetailProvider(widget.staffId));
-
-    if (staff == null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text('Staff not found')),
-      );
-    }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncStaff = ref.watch(staffByIdProvider(staffId));
+    final staff = asyncStaff.maybeWhen(data: (d) => d, orElse: () => initialStaff);
 
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
       appBar: AppBar(
         backgroundColor: RmTheme.offWhite,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: RmTheme.textPrimary),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          'Staff Details',
-          style: RmTheme.headline(
-            context,
-          ).copyWith(fontSize: 18, color: RmTheme.textPrimary),
-        ),
+        title: Text('Staff Details', style: RmTheme.headline(context).copyWith(fontSize: 18)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: RmTheme.textPrimary),
-            onPressed: () {},
+      ),
+      body: staff == null
+          ? AsyncValueWidget<StaffRow?>(
+              value: asyncStaff,
+              onRetry: () => ref.invalidate(staffByIdProvider(staffId)),
+              builder: (data) => data == null
+                  ? const Center(child: Text('Staff not found'))
+                  : _StaffDetailBody(staff: data),
+            )
+          : RefreshIndicator(
+              onRefresh: () async => ref.invalidate(staffByIdProvider(staffId)),
+              child: _StaffDetailBody(staff: staff),
+            ),
+    );
+  }
+}
+
+class _StaffDetailBody extends ConsumerWidget {
+  const _StaffDetailBody({required this.staff});
+  final StaffRow staff;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final placementAsync = ref.watch(staffPlacementProvider(staff.id));
+
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildProfileSummary(context),
+          const SizedBox(height: 16),
+          _buildStageProgress(context),
+          const SizedBox(height: 16),
+          _buildSectionCard(
+            context,
+            title: 'Verification · S2_VERIFY',
+            status: staff.pvStatus == null ? 'Not started' : 'PV: ${staff.pvStatus}',
+            done: PipelineStages.order.indexOf(staff.pipelineStage) > 1,
+            onTap: () => context.push(RmRoutes.verificationDashboard(staff.id)),
           ),
+          _buildSectionCard(
+            context,
+            title: 'Assessment · S2.5',
+            status: staff.pipelineStage == PipelineStages.s25Assess ? 'In progress' : null,
+            done: PipelineStages.order.indexOf(staff.pipelineStage) > 2,
+            onTap: () => context.push(RmRoutes.stage25Assessment(staff.id)),
+          ),
+          _buildSectionCard(
+            context,
+            title: 'Training · S3',
+            status: staff.pipelineStage == PipelineStages.s3Train ? 'In progress' : null,
+            done: PipelineStages.order.indexOf(staff.pipelineStage) > 3,
+            onTap: () => context.push(RmRoutes.stage3Training(staff.id)),
+          ),
+          _buildSectionCard(
+            context,
+            title: 'Agreements · S4',
+            status: staff.pipelineStage == PipelineStages.s4Agreements ? 'In progress' : null,
+            done: PipelineStages.order.indexOf(staff.pipelineStage) > 4,
+            onTap: () => context.push(RmRoutes.stage4Hub(staff.id)),
+          ),
+          const SizedBox(height: 16),
+          _buildPlacementSection(context, ref, placementAsync),
+          const SizedBox(height: 16),
+          _buildQuickLinks(context),
+          const SizedBox(height: 24),
+          _buildPrimaryAction(context, ref),
         ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildProfileSummary(staff),
-            const SizedBox(height: 16),
-            _buildOnboardingJourney(staff),
-            const SizedBox(height: 24),
-            _buildTabs(),
-            const SizedBox(height: 16),
-            _buildTabContent(staff),
-          ],
-        ),
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [_buildFooterActions(staff), _buildBottomNav(context)],
       ),
     );
   }
 
-  Widget _buildProfileSummary(StaffEntity staff) {
+  Widget _buildProfileSummary(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -87,339 +119,41 @@ class _RmStaffDetailScreenState extends ConsumerState<RmStaffDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Image.network(
-              staff.profileImage ??
-                  'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300',
-              width: 80,
-              height: 80,
-              fit: BoxFit.cover,
-            ),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(color: RmTheme.electricBlue.withOpacity(0.1), shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Text(staff.initials, style: GoogleFonts.libreCaslonText(fontSize: 28, color: RmTheme.electricBlue)),
           ),
           const SizedBox(height: 16),
-          Text(
-            staff.name,
-            style: RmTheme.headline(
-              context,
-            ).copyWith(color: RmTheme.electricBlue, fontSize: 18),
-            textAlign: TextAlign.center,
-          ),
+          Text(staff.fullName, style: RmTheme.headline(context).copyWith(color: RmTheme.electricBlue, fontSize: 18), textAlign: TextAlign.center),
           const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: RmTheme.textSecondary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  staff.staffCode,
-                  style: RmTheme.label(
-                    context,
-                  ).copyWith(color: RmTheme.electricBlue, fontSize: 12),
-                ),
+                decoration: BoxDecoration(color: RmTheme.textSecondary.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                child: Text(staff.staffCode, style: RmTheme.label(context).copyWith(color: RmTheme.electricBlue, fontSize: 12)),
               ),
-              const SizedBox(width: 8),
-              Text(
-                staff.phone,
-                style: RmTheme.body(context).copyWith(fontSize: 12),
-              ),
+              Text(staff.mobile, style: RmTheme.body(context).copyWith(fontSize: 12)),
+              Text(StaffSeries.label(staff.series), style: RmTheme.body(context).copyWith(fontSize: 12)),
             ],
           ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: RmTheme.cardSurface,
+              color: _stageBgColor(staff.pipelineStage).withOpacity(0.1),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: RmTheme.amberWarning.withOpacity(0.3)),
+              border: Border.all(color: _stageBgColor(staff.pipelineStage).withOpacity(0.3)),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    color: RmTheme.amberWarning,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '${staff.status} - ${staff.pipelineStage}',
-                  style: RmTheme.label(context).copyWith(
-                    color: RmTheme.amberWarning,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOnboardingJourney(StaffEntity staff) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: RmTheme.sophisticatedShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Onboarding Progress',
-            style: RmTheme.headline(context).copyWith(fontSize: 18),
-          ),
-          const SizedBox(height: 24),
-          _buildTimelineItem('Intake', 'Completed Jan 12', true),
-          _buildTimelineItem('Verification', 'Completed Jan 14', true),
-          _buildTimelineItem('Training', 'Completed Jan 15', true),
-          _buildTimelineActiveItem('Agreements'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimelineItem(String title, String time, bool isCompleted) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: const BoxDecoration(
-                color: RmTheme.electricBlue,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.check, size: 16, color: Colors.white),
-            ),
-            Container(width: 1, height: 36, color: RmTheme.borderSubtle),
-          ],
-        ),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: RmTheme.label(
-                context,
-              ).copyWith(fontWeight: FontWeight.w500, fontSize: 14),
-            ),
-            const SizedBox(height: 2),
-            Text(time, style: RmTheme.body(context).copyWith(fontSize: 12)),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTimelineActiveItem(String title) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: RmTheme.electricBlue, width: 2),
-              ),
-              padding: const EdgeInsets.all(4),
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: RmTheme.electricBlue,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: RmTheme.label(context).copyWith(
-                  color: RmTheme.electricBlue,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: RmTheme.electricBlue.withOpacity(0.05),
-                  border: Border.all(
-                    color: RmTheme.electricBlue.withOpacity(0.1),
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.info_outline,
-                      size: 16,
-                      color: RmTheme.electricBlue,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ACTION REQUIRED',
-                            style: RmTheme.label(context).copyWith(
-                              color: RmTheme.electricBlue,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Review and approve final contractor agreements.',
-                            style: RmTheme.body(context).copyWith(
-                              fontSize: 12,
-                              color: RmTheme.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTabs() {
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: RmTheme.borderSubtle)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildTab('Overview', 0),
-          _buildTab('Documents', 1),
-          _buildTab('Verify', 2),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(String label, int index) {
-    final isActive = _activeTabIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => _activeTabIndex = index),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
             child: Text(
-              label,
-              style: RmTheme.label(context).copyWith(
-                color: isActive ? RmTheme.electricBlue : RmTheme.textPrimary,
-                fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Container(
-            height: 2,
-            width: 60,
-            color: isActive ? RmTheme.electricBlue : Colors.transparent,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabContent(StaffEntity staff) {
-    if (_activeTabIndex == 0) {
-      // Overview
-      return Column(
-        children: [
-          _buildSummaryRow('Email', staff.email ?? 'Not Provided'),
-          const SizedBox(height: 12),
-          _buildSummaryRow('Address', staff.address ?? 'Not Provided'),
-          const SizedBox(height: 12),
-          _buildSummaryRow('Joined', staff.createdAt.toString().split(' ')[0]),
-        ],
-      );
-    } else if (_activeTabIndex == 1 || _activeTabIndex == 2) {
-      // Documents / Verify
-      return Column(
-        children: [
-          _buildDocumentCard(
-            'Aadhaar Card',
-            'Uploaded Jan 12',
-            Icons.assignment_ind_outlined,
-          ),
-          const SizedBox(height: 12),
-          _buildDocumentCard(
-            'PAN Card',
-            'Uploaded Jan 12',
-            Icons.credit_card_outlined,
-          ),
-          const SizedBox(height: 12),
-          _buildDocumentCard(
-            'Driving License',
-            'Uploaded Jan 13',
-            Icons.drive_eta_outlined,
-          ),
-        ],
-      );
-    }
-    return const Center(child: Text('Content Placeholder'));
-  }
-
-  Widget _buildSummaryRow(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: RmTheme.borderSubtle),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: RmTheme.textSecondary,
-            ),
-          ),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: RmTheme.textPrimary,
+              PipelineStages.label(staff.pipelineStage),
+              style: RmTheme.label(context).copyWith(color: _stageBgColor(staff.pipelineStage), fontSize: 11, fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -427,281 +161,208 @@ class _RmStaffDetailScreenState extends ConsumerState<RmStaffDetailScreen> {
     );
   }
 
-  Widget _buildDocumentCard(String title, String date, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: RmTheme.borderSubtle),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: RmTheme.borderSubtle.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: RmTheme.textPrimary, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: RmTheme.label(
-                    context,
-                  ).copyWith(fontWeight: FontWeight.w500, fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-                Text(date, style: RmTheme.body(context).copyWith(fontSize: 12)),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: RmTheme.emeraldGreen.withOpacity(0.05),
-              border: Border.all(color: RmTheme.emeraldGreen.withOpacity(0.3)),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.check_circle_outline,
-                  size: 12,
-                  color: RmTheme.emeraldGreen,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'APPROVED',
-                  style: RmTheme.label(context).copyWith(
-                    color: RmTheme.emeraldGreen,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  Color _stageBgColor(String stage) {
+    if (stage == PipelineStages.terminal) return RmTheme.crimsonDanger;
+    if (stage == PipelineStages.deferred) return RmTheme.amberWarning;
+    if (stage == PipelineStages.s5Deploy) return RmTheme.emeraldGreen;
+    return RmTheme.electricBlue;
   }
 
-  Widget _buildFooterActions(StaffEntity staff) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(color: RmTheme.offWhite),
-      child: SafeArea(
-        top: false,
-        bottom: false,
+  Widget _buildStageProgress(BuildContext context) {
+    if (staff.pipelineStage == PipelineStages.terminal) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: RmTheme.crimsonDanger.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: RmTheme.crimsonDanger.withOpacity(0.2)),
+        ),
         child: Row(
           children: [
-            Expanded(
-              flex: 1,
-              child: OutlinedButton(
-                onPressed: () {},
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: const BorderSide(color: RmTheme.textPrimary),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  backgroundColor: RmTheme.cardSurface,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.upload_file_outlined,
-                      size: 18,
-                      color: RmTheme.textPrimary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Upload Files',
-                      style: RmTheme.label(
-                        context,
-                      ).copyWith(fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            const Icon(Icons.block, color: RmTheme.crimsonDanger),
             const SizedBox(width: 12),
             Expanded(
-              flex: 1,
-              child: ElevatedButton(
-                onPressed: () {
-                  _onApproveStage(staff);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: RmTheme.electricBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              child: Text(
+                'Terminal outcome: ${staff.terminalOutcome ?? 'unspecified'}',
+                style: RmTheme.body(context).copyWith(color: RmTheme.crimsonDanger, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    if (staff.pipelineStage == PipelineStages.deferred) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: RmTheme.amberWarning.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: RmTheme.amberWarning.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.pause_circle_outline, color: RmTheme.amberWarning),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Deferred — resume from the Deferred queue to continue the pipeline.')),
+          ],
+        ),
+      );
+    }
+    final currentIndex = PipelineStages.order.indexOf(staff.pipelineStage);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: RmTheme.cardSurface, borderRadius: BorderRadius.circular(16), boxShadow: RmTheme.sophisticatedShadow),
+      child: Row(
+        children: [
+          for (var i = 0; i < PipelineStages.order.length; i++) ...[
+            Expanded(
+              child: Container(
+                height: 6,
+                decoration: BoxDecoration(
+                  color: i <= currentIndex ? RmTheme.electricBlue : RmTheme.borderSubtle,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            if (i < PipelineStages.order.length - 1) const SizedBox(width: 4),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard(BuildContext context, {required String title, String? status, required bool done, required VoidCallback onTap}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: RmTheme.cardSurface,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: RmTheme.borderSubtle)),
+            child: Row(
+              children: [
+                Icon(
+                  done ? Icons.check_circle : Icons.radio_button_unchecked,
+                  color: done ? RmTheme.emeraldGreen : RmTheme.textSecondary,
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: RmTheme.label(context).copyWith(fontWeight: FontWeight.w600, fontSize: 14)),
+                      if (status != null) Text(status, style: RmTheme.body(context).copyWith(fontSize: 12)),
+                    ],
                   ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.check, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Approve Stage',
-                      style: RmTheme.label(context).copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                const Icon(Icons.chevron_right, color: RmTheme.textSecondary),
+              ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        border: const Border(top: BorderSide(color: RmTheme.borderSubtle)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(
-                Icons.dashboard_outlined,
-                'Dashboard',
-                false,
-                onTap: () => context.pushReplacement(RmRoutes.dashboard),
-              ),
-              _buildNavItem(
-                Icons.view_kanban,
-                'Pipeline',
-                true,
-                onTap: () => context.pushReplacement(RmRoutes.pipeline),
-              ),
-              _buildNavItem(Icons.check_circle_outline, 'Tasks', false),
-              _buildNavItem(Icons.notifications_outlined, 'Alerts', false),
-              _buildNavItem(Icons.person_outline, 'Profile', false),
-            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    bool isActive, {
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: isActive
-            ? BoxDecoration(
-                color: RmTheme.electricBlue,
-                borderRadius: BorderRadius.circular(8),
-              )
-            : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isActive ? Colors.white : RmTheme.textPrimary,
-              size: 20,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: RmTheme.label(context).copyWith(
-                color: isActive ? Colors.white : RmTheme.textPrimary,
-                fontSize: 10,
-                fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _onApproveStage(StaffEntity staff) async {
-    final stages = [
-      'REGISTRATION',
-      'VERIFICATION',
-      'TRAINING',
-      'VIDEO_CERTIFICATION',
-      'AGREEMENT',
-      'DEPLOYMENT',
-      'TRIAL',
-      'ACTIVE_PLACEMENT',
-    ];
-
-    final currentIndex = stages.indexOf(staff.pipelineStage);
-    if (currentIndex >= 0 && currentIndex < stages.length - 1) {
-      final nextStage = stages[currentIndex + 1];
-      final updatedStaff = staff.copyWith(pipelineStage: nextStage);
-      await ref.read(rmRepositoryProvider).updateStaff(updatedStaff);
-
-      // Invalidate specific staff provider to refresh details
-      ref.invalidate(rmStaffDetailProvider(staff.id));
-      // Invalidate pipeline provider to reflect changes in dashboard/pipeline
-      ref.invalidate(rmPipelineProvider);
-      ref.invalidate(rmDashboardStatsProvider);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Staff stage approved and advanced to $nextStage'),
-          ),
-        );
-
-        // Navigate to the next stage's screen for pipeline testing
-        switch (nextStage) {
-          case 'VERIFICATION':
-            context.push(RmRoutes.verificationDashboard(staff.id));
-            break;
-          case 'TRAINING':
-            context.push(RmRoutes.stage3Training(staff.id));
-            break;
-          case 'VIDEO_CERTIFICATION':
-            context.push(RmRoutes.stage3VideoReview(staff.id));
-            break;
-          case 'AGREEMENT':
-            context.push(RmRoutes.stage4Hub(staff.id));
-            break;
-          case 'TRIAL':
-            context.push(RmRoutes.stage5TrialCheckin(staff.id));
-            break;
-          case 'ACTIVE_PLACEMENT':
-            context.push(RmRoutes.staffActivePlacement(staff.id));
-            break;
+  Widget _buildPlacementSection(BuildContext context, WidgetRef ref, AsyncValue<PlacementRow?> placementAsync) {
+    return placementAsync.when(
+      loading: () => const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator()),
+      error: (e, _) => const SizedBox.shrink(),
+      data: (placement) {
+        if (placement == null) {
+          if (staff.pipelineStage != PipelineStages.s5Deploy) return const SizedBox.shrink();
+          return _buildSectionCard(
+            context,
+            title: 'Placement',
+            status: 'Ready for placement — no placement created yet',
+            done: false,
+            onTap: () => context.push(RmRoutes.placementCreate(staff.id)),
+          );
         }
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Staff is already in the final stage.')),
+        return _buildSectionCard(
+          context,
+          title: 'Placement · ${placement.status}',
+          status: placement.isTrial
+              ? 'TRIAL — pending confirmation'
+              : placement.isConfirmed
+                  ? 'CONFIRMED — attendance & invoicing unlocked'
+                  : placement.status,
+          done: placement.isConfirmed,
+          onTap: () => context.push(RmRoutes.placementDetail(placement.id), extra: staff.id),
         );
-      }
+      },
+    );
+  }
+
+  Widget _buildQuickLinks(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => context.push(RmRoutes.staffIncidents(staff.id)),
+            icon: const Icon(Icons.report_problem_outlined, size: 18),
+            label: const Text('Incidents'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => context.push(RmRoutes.staffInvoicePreview(staff.id)),
+            icon: const Icon(Icons.event_available_outlined, size: 18),
+            label: const Text('Attendance'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPrimaryAction(BuildContext context, WidgetRef ref) {
+    switch (staff.pipelineStage) {
+      case PipelineStages.s1Intake:
+        return AdvanceStageButton(
+          staffId: staff.id,
+          fromStage: staff.pipelineStage,
+          toStage: PipelineStages.s2Verify,
+          label: 'Complete Intake',
+          reasonCode: 'INTAKE_COMPLETE',
+        );
+      case PipelineStages.s2Verify:
+        return FilledButton(
+          onPressed: () => context.push(RmRoutes.verificationDashboard(staff.id)),
+          style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue, minimumSize: const Size.fromHeight(52)),
+          child: const Text('Continue Verification'),
+        );
+      case PipelineStages.s25Assess:
+        return FilledButton(
+          onPressed: () => context.push(RmRoutes.stage25Assessment(staff.id)),
+          style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue, minimumSize: const Size.fromHeight(52)),
+          child: const Text('Continue Assessment'),
+        );
+      case PipelineStages.s3Train:
+        return FilledButton(
+          onPressed: () => context.push(RmRoutes.stage3Training(staff.id)),
+          style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue, minimumSize: const Size.fromHeight(52)),
+          child: const Text('Continue Training'),
+        );
+      case PipelineStages.s4Agreements:
+        return FilledButton(
+          onPressed: () => context.push(RmRoutes.stage4Hub(staff.id)),
+          style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue, minimumSize: const Size.fromHeight(52)),
+          child: const Text('Continue Agreements'),
+        );
+      case PipelineStages.s5Deploy:
+        return FilledButton(
+          onPressed: () => context.push(RmRoutes.placementCreate(staff.id)),
+          style: FilledButton.styleFrom(backgroundColor: RmTheme.emeraldGreen, minimumSize: const Size.fromHeight(52)),
+          child: const Text('Create Placement'),
+        );
+      default:
+        return const SizedBox.shrink();
     }
   }
 }

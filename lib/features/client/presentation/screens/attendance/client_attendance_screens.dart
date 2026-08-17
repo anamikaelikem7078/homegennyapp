@@ -9,6 +9,15 @@ import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
 import '../../widgets/client_scaffold.dart';
 
+String _currentMonthYear() {
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  final now = DateTime.now();
+  return '${months[now.month - 1]} ${now.year}';
+}
+
 /// Today's attendance.
 class ClientTodayAttendanceScreen extends ConsumerWidget {
   const ClientTodayAttendanceScreen({super.key});
@@ -173,7 +182,7 @@ class ClientTodayAttendanceScreen extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          t.staffName,
+                          t.staffName ?? 'Staff',
                           style: GoogleFonts.libreCaslonText(
                             fontSize: 24,
                             fontWeight: FontWeight.w600,
@@ -190,7 +199,7 @@ class ClientTodayAttendanceScreen extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          'ON DUTY',
+                          t.todayStatus.replaceAll('_', ' '),
                           style: GoogleFonts.inter(
                             color: const Color(0xFF3730A3),
                             fontSize: 10,
@@ -204,11 +213,15 @@ class ClientTodayAttendanceScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Icon(Icons.location_on_outlined, color: textGrey, size: 18),
+                      Icon(
+                        t.gpsVerified ? Icons.gps_fixed_rounded : Icons.gps_off_rounded,
+                        color: textGrey,
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          t.location,
+                          t.gpsVerified ? 'Location verified' : 'Location not verified',
                           style: GoogleFonts.inter(
                             color: const Color(0xFF475569),
                             fontSize: 14,
@@ -258,7 +271,7 @@ class ClientTodayAttendanceScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          t.checkIn != null ? 'In: ${t.checkIn}' : 'No records yet',
+                          t.checkInTime != null ? 'In: ${t.checkInTime}' : 'No records yet',
                           style: GoogleFonts.inter(
                             fontSize: 15,
                             color: textDark,
@@ -275,7 +288,7 @@ class ClientTodayAttendanceScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      'Present',
+                      t.todayStatus.replaceAll('_', ' '),
                       style: GoogleFonts.inter(
                         color: const Color(0xFF16A34A),
                         fontSize: 12,
@@ -618,7 +631,7 @@ class ClientAttendanceHistoryScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'July 2024',
+              _currentMonthYear(),
               style: GoogleFonts.libreCaslonText(
                 fontSize: 18,
                 color: const Color(0xFF475569),
@@ -629,17 +642,11 @@ class ClientAttendanceHistoryScreen extends ConsumerWidget {
 
             // Records stack
             ...list.map((r) {
-              String statusStr = 'PRESENT';
-              if (r.status == 'Late') {
-                statusStr = 'LATE';
-              } else if (r.status == 'Absent') {
-                statusStr = 'ABSENT';
-              }
               return buildRecordCard(
                 date: r.date,
-                checkIn: r.checkIn,
+                checkIn: r.checkIn ?? '--',
                 checkOut: r.checkOut,
-                status: statusStr,
+                status: r.status,
               );
             }),
             const SizedBox(height: 40),
@@ -676,7 +683,9 @@ class _ClientRaiseAttendanceIssueScreenState
       return;
     }
     setState(() => _loading = true);
-    final result = await ref.read(clientRepositoryProvider).raiseAttendanceIssue(_message.text);
+    final result = await ref
+        .read(clientRepositoryProvider)
+        .raiseAttendanceIssue(message: _message.text);
     if (!mounted) return;
     setState(() => _loading = false);
     result.fold(

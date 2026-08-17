@@ -5,7 +5,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../../../design_system/design_system.dart';
-import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
 
@@ -71,7 +70,10 @@ class _StaffCheckOutScreenState extends ConsumerState<StaffCheckOutScreen> {
     if (!_gpsVerified) return;
 
     setState(() => _isSubmitting = true);
-    final result = await ref.read(staffRepositoryProvider).checkOut();
+    final result = await ref.read(staffRepositoryProvider).checkOut(
+          latitude: _markerPosition.latitude,
+          longitude: _markerPosition.longitude,
+        );
     if (!mounted) return;
     setState(() => _isSubmitting = false);
 
@@ -80,7 +82,7 @@ class _StaffCheckOutScreenState extends ConsumerState<StaffCheckOutScreen> {
         ref.invalidate(staffTodayAttendanceProvider);
         ref.invalidate(staffAttendanceHistoryProvider);
         ref.invalidate(staffDashboardProvider);
-        context.showDsSnackBar(data.message, type: DsSnackBarType.success);
+        context.showDsSnackBar('Checked out successfully', type: DsSnackBarType.success);
         context.go(StaffRoutes.attendance);
       },
       onError: (failure) {

@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../domain/models/client_models.dart';
 
@@ -22,7 +25,7 @@ class ClientRaiseComplaintScreen extends ConsumerStatefulWidget {
 
 class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplaintScreen> {
   final _description = TextEditingController();
-  int _imageCount = 0;
+  List<String> _imagePaths = [];
   bool _loading = false;
   
   String _urgency = 'STANDARD';
@@ -42,7 +45,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
     final result = await ref.read(clientRepositoryProvider).raiseComplaint(
           subject: 'Support Request - $_urgency',
           description: _description.text,
-          imageCount: _imageCount,
+          imagePaths: _imagePaths,
         );
     if (!mounted) return;
     setState(() => _loading = false);
@@ -164,9 +167,9 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
           SizedBox(height: 40),
           
           GestureDetector(
-            onTap: () {
-              context.push(ClientRoutes.complaintUpload);
-              setState(() => _imageCount = 1);
+            onTap: () async {
+              final paths = await context.push<List<String>>(ClientRoutes.complaintUpload);
+              if (paths != null) setState(() => _imagePaths = paths);
             },
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 40),
@@ -181,7 +184,9 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
                   Icon(Icons.cloud_upload_outlined, color: Color(0xFF1A56FF), size: 32),
                   SizedBox(height: 12),
                   Text(
-                    context.l10n.uploadDocuments,
+                    _imagePaths.isEmpty
+                        ? context.l10n.uploadDocuments
+                        : '${_imagePaths.length} image(s) attached',
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       color: const Color(0xFF1A56FF),
@@ -320,7 +325,14 @@ class ClientComplaintUploadScreen extends StatefulWidget {
 }
 
 class _ClientComplaintUploadScreenState extends State<ClientComplaintUploadScreen> {
-  int _count = 0;
+  final List<String> _imagePaths = [];
+  final _picker = ImagePicker();
+
+  Future<void> _pickImages() async {
+    final picked = await _picker.pickMultiImage();
+    if (picked.isEmpty) return;
+    setState(() => _imagePaths.addAll(picked.map((f) => f.path)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -334,12 +346,13 @@ class _ClientComplaintUploadScreenState extends State<ClientComplaintUploadScree
               crossAxisSpacing: AppSpacing.sm,
               mainAxisSpacing: AppSpacing.sm,
               children: [
-                ...List.generate(_count, (i) => Container(
+                ..._imagePaths.map((path) => Container(
                       decoration: AppDecorations.softCard(context),
-                      child: Icon(Icons.image_rounded, size: 40),
+                      clipBehavior: Clip.antiAlias,
+                      child: Image.file(File(path), fit: BoxFit.cover),
                     )),
                 GestureDetector(
-                  onTap: () => setState(() => _count++),
+                  onTap: _pickImages,
                   child: Container(
                     decoration: AppDecorations.softCard(context),
                     child: Column(
@@ -358,8 +371,11 @@ class _ClientComplaintUploadScreenState extends State<ClientComplaintUploadScree
           DsPrimaryButton(
             label: context.l10n.done,
             onPressed: () {
-              context.showDsSnackBar(context.l10n.imagesAttached(_count), type: DsSnackBarType.success);
-              context.pop();
+              context.showDsSnackBar(
+                context.l10n.imagesAttached(_imagePaths.length),
+                type: DsSnackBarType.success,
+              );
+              context.pop(_imagePaths);
             },
           ),
         ],
@@ -606,7 +622,7 @@ class ClientComplaintHistoryScreen extends ConsumerWidget {
                       ),
                     ],
                     
-                    if (!isResolved) ...[
+                    if (!isResolved && c.imageCount > 0) ...[
                       SizedBox(height: 16),
                       Row(
                         children: [
@@ -614,13 +630,6 @@ class ClientComplaintHistoryScreen extends ConsumerWidget {
                           SizedBox(width: 4),
                           Text(
                             '${c.imageCount} files',
-                            style: GoogleFonts.inter(color: context.colors.onSurfaceVariant, fontSize: 10),
-                          ),
-                          SizedBox(width: 16),
-                          Icon(Icons.info, color: context.colors.onSurfaceVariant),
-                          SizedBox(width: 4),
-                          Text(
-                            '4 messages', // Placeholder for messages count
                             style: GoogleFonts.inter(color: context.colors.onSurfaceVariant, fontSize: 10),
                           ),
                         ],

@@ -10,29 +10,19 @@ enum AgreementStatus { pending, signed, expired }
 /// Video certification status.
 enum VideoCertStatus { pending, uploaded, approved, rejected }
 
-/// Attendance day status.
-enum AttendanceDayStatus { present, absent, late, leave }
-
-/// Staff task priority.
-enum TaskPriority { high, medium, low }
-
-/// Staff task model.
+/// Staff task model — matches the `todayTasks` items embedded in
+/// `GET /staff/dashboard` exactly (the backend has no separate task-list
+/// schema; this is the entirety of what's tracked per task).
 class StaffTask {
   const StaffTask({
     required this.id,
     required this.title,
-    required this.description,
-    required this.dueTime,
-    required this.priority,
-    required this.isCompleted,
+    required this.done,
   });
 
   final String id;
   final String title;
-  final String description;
-  final String dueTime;
-  final TaskPriority priority;
-  final bool isCompleted;
+  final bool done;
 }
 
 /// Pipeline stage model.
@@ -152,47 +142,44 @@ class StaffAgreement {
   final String? signedAt;
 }
 
-/// Deployment info model.
+/// Deployment info model — matches `GET /staff/deployment` exactly. No
+/// work-location coordinates, RM contact, or salary fields are returned by
+/// the backend.
 class DeploymentInfo {
   const DeploymentInfo({
-    required this.clientName,
-    required this.clientPhone,
-    required this.workLocation,
-    required this.latitude,
-    required this.longitude,
-    required this.joiningDate,
-    required this.rmName,
-    required this.rmPhone,
-    required this.rmEmail,
+    required this.hasActivePlacement,
+    this.placementId,
+    this.clientName,
+    this.deploymentAddress,
+    this.deploymentDate,
+    this.trialStatus,
   });
 
-  final String clientName;
-  final String clientPhone;
-  final String workLocation;
-  final double latitude;
-  final double longitude;
-  final String joiningDate;
-  final String rmName;
-  final String rmPhone;
-  final String rmEmail;
+  final bool hasActivePlacement;
+  final String? placementId;
+  final String? clientName;
+  final String? deploymentAddress;
+  final String? deploymentDate;
+  final String? trialStatus;
 }
 
-/// Attendance record model.
+/// Attendance record model — matches `GET /staff/attendance/history` item
+/// shape exactly (staff-specific: snake_case in the wire format, lowercase
+/// status values, no id/hours-worked field, includes a raw "lat,lng"
+/// location string instead of the client module's structured fields).
 class AttendanceRecord {
   const AttendanceRecord({
-    required this.id,
     required this.date,
-    required this.checkIn,
-    required this.checkOut,
     required this.status,
-    required this.location,
+    this.checkIn,
+    this.checkOut,
+    this.location,
   });
 
-  final String id;
   final String date;
+  final String status; // "present" | "in_progress" | "absent"
   final String? checkIn;
   final String? checkOut;
-  final AttendanceDayStatus status;
   final String? location;
 }
 
@@ -279,65 +266,76 @@ class StaffNotification {
   final String type;
 }
 
-/// Staff profile model.
+/// Staff profile model — matches `GET /staff/profile` exactly. `role`,
+/// `department`, `employeeId` (renamed `staffCode`), `joiningDate`,
+/// `completionPercent`, and `avatarUrl` do not exist on the backend.
 class StaffProfile {
   const StaffProfile({
     required this.id,
-    required this.name,
+    required this.staffCode,
+    required this.fullName,
+    required this.mobile,
     required this.email,
-    required this.phone,
-    required this.role,
-    required this.department,
-    required this.employeeId,
-    required this.joiningDate,
-    required this.completionPercent,
-    required this.avatarUrl,
+    required this.series,
+    required this.pipelineStage,
+    this.address,
+    this.dateOfBirth,
   });
 
   final String id;
-  final String name;
+  final String staffCode;
+  final String fullName;
+  final String mobile;
   final String email;
-  final String phone;
-  final String role;
-  final String department;
-  final String employeeId;
-  final String joiningDate;
-  final int completionPercent;
-  final String? avatarUrl;
+  final String series;
+  final String pipelineStage;
+  final String? address;
+  final String? dateOfBirth;
 }
 
-/// Dashboard summary model.
+/// Dashboard summary model — matches `GET /staff/dashboard` exactly (flat
+/// shape; `todayTasks` is server-hardcoded per the backend, not a per-user
+/// task list yet, but is still real API data).
 class StaffDashboardData {
   const StaffDashboardData({
-    required this.profile,
-    required this.tasks,
-    required this.currentStage,
-    required this.attendanceToday,
-    required this.unreadNotifications,
-    required this.profileCompletion,
+    required this.staffCode,
+    required this.fullName,
+    required this.series,
+    required this.pipelineStage,
+    required this.completionPct,
+    required this.assignedRmName,
+    required this.assignedRmPhone,
+    required this.todayTasks,
   });
 
-  final StaffProfile profile;
-  final List<StaffTask> tasks;
-  final PipelineStage currentStage;
-  final AttendanceRecord? attendanceToday;
-  final int unreadNotifications;
-  final int profileCompletion;
+  final String staffCode;
+  final String fullName;
+  final String series;
+  final String pipelineStage;
+  final int completionPct;
+  final String assignedRmName;
+  final String assignedRmPhone;
+  final List<StaffTask> todayTasks;
 }
 
-/// Check-in result.
+/// Check-in/check-out result — matches the response shape of both
+/// `POST /staff/attendance/check-in` and `POST /staff/attendance/check-out`.
 class CheckInResult {
   const CheckInResult({
     required this.success,
-    required this.message,
+    required this.attendanceId,
+    required this.status,
     required this.timestamp,
-    required this.gpsVerified,
+    this.latitude,
+    this.longitude,
   });
 
   final bool success;
-  final String message;
+  final String attendanceId;
+  final String status; // "CHECKED_IN" | "CHECKED_OUT"
   final String timestamp;
-  final bool gpsVerified;
+  final double? latitude;
+  final double? longitude;
 }
 
 /// Training quiz result.

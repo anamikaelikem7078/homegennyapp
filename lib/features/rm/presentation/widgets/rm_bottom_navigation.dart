@@ -49,14 +49,14 @@ class RmBottomNavigation extends StatelessWidget {
               _buildNavItem(
                 context,
                 Icons.check_circle_outline,
-                'Tasks',
+                'Shifts',
                 2,
                 RmRoutes.tasks,
               ),
               _buildNavItem(
                 context,
                 Icons.notifications_outlined,
-                'Alerts',
+                'Incidents',
                 3,
                 RmRoutes.alerts,
               ),
@@ -107,14 +107,14 @@ class RmBottomNavigation extends StatelessWidget {
               _buildNavItem(
                 context,
                 Icons.check_circle_outline,
-                'Tasks',
+                'Shifts',
                 2,
                 RmRoutes.tasks,
               ),
               _buildNavItem(
                 context,
                 Icons.notifications_outlined,
-                'Alerts',
+                'Incidents',
                 3,
                 RmRoutes.alerts,
               ),

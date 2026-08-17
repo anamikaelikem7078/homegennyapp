@@ -214,18 +214,16 @@ class ClientStaffHeroCard extends StatelessWidget {
   const ClientStaffHeroCard({
     super.key,
     required this.name,
-    required this.role,
-    required this.rating,
-    required this.shift,
+    required this.series,
+    required this.staffCode,
     required this.isOnDuty,
     required this.onTap,
     this.heroTag = 'client-staff-hero',
   });
 
   final String name;
-  final String role;
-  final double rating;
-  final String shift;
+  final String series;
+  final String staffCode;
   final bool isOnDuty;
   final VoidCallback onTap;
   final String heroTag;
@@ -307,7 +305,7 @@ class ClientStaffHeroCard extends StatelessWidget {
                         ],
                       ),
                       Text(
-                        role,
+                        series,
                         style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 13),
                       ),
                     ],
@@ -318,13 +316,9 @@ class ClientStaffHeroCard extends StatelessWidget {
             SizedBox(height: AppSpacing.md),
             Row(
               children: [
-                Icon(Icons.star, color: context.colors.onSurface, size: 18),
+                Icon(Icons.badge_outlined, color: context.colors.onSurface, size: 18),
                 SizedBox(width: 4),
-                Text('$rating', style: TextStyle(color: context.colors.onSurface, fontSize: 13)),
-                SizedBox(width: AppSpacing.lg),
-                Icon(Icons.location_on, color: context.colors.onSurfaceVariant, size: 16),
-                SizedBox(width: 4),
-                Text(shift, style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 13)),
+                Text(staffCode, style: TextStyle(color: context.colors.onSurface, fontSize: 13)),
                 const Spacer(),
                 Icon(Icons.info, color: context.colors.onSurfaceVariant),
               ],

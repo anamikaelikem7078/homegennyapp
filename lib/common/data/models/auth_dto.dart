@@ -5,19 +5,27 @@ class AuthTokensDto {
   const AuthTokensDto({
     required this.accessToken,
     required this.refreshToken,
+    this.mustChangePassword = false,
+    this.user,
   });
 
   final String accessToken;
   final String refreshToken;
+  final bool mustChangePassword;
+  final UserDto? user;
 
   factory AuthTokensDto.fromJson(Map<String, dynamic> json) => AuthTokensDto(
         accessToken: json['access_token'] as String? ?? json['accessToken'] as String? ?? '',
         refreshToken: json['refresh_token'] as String? ?? json['refreshToken'] as String? ?? '',
+        mustChangePassword: json['must_change_password'] as bool? ?? json['mustChangePassword'] as bool? ?? false,
+        user: json['user'] != null ? UserDto.fromJson(json['user']) : null,
       );
 
   Map<String, dynamic> toJson() => {
         'access_token': accessToken,
         'refresh_token': refreshToken,
+        'must_change_password': mustChangePassword,
+        if (user != null) 'user': user!.toJson(),
       };
 }
 

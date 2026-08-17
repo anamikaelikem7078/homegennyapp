@@ -17,6 +17,7 @@ class StaffProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(staffProfileProvider);
     final authUser = ref.watch(authProvider).user;
+    final completionPct = ref.watch(staffDashboardProvider).valueOrNull?.completionPct ?? 0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
@@ -104,7 +105,7 @@ class StaffProfileScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             Center(
               child: Text(
-                profile.name,
+                profile.fullName,
                 style: GoogleFonts.libreCaslonText(
                   fontSize: 28,
                   fontWeight: FontWeight.w600,
@@ -115,7 +116,7 @@ class StaffProfileScreen extends ConsumerWidget {
             const SizedBox(height: 4),
             Center(
               child: Text(
-                profile.role.toUpperCase(),
+                profile.series.toUpperCase(),
                 style: GoogleFonts.inter(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
@@ -183,7 +184,7 @@ class StaffProfileScreen extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          '${profile.completionPercent}%',
+                          '$completionPct%',
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
@@ -204,7 +205,7 @@ class StaffProfileScreen extends ConsumerWidget {
                         ),
                         FractionallySizedBox(
                           alignment: Alignment.centerLeft,
-                          widthFactor: profile.completionPercent / 100,
+                          widthFactor: completionPct / 100,
                           child: Container(
                             height: 6,
                             decoration: BoxDecoration(

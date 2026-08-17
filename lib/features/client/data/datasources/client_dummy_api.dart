@@ -12,41 +12,36 @@ class ClientDummyApi {
   static const _staffId = 'STF-001';
 
   ClientAssignedStaff get _assignedStaff => const ClientAssignedStaff(
-        id: _staffId,
-        name: 'Rajesh Kumar',
-        role: 'Home Care Specialist',
-        rating: 4.8,
-        shift: '9:00 AM – 6:00 PM',
-        isOnDuty: true,
+        staffId: _staffId,
+        staffCode: 'staff001',
+        fullName: 'Rajesh Kumar',
+        series: 'MAID',
+        deploymentDate: '2024-03-01T00:00:00.000Z',
+        status: 'ACTIVE_DEPLOYED',
       );
 
   Future<ClientDashboardData> getDashboard() => _simulate(
-        ClientDashboardData(
+        const ClientDashboardData(
           clientName: 'Priya Sharma',
-          assignedStaff: _assignedStaff,
-          attendanceSummary: const ClientAttendanceSummary(
-            presentDays: 22,
-            totalDays: 24,
-            attendancePercent: 91.7,
-            lastCheckIn: 'Today, 9:02 AM',
-          ),
-          pendingPaymentAmount: '₹18,500',
-          pendingPaymentDue: 'Due in 5 days',
-          unreadNotifications: 3,
-          activeComplaints: 0,
-          replacementStatus: null,
+          activePlacementsCount: 1,
+          todayAttendanceStatus: 'CHECKED_IN',
+          pendingInvoicesCount: 1,
+          totalUnpaidAmount: 18500,
         ),
       );
 
+  Future<List<ClientAssignedStaff>> getAssignedStaff() =>
+      _simulate([_assignedStaff]);
+
   Future<ClientStaffProfile> getStaffProfile(String id) => _simulate(
         ClientStaffProfile(
-          id: id,
-          name: 'Rajesh Kumar',
-          role: 'Home Care Specialist',
-          rating: 4.8,
-          shift: '9:00 AM – 6:00 PM',
-          phone: '+91 98765 43210',
-          joinedDate: '1 Mar 2024',
+          staffId: id,
+          staffCode: 'staff001',
+          fullName: 'Rajesh Kumar',
+          series: 'MAID',
+          isVerified: true,
+          pvStatus: 'CLEAR',
+          videoCertAvailable: true,
           experience: const [
             ClientExperience(
               title: 'Senior Home Care',
@@ -90,68 +85,61 @@ class ClientDummyApi {
   Future<ClientTodayAttendance> getTodayAttendance() => _simulate(
         const ClientTodayAttendance(
           staffName: 'Rajesh Kumar',
-          checkIn: '9:02 AM',
-          checkOut: null,
-          status: 'On Duty',
-          location: 'Green Park, New Delhi',
+          checkInTime: '2026-08-15T09:02:00.000Z',
+          checkOutTime: null,
+          todayStatus: 'PRESENT',
+          gpsVerified: true,
         ),
       );
 
   List<ClientAttendanceRecord> get _attendanceHistory => const [
         ClientAttendanceRecord(
-          id: 'A1',
-          date: 'Today',
+          date: '2026-08-15',
           checkIn: '9:02 AM',
           checkOut: null,
-          status: 'Present',
-          hoursWorked: '—',
+          status: 'PRESENT',
         ),
         ClientAttendanceRecord(
-          id: 'A2',
-          date: 'Yesterday',
+          date: '2026-08-14',
           checkIn: '9:15 AM',
           checkOut: '6:30 PM',
-          status: 'Present',
-          hoursWorked: '9h 15m',
+          status: 'PRESENT',
         ),
         ClientAttendanceRecord(
-          id: 'A3',
-          date: '12 Jul 2024',
+          date: '2026-08-13',
           checkIn: '9:00 AM',
           checkOut: '6:15 PM',
-          status: 'Present',
-          hoursWorked: '9h 15m',
+          status: 'PRESENT',
         ),
         ClientAttendanceRecord(
-          id: 'A4',
-          date: '11 Jul 2024',
-          checkIn: '9:45 AM',
-          checkOut: '6:00 PM',
-          status: 'Late',
-          hoursWorked: '8h 15m',
+          date: '2026-08-12',
+          checkIn: null,
+          checkOut: null,
+          status: 'ABSENT',
         ),
       ];
 
   Future<List<ClientAttendanceRecord>> getAttendanceHistory() =>
       _simulate(_attendanceHistory);
 
-  Future<void> raiseAttendanceIssue(String message) => _simulate(null);
+  Future<void> raiseAttendanceIssue({
+    required String message,
+    String? staffId,
+    String? title,
+  }) => _simulate(null);
 
   ClientInvoice get _currentInvoice => const ClientInvoice(
-        id: 'INV-2024-07',
-        invoiceNumber: 'HG-INV-2407-001',
-        period: 'July 2024',
-        amount: '₹18,500',
-        dueDate: '22 Jul 2024',
-        status: ClientPaymentStatus.pending,
-        items: [
-          ClientInvoiceItem(description: 'Monthly Service Fee', amount: '₹15,000'),
-          ClientInvoiceItem(description: 'Platform Fee', amount: '₹2,000'),
-          ClientInvoiceItem(description: 'GST (18%)', amount: '₹1,500'),
-        ],
+        id: 'HG-INV-2407-001',
+        billingMonth: '7/2024',
+        salaryComponent: 15000,
+        managementFee: 3000,
+        gstAmount: 540,
+        totalAmount: 18540,
+        status: 'PENDING',
+        dueDate: '2024-07-22T00:00:00.000Z',
       );
 
-  Future<ClientInvoice> getCurrentInvoice() => _simulate(_currentInvoice);
+  Future<List<ClientInvoice>> getInvoices() => _simulate([_currentInvoice]);
 
   List<ClientPaymentHistory> get _paymentHistory => const [
         ClientPaymentHistory(

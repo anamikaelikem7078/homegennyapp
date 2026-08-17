@@ -7,14 +7,13 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
-import '../../widgets/client_scaffold.dart';
 
 class ClientStaffTabScreen extends ConsumerWidget {
   const ClientStaffTabScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final dashboard = ref.watch(clientDashboardProvider);
+    final assignedStaff = ref.watch(clientAssignedStaffProvider);
 
     return Scaffold(
       backgroundColor: context.theme.scaffoldBackgroundColor,
@@ -51,11 +50,18 @@ class ClientStaffTabScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: dashboard.when(
+      body: assignedStaff.when(
         loading: () => const DsLoadingWidget(),
         error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (data) {
-          final staff = data.assignedStaff;
+        data: (list) {
+          if (list.isEmpty) {
+            return const DsEmptyState(
+              title: 'No staff assigned yet',
+              message: 'Your assigned staff will appear here once deployed.',
+              icon: Icons.people_outline,
+            );
+          }
+          final staff = list.first;
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             children: [
@@ -104,7 +110,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
               // Name and Title
               Center(
                 child: Text(
-                  staff.name,
+                  staff.fullName ?? 'Staff',
                   style: GoogleFonts.libreCaslonText(
                     fontSize: 32,
                     color: context.colors.onSurface,
@@ -115,7 +121,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
               SizedBox(height: 8),
               Center(
                 child: Text(
-                  context.l10n.caregiver, // Updated role for matching image
+                  staff.series ?? '',
                   style: GoogleFonts.inter(
                     color: const Color(0xFF1A56FF),
                     fontSize: 12,
@@ -125,67 +131,40 @@ class ClientStaffTabScreen extends ConsumerWidget {
                 ),
               ),
               SizedBox(height: 16),
-              // Rating row
+              // Status row
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.star_border_rounded,
+                    staff.status == 'ACTIVE_DEPLOYED' ? Icons.check_circle_outline : Icons.hourglass_empty_rounded,
                     color: Color(0xFF1A56FF),
                     size: 18,
                   ),
                   SizedBox(width: 4),
                   Text(
-                    context.l10n.ratingValue(staff.rating.toString()),
+                    staff.status == 'ACTIVE_DEPLOYED' ? 'Actively Deployed' : 'On Trial',
                     style: GoogleFonts.inter(
                       color: const Color(0xFF1A56FF),
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Text('|', style: TextStyle(color: Colors.black26)),
-                  ),
-                  Text(
-                    context.l10n.verifiedProfessional,
-                    style: GoogleFonts.inter(
-                      color: context.colors.onSurfaceVariant,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                  if (staff.staffCode != null && staff.staffCode!.isNotEmpty) ...[
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('|', style: TextStyle(color: Colors.black26)),
                     ),
-                  ),
+                    Text(
+                      staff.staffCode!,
+                      style: GoogleFonts.inter(
+                        color: context.colors.onSurfaceVariant,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ],
               ),
-              SizedBox(height: 32),
-              // Stats
-              Row(
-                children: [
-                  Expanded(
-                    child: _StatCard(
-                      icon: Icons.history,
-                      value: '12+',
-                      label: context.l10n.yearsExperience,
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: _StatCard(
-                      icon: Icons.task_alt,
-                      value: '842',
-                      label: context.l10n.projectsCompleted,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-              _StatCard(
-                icon: Icons.shield_outlined,
-                value: '99%',
-                label: context.l10n.safetyScore,
-                isFullWidth: true,
-              ),
-
               SizedBox(height: 40),
               // Professional Profile
               Text(
@@ -412,79 +391,6 @@ class ClientStaffTabScreen extends ConsumerWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.value,
-    required this.label,
-    this.isFullWidth = false,
-  });
-  final IconData icon;
-  final String value;
-  final String label;
-  final bool isFullWidth;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: context.theme.cardColor,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: context.theme.dividerColor, width: 1),
-      ),
-      child: isFullWidth
-          ? Row(
-              children: [
-                Icon(icon, color: const Color(0xFF1A56FF), size: 24),
-                SizedBox(width: 16),
-                Text(
-                  value,
-                  style: GoogleFonts.libreCaslonText(
-                    fontSize: 24,
-                    color: context.colors.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(width: 16),
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: context.colors.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, color: const Color(0xFF1A56FF), size: 24),
-                SizedBox(height: 16),
-                Text(
-                  value,
-                  style: GoogleFonts.libreCaslonText(
-                    fontSize: 24,
-                    color: context.colors.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: context.colors.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-}
-
 class _TimelineItem extends StatelessWidget {
   const _TimelineItem({
     required this.date,
@@ -695,7 +601,7 @@ class ClientStaffProfileScreen extends ConsumerWidget {
             // Name and Title
             Center(
               child: Text(
-                s.name,
+                s.fullName,
                 style: GoogleFonts.libreCaslonText(
                   fontSize: 32,
                   color: context.colors.onSurface,
@@ -706,7 +612,7 @@ class ClientStaffProfileScreen extends ConsumerWidget {
             SizedBox(height: 4),
             Center(
               child: Text(
-                context.l10n.homeCareSpecialist,
+                s.series,
                 style: GoogleFonts.inter(
                   color: const Color(0xFF9E7C5D),
                   fontSize: 11,
@@ -740,13 +646,13 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.star_border,
+                              s.isVerified ? Icons.verified_outlined : Icons.hourglass_empty_rounded,
                               color: Color(0xFF1A56FF),
                               size: 18,
                             ),
                             SizedBox(width: 6),
                             Text(
-                              '${s.rating}',
+                              s.isVerified ? 'Verified' : 'Pending',
                               style: GoogleFonts.inter(
                                 fontSize: 14,
                                 color: const Color(0xFF1A56FF),
@@ -757,7 +663,7 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          context.l10n.ratingLabel,
+                          'VERIFICATION',
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             color: context.colors.onSurface,
@@ -791,13 +697,13 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.schedule,
+                              Icons.security_outlined,
                               color: Color(0xFF1A56FF),
                               size: 18,
                             ),
                             SizedBox(width: 6),
                             Text(
-                              context.l10n.fullTime,
+                              s.pvStatus,
                               style: GoogleFonts.inter(
                                 fontSize: 14,
                                 color: const Color(0xFF1A56FF),
@@ -808,7 +714,7 @@ class ClientStaffProfileScreen extends ConsumerWidget {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          context.l10n.workingHours,
+                          'PV STATUS',
                           style: GoogleFonts.inter(
                             fontSize: 10,
                             color: context.colors.onSurface,
@@ -1841,7 +1747,7 @@ class ClientStaffAttendanceScreen extends ConsumerWidget {
                         width: 220,
                         height: 220,
                         child: CircularProgressIndicator(
-                          value: s.attendancePercent / 100,
+                          value: (s.attendancePercent ?? 0) / 100,
                           strokeWidth: 2,
                           backgroundColor: const Color(0xFFE9E8E7),
                           color: const Color(0xFF000101),
@@ -1862,7 +1768,7 @@ class ClientStaffAttendanceScreen extends ConsumerWidget {
                             ),
                           ),
                           Text(
-                            '${s.attendancePercent.round()}%',
+                            s.attendancePercent != null ? '${s.attendancePercent!.round()}%' : '—',
                             style: GoogleFonts.libreCaslonText(
                               fontSize: 40,
                               color: const Color(0xFF000101),
@@ -2315,7 +2221,7 @@ class ClientStaffPerformanceScreen extends ConsumerWidget {
                       children: [
                         Positioned.fill(
                           child: CircularProgressIndicator(
-                            value: 0.94,
+                            value: s.performanceScore != null ? s.performanceScore! / 5 : 0,
                             strokeWidth: 3,
                             backgroundColor: Colors.grey.shade200,
                             color: context.colors.onSurface,
@@ -2326,7 +2232,7 @@ class ClientStaffPerformanceScreen extends ConsumerWidget {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                '94',
+                                s.performanceScore != null ? s.performanceScore!.toStringAsFixed(1) : '—',
                                 style: GoogleFonts.libreCaslonText(
                                   fontSize: 64,
                                   color: context.colors.onSurface,
@@ -2336,7 +2242,7 @@ class ClientStaffPerformanceScreen extends ConsumerWidget {
                               ),
                               SizedBox(height: 8),
                               Text(
-                                'PERCENTILE',
+                                'SCORE / 5',
                                 style: GoogleFonts.inter(
                                   fontSize: 10,
                                   color: const Color(0xFF9E7C5D),
@@ -2499,6 +2405,14 @@ class ClientStaffPerformanceScreen extends ConsumerWidget {
               ],
             ),
             SizedBox(height: 24),
+            if (s.reviews.isEmpty)
+              Text(
+                'No reviews yet.',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: context.colors.onSurfaceVariant,
+                ),
+              ),
             ...s.reviews.map(
               (r) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),

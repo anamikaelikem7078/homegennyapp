@@ -29,16 +29,37 @@ class ClientRepositoryImpl implements ClientRepository {
   );
 
   @override
+  Future<Result<List<ClientAssignedStaff>>> getAssignedStaff() =>
+      _executor.fetch(
+        remote: _remote.getAssignedStaff,
+        cache: _local.cacheAssignedStaff,
+        local: () async => _local.getAssignedStaff(),
+        dummy: _dummy.getAssignedStaff,
+      );
+
+  @override
   Future<Result<ClientStaffProfile>> getStaffProfile(String staffId) =>
-      _executor.fetch(dummy: () => _dummy.getStaffProfile(staffId));
+      _executor.fetch(
+        remote: () => _remote.getStaffProfile(staffId),
+        cache: (data) => _local.cacheStaffProfile(staffId, data),
+        local: () async => _local.getStaffProfile(staffId),
+        dummy: () => _dummy.getStaffProfile(staffId),
+      );
 
   @override
   Future<Result<ClientTodayAttendance>> getTodayAttendance() =>
-      _executor.fetch(dummy: _dummy.getTodayAttendance);
+      _executor.fetch(
+        remote: _remote.getTodayAttendance,
+        cache: _local.cacheTodayAttendance,
+        local: () async => _local.getTodayAttendance(),
+        dummy: _dummy.getTodayAttendance,
+      );
 
   @override
   Future<Result<List<ClientAttendanceRecord>>> getAttendanceHistory() =>
       _executor.fetch(
+        remote: _remote.getAttendanceHistory,
+        cache: _local.cacheAttendanceHistory,
         local: () async {
           final l = await _local.getAttendanceHistory();
           return l.isEmpty ? null : l;
@@ -47,12 +68,30 @@ class ClientRepositoryImpl implements ClientRepository {
       );
 
   @override
-  Future<Result<void>> raiseAttendanceIssue(String message) =>
-      _executor.mutateVoid(dummy: () => _dummy.raiseAttendanceIssue(message));
+  Future<Result<void>> raiseAttendanceIssue({
+    required String message,
+    String? staffId,
+    String? title,
+  }) => _executor.mutateVoid(
+    remote: () => _remote.raiseAttendanceIssue(
+      message: message,
+      staffId: staffId,
+      title: title,
+    ),
+    dummy: () => _dummy.raiseAttendanceIssue(
+      message: message,
+      staffId: staffId,
+      title: title,
+    ),
+  );
 
   @override
-  Future<Result<ClientInvoice>> getCurrentInvoice() =>
-      _executor.fetch(dummy: _dummy.getCurrentInvoice);
+  Future<Result<List<ClientInvoice>>> getInvoices() => _executor.fetch(
+    remote: _remote.getInvoices,
+    cache: _local.cacheInvoices,
+    local: () async => _local.getInvoices(),
+    dummy: _dummy.getInvoices,
+  );
 
   @override
   Future<Result<List<ClientPaymentHistory>>> getPaymentHistory() =>
@@ -68,6 +107,8 @@ class ClientRepositoryImpl implements ClientRepository {
   Future<Result<String>> downloadInvoice(String invoiceId) =>
       _executor.mutate(dummy: () => _dummy.downloadInvoice(invoiceId));
 
+  // Note: GET /client/complaints does not exist on the backend — only
+  // POST does (see raiseComplaint below). Stays dummy-only.
   @override
   Future<Result<List<ClientComplaint>>> getComplaints() => _executor.fetch(
     local: () async {
@@ -82,14 +123,19 @@ class ClientRepositoryImpl implements ClientRepository {
     required String subject,
     required String description,
     int imageCount = 0,
+    List<String>? imagePaths,
   }) => _executor.mutateVoid(
     remote: () async {
-      await _remote.raiseComplaint(subject: subject, description: description);
+      await _remote.raiseComplaint(
+        subject: subject,
+        description: description,
+        imagePaths: imagePaths,
+      );
     },
     dummy: () => _dummy.raiseComplaint(
       subject: subject,
       description: description,
-      imageCount: imageCount,
+      imageCount: imagePaths?.length ?? imageCount,
     ),
   );
 

@@ -6,9 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/client_routes.dart';
 import '../../../../../core/router/app_routes.dart';
-import '../../../../../core/utils/communication_helper.dart';
+import '../../../../../core/utils/currency_formatter.dart';
 import '../../../../../core/presentation/async_value_widget.dart';
 import '../../../../../core/extensions/context_extensions.dart';
+import '../../../domain/models/client_models.dart';
 import '../../providers/client_providers.dart';
 import '../../widgets/client_scaffold.dart';
 
@@ -19,6 +20,8 @@ class ClientHomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboard = ref.watch(clientDashboardProvider);
+    final assignedStaff = ref.watch(clientAssignedStaffProvider);
+    final history = ref.watch(clientAttendanceHistoryProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8), // Sophisticated off-white
@@ -81,35 +84,62 @@ class ClientHomeScreen extends ConsumerWidget {
             children: [
               _WelcomeHeader(name: data.clientName),
               SizedBox(height: 24),
-              _StaffSpotlightCard(
-                name: data.assignedStaff.name,
-                role: data.assignedStaff.role,
-                rating: data.assignedStaff.rating,
-                onTap: () => context.push(ClientRoutes.staffProfile(data.assignedStaff.id)),
+              assignedStaff.when(
+                loading: () => const DsLoadingWidget(),
+                error: (_, _) => const SizedBox.shrink(),
+                data: (list) {
+                  if (list.isEmpty) return const SizedBox.shrink();
+                  final staff = list.first;
+                  return _StaffSpotlightCard(
+                    name: staff.fullName ?? 'Staff',
+                    series: staff.series ?? '',
+                    staffCode: staff.staffCode ?? '',
+                    status: staff.status,
+                    deploymentDate: staff.deploymentDate,
+                    onTap: () => context.push(ClientRoutes.staffProfile(staff.staffId)),
+                  );
+                },
               ),
               SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _AttendanceBentoCard(
-                      percentage: data.attendanceSummary.attendancePercent.round().toString(),
-                      presentDays: data.attendanceSummary.presentDays,
-                      totalDays: data.attendanceSummary.totalDays,
-                      onTap: () => context.push(ClientRoutes.attendanceSummary),
+              // IntrinsicHeight, not a bare stretch Row: this Row is a direct
+              // ListView child, so it receives unbounded height. Plain
+              // CrossAxisAlignment.stretch on an unbounded Row asks every
+              // child for a *tight infinite* height ("BoxConstraints forces
+              // an infinite height"). IntrinsicHeight measures the tallest
+              // child first, giving the Row (and therefore `stretch`) a real
+              // finite height to work with.
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: history.when(
+                        loading: () => const DsLoadingWidget(),
+                        error: (_, _) => const SizedBox.shrink(),
+                        data: (list) {
+                          final present = list.where((r) => r.status == 'PRESENT').length;
+                          final total = list.length;
+                          final percent = total == 0 ? 0 : (present / total * 100).round();
+                          return _AttendanceBentoCard(
+                            percentage: percent.toString(),
+                            presentDays: present,
+                            totalDays: total,
+                            onTap: () => context.push(ClientRoutes.attendanceSummary),
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: _PaymentsBentoCard(
-                      amount: data.pendingPaymentAmount,
-                      dueDate: data.pendingPaymentDue,
-                      onTap: () => context.push(ClientRoutes.pendingPayment),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: _PaymentsBentoCard(
+                        amount: CurrencyFormatter.inr(data.totalUnpaidAmount),
+                        pendingCount: data.pendingInvoicesCount,
+                        onTap: () => context.push(ClientRoutes.pendingPayment),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              SizedBox(height: 16),
-              _OngoingTrainingWidget(),
               SizedBox(height: 24),
               _QuickManagementGrid(),
               SizedBox(height: 24),
@@ -198,14 +228,18 @@ class _WelcomeHeader extends StatelessWidget {
 class _StaffSpotlightCard extends StatelessWidget {
   const _StaffSpotlightCard({
     required this.name,
-    required this.role,
-    required this.rating,
+    required this.series,
+    required this.staffCode,
+    required this.status,
+    required this.deploymentDate,
     required this.onTap,
   });
 
   final String name;
-  final String role;
-  final double rating;
+  final String series;
+  final String staffCode;
+  final String status;
+  final String deploymentDate;
   final VoidCallback onTap;
 
   @override
@@ -243,11 +277,8 @@ class _StaffSpotlightCard extends StatelessWidget {
                     width: 140,
                     height: 140,
                     decoration: BoxDecoration(
+                      color: const Color(0xFFF0F4FF),
                       borderRadius: BorderRadius.circular(16),
-                      image: DecorationImage(
-                        image: NetworkImage('https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=400'),
-                        fit: BoxFit.cover,
-                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.1),
@@ -256,6 +287,16 @@ class _StaffSpotlightCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    child: Center(
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: GoogleFonts.libreCaslonText(
+                          color: const Color(0xFF1A56FF),
+                          fontSize: 48,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 Positioned(
@@ -263,7 +304,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1A56FF),
+                      color: status == 'ACTIVE_DEPLOYED' ? const Color(0xFF1A56FF) : const Color(0xFF94A3B8),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -279,7 +320,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                         ),
                         SizedBox(width: 6),
                         Text(
-                          context.l10n.activeNow,
+                          status == 'ACTIVE_DEPLOYED' ? 'DEPLOYED' : 'ON TRIAL',
                           style: GoogleFonts.inter(
                             color: Colors.white,
                             fontSize: 9,
@@ -308,29 +349,13 @@ class _StaffSpotlightCard extends StatelessWidget {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Home Care Specialist · HG-2024-0847',
+                    [series, staffCode].where((s) => s.isNotEmpty).join(' · '),
                     style: GoogleFonts.inter(
                       color: const Color(0xFF64748B),
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
                     ),
                     textAlign: TextAlign.center,
-                  ),
-                  SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ...List.generate(5, (index) => Icon(Icons.star_border_rounded, color: const Color(0xFF1A56FF), size: 14)),
-                      SizedBox(width: 8),
-                      Text(
-                        context.l10n.ratingValue(rating.toString()),
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFF64748B),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
                   ),
                   SizedBox(height: 20),
                   Row(
@@ -339,16 +364,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                       _MinimalistCommunicationBtn(
                         icon: Icons.chat_bubble_outline_rounded,
                         onTap: () => context.push(
-                          '${AppRoutes.chat}?recipientName=$name&recipientRole=Home Care Specialist',
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      _MinimalistCommunicationBtn(
-                        icon: Icons.phone_outlined,
-                        onTap: () => CommunicationHelper.makePhoneCall(
-                          context,
-                          '+919876543210',
-                          recipientName: name,
+                          '${AppRoutes.chat}?recipientName=$name&recipientRole=${Uri.encodeComponent(series)}',
                         ),
                       ),
                     ],
@@ -363,7 +379,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            context.l10n.todaysShift,
+                            'DEPLOYED SINCE',
                             style: GoogleFonts.inter(
                               color: const Color(0xFF94A3B8),
                               fontSize: 10,
@@ -373,7 +389,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            '09:00 AM - \n06:00 PM',
+                            _formatDate(deploymentDate),
                             style: GoogleFonts.inter(
                               color: const Color(0xFF0F172A),
                               fontSize: 13,
@@ -386,7 +402,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            context.l10n.currentTask,
+                            'STATUS',
                             style: GoogleFonts.inter(
                               color: const Color(0xFF94A3B8),
                               fontSize: 10,
@@ -396,7 +412,7 @@ class _StaffSpotlightCard extends StatelessWidget {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            'Health\nMonitoring',
+                            status == 'ACTIVE_DEPLOYED' ? 'Active' : 'On Trial',
                             style: GoogleFonts.inter(
                               color: const Color(0xFF0F172A),
                               fontSize: 13,
@@ -416,6 +432,16 @@ class _StaffSpotlightCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatDate(String isoDate) {
+  final parsed = DateTime.tryParse(isoDate);
+  if (parsed == null) return isoDate;
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  return '${months[parsed.month - 1]} ${parsed.day}, ${parsed.year}';
 }
 
 class _MinimalistCommunicationBtn extends StatelessWidget {
@@ -535,11 +561,11 @@ class _AttendanceBentoCard extends StatelessWidget {
 class _PaymentsBentoCard extends StatelessWidget {
   const _PaymentsBentoCard({
     required this.amount,
-    required this.dueDate,
+    required this.pendingCount,
     required this.onTap,
   });
   final String amount;
-  final String dueDate;
+  final int pendingCount;
   final VoidCallback onTap;
 
   @override
@@ -592,7 +618,7 @@ class _PaymentsBentoCard extends StatelessWidget {
                 Icon(Icons.timer_outlined, color: Colors.white, size: 12),
                 SizedBox(width: 4),
                 Text(
-                  context.l10n.daysLeft('5'), // Or whatever logic
+                  pendingCount == 1 ? '1 invoice pending' : '$pendingCount invoices pending',
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 11,
@@ -626,85 +652,6 @@ class _PaymentsBentoCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _OngoingTrainingWidget extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.school_outlined, color: const Color(0xFF1A56FF), size: 24),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  context.l10n.ongoingTraining,
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF64748B),
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Hygiene & Safety v2.4',
-                  style: GoogleFonts.libreCaslonText(
-                    color: const Color(0xFF0F172A),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Container(
-                  height: 3,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(1.5),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: 0.65,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A56FF),
-                        borderRadius: BorderRadius.circular(1.5),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(width: 16),
-          Icon(Icons.play_circle_outline_rounded, color: const Color(0xFF1A56FF), size: 28),
-        ],
       ),
     );
   }
@@ -970,7 +917,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final dashboard = ref.watch(clientDashboardProvider);
+    final history = ref.watch(clientAttendanceHistoryProvider);
     final today = ref.watch(clientTodayAttendanceProvider);
 
     final primaryColor = const Color(0xFF1A56FF);
@@ -1058,11 +1005,18 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
         ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(context),
-      body: dashboard.when(
+      body: history.when(
         loading: () => const Center(child: DsLoadingWidget()),
         error: (_, __) => DsErrorState(title: context.l10n.error),
-        data: (data) {
-          final summary = data.attendanceSummary;
+        data: (records) {
+          final present = records.where((r) => r.status == 'PRESENT').length;
+          final total = records.length;
+          final percent = total == 0 ? 0.0 : present / total * 100;
+          final summary = ClientAttendanceSummary(
+            presentDays: present,
+            totalDays: total,
+            attendancePercent: percent,
+          );
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
             children: [
@@ -1173,7 +1127,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              t.checkIn != null ? context.l10n.checkInTime(t.checkIn!) : context.l10n.noRecordsYet,
+                              t.checkInTime != null ? context.l10n.checkInTime(t.checkInTime!) : context.l10n.noRecordsYet,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: textGrey,
@@ -1236,7 +1190,7 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final invoice = ref.watch(clientInvoiceProvider);
+    final invoices = ref.watch(clientInvoicesProvider);
 
     return Scaffold(
       backgroundColor: context.theme.scaffoldBackgroundColor,
@@ -1269,10 +1223,20 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: invoice.when(
+      body: invoices.when(
         loading: () => Center(child: CircularProgressIndicator(color: Color(0xFF1A56FF))),
         error: (_, __) => Center(child: Text(context.l10n.error)),
-        data: (inv) => SafeArea(
+        data: (list) {
+          if (list.isEmpty) {
+            return const DsEmptyState(
+              title: 'No invoices yet',
+              message:
+                  'Invoices appear after your Relationship Manager approves shifts and Finance runs payroll.',
+              icon: Icons.receipt_long_outlined,
+            );
+          }
+          final inv = list.first;
+          return SafeArea(
           child: Column(
             children: [
               Expanded(
@@ -1291,7 +1255,7 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        inv.amount,
+                        CurrencyFormatter.inr(inv.totalAmount),
                         style: GoogleFonts.libreCaslonText(
                           fontSize: 48,
                           color: context.colors.onSurface,
@@ -1340,7 +1304,7 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
                         context: context,
                         icon: Icons.description_outlined,
                         title: context.l10n.viewInvoice,
-                        subtitle: context.l10n.invoicePdfDesc(inv.invoiceNumber),
+                        subtitle: context.l10n.invoicePdfDesc(inv.id),
                         onTap: () => context.push(ClientRoutes.invoice),
                       ),
                       SizedBox(height: 16),
@@ -1425,7 +1389,8 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
               ),
             ],
           ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -1495,50 +1460,56 @@ class ClientAssignedStaffScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final dashboard = ref.watch(clientDashboardProvider);
+    final assignedStaff = ref.watch(clientAssignedStaffProvider);
 
     return ClientPageScaffold(
       title: context.l10n.assignedStaff,
-      body: dashboard.when(
+      body: assignedStaff.when(
         loading: () => const DsLoadingWidget(),
         error: (_, __) => DsErrorState(title: context.l10n.error),
-        data: (data) {
-          final staff = data.assignedStaff;
+        data: (list) {
+          if (list.isEmpty) {
+            return const DsEmptyState(
+              title: 'No staff assigned yet',
+              message: 'Your assigned staff will appear here once deployed.',
+              icon: Icons.people_outline,
+            );
+          }
+          final staff = list.first;
           return ListView(
             children: [
               ClientStaffHeroCard(
-                name: staff.name,
-                role: staff.role,
-                rating: staff.rating,
-                shift: staff.shift,
-                isOnDuty: staff.isOnDuty,
-                onTap: () => context.push(ClientRoutes.staffProfile(staff.id)),
+                name: staff.fullName ?? 'Staff',
+                series: staff.series ?? '',
+                staffCode: staff.staffCode ?? '',
+                isOnDuty: staff.status == 'ACTIVE_DEPLOYED',
+                onTap: () => context.push(ClientRoutes.staffProfile(staff.staffId)),
               ),
               SizedBox(height: AppSpacing.lg),
               ClientMenuTile(
                 icon: Icons.badge_outlined,
                 title: context.l10n.staffProfile,
-                onTap: () => context.push(ClientRoutes.staffProfile(staff.id)),
+                onTap: () => context.push(ClientRoutes.staffProfile(staff.staffId)),
               ),
               ClientMenuTile(
                 icon: Icons.work_history_outlined,
                 title: context.l10n.experience,
-                onTap: () => context.push(ClientRoutes.staffExperience(staff.id)),
+                onTap: () => context.push(ClientRoutes.staffExperience(staff.staffId)),
               ),
               ClientMenuTile(
                 icon: Icons.psychology_outlined,
                 title: context.l10n.skills,
-                onTap: () => context.push(ClientRoutes.staffSkills(staff.id)),
+                onTap: () => context.push(ClientRoutes.staffSkills(staff.staffId)),
               ),
               ClientMenuTile(
                 icon: Icons.schedule_outlined,
                 title: context.l10n.attendance,
-                onTap: () => context.push(ClientRoutes.staffAttendance(staff.id)),
+                onTap: () => context.push(ClientRoutes.staffAttendance(staff.staffId)),
               ),
               ClientMenuTile(
                 icon: Icons.trending_up_rounded,
                 title: context.l10n.performance,
-                onTap: () => context.push(ClientRoutes.staffPerformance(staff.id)),
+                onTap: () => context.push(ClientRoutes.staffPerformance(staff.staffId)),
               ),
             ],
           );

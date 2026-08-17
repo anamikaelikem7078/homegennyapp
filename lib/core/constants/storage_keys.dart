@@ -20,6 +20,8 @@ abstract final class StorageKeys {
   static const String staffDocuments = 'cache_staff_documents';
   static const String staffPipeline = 'cache_staff_pipeline';
   static const String staffNotifications = 'cache_staff_notifications';
+  static const String staffDeployment = 'cache_staff_deployment';
+  static const String staffAttendanceHistory = 'cache_staff_attendance_history';
 
   // RM offline cache
   static const String rmDashboard = 'cache_rm_dashboard';
@@ -32,4 +34,10 @@ abstract final class StorageKeys {
   static const String clientProfile = 'cache_client_profile';
   static const String clientInvoice = 'cache_client_invoice';
   static const String clientNotifications = 'cache_client_notifications';
+  static const String clientAssignedStaff = 'cache_client_assigned_staff';
+  static const String clientStaffProfile = 'cache_client_staff_profile';
+  static const String clientTodayAttendance = 'cache_client_today_attendance';
+  static const String clientAttendanceHistory = 'cache_client_attendance_history';
+  static const String clientInvoices = 'cache_client_invoices';
+  static const String clientComplaints = 'cache_client_complaints';
 }

@@ -31,6 +31,59 @@ class ClientRemoteDataSource extends BaseRemoteDataSource {
     return ClientDtoCodec.decodeProfile(json);
   }
 
+  Future<List<ClientAssignedStaff>> getAssignedStaff() async {
+    final json = await getJson(ApiConstants.clientAssignedStaff);
+    return ClientDtoCodec.decodeList(
+      json['assignedStaff'] as List<dynamic>? ?? [],
+      ClientDtoCodec.decodeAssignedStaff,
+    );
+  }
+
+  Future<ClientStaffProfile> getStaffProfile(String staffId) async {
+    final json = await getJson(ApiConstants.clientStaffProfile(staffId));
+    return ClientDtoCodec.decodeStaffProfile(json);
+  }
+
+  Future<ClientTodayAttendance> getTodayAttendance() async {
+    final json = await getJson(ApiConstants.clientAttendanceToday);
+    return ClientDtoCodec.decodeTodayAttendance(json);
+  }
+
+  Future<List<ClientAttendanceRecord>> getAttendanceHistory() async {
+    final json = await getJson(ApiConstants.clientAttendanceHistory);
+    return ClientDtoCodec.decodeList(
+      json['history'] as List<dynamic>? ?? [],
+      ClientDtoCodec.decodeAttendanceRecord,
+    );
+  }
+
+  Future<void> raiseAttendanceIssue({
+    required String message,
+    String? staffId,
+    String? title,
+  }) async {
+    await postJson(
+      ApiConstants.clientAttendanceRaiseIssue,
+      data: {
+        'message': message,
+        if (staffId != null) 'staff_id': staffId,
+        if (title != null) 'title': title,
+      },
+    );
+  }
+
+  Future<List<ClientInvoice>> getInvoices() async {
+    final json = await getJson(ApiConstants.clientInvoices);
+    return ClientDtoCodec.decodeList(
+      json['invoices'] as List<dynamic>? ?? [],
+      ClientDtoCodec.decodeInvoice,
+    );
+  }
+
+  // Note: GET /client/complaints does not exist on the backend — only
+  // POST /client/complaints does. getComplaints() stays dummy/local-only,
+  // see ClientDummyDataSource.getComplaints.
+
   Future<Map<String, dynamic>> raiseComplaint({
     required String subject,
     required String description,
@@ -68,20 +121,89 @@ class ClientLocalDataSource extends BaseLocalDataSource {
     return json != null ? ClientDtoCodec.decodeProfile(json) : null;
   }
 
-  Future<ClientStaffProfile> getStaffProfile(String id) async {
-    return const ClientStaffProfile(id: 'dummy', name: '', role: '', rating: 0, shift: '', phone: '', joinedDate: '', experience: [], skills: [], performanceScore: 0, attendancePercent: 0, reviews: []);
-  }
-  Future<List<ClientAttendanceRecord>> getAttendanceHistory() async => [];
-  Future<void> raiseAttendanceIssue(String message) async {}
-  Future<ClientInvoice> getCurrentInvoice() async {
-    return const ClientInvoice(id: '', invoiceNumber: '', period: '', amount: '', dueDate: '', status: ClientPaymentStatus.pending, items: []);
-  }
   Future<List<ClientPaymentHistory>> getPaymentHistory() async => [];
-  Future<List<ClientComplaint>> getComplaints() async => [];
   Future<ClientReplacementRequest?> getReplacementStatus() async => null;
   Future<void> requestReplacement(String reason) async {}
   Future<List<ClientNotification>> getNotifications() async => [];
   Future<void> markNotificationRead(String id) async {}
+
+  Future<void> cacheAssignedStaff(List<ClientAssignedStaff> staff) =>
+      saveJsonList(
+        StorageKeys.clientAssignedStaff,
+        ClientDtoCodec.encodeList(staff, ClientDtoCodec.encodeAssignedStaff),
+      );
+
+  List<ClientAssignedStaff>? getAssignedStaff() {
+    final json = getJsonList(StorageKeys.clientAssignedStaff);
+    return json != null
+        ? ClientDtoCodec.decodeList(json, ClientDtoCodec.decodeAssignedStaff)
+        : null;
+  }
+
+  Future<void> cacheStaffProfile(String staffId, ClientStaffProfile profile) =>
+      saveJson(
+        '${StorageKeys.clientStaffProfile}_$staffId',
+        ClientDtoCodec.encodeStaffProfile(profile),
+      );
+
+  ClientStaffProfile? getStaffProfile(String staffId) {
+    final json = getJson('${StorageKeys.clientStaffProfile}_$staffId');
+    return json != null ? ClientDtoCodec.decodeStaffProfile(json) : null;
+  }
+
+  Future<void> cacheTodayAttendance(ClientTodayAttendance attendance) =>
+      saveJson(
+        StorageKeys.clientTodayAttendance,
+        ClientDtoCodec.encodeTodayAttendance(attendance),
+      );
+
+  ClientTodayAttendance? getTodayAttendance() {
+    final json = getJson(StorageKeys.clientTodayAttendance);
+    return json != null ? ClientDtoCodec.decodeTodayAttendance(json) : null;
+  }
+
+  Future<void> cacheAttendanceHistory(List<ClientAttendanceRecord> history) =>
+      saveJsonList(
+        StorageKeys.clientAttendanceHistory,
+        ClientDtoCodec.encodeList(history, ClientDtoCodec.encodeAttendanceRecord),
+      );
+
+  Future<List<ClientAttendanceRecord>> getAttendanceHistory() async {
+    final json = getJsonList(StorageKeys.clientAttendanceHistory);
+    return json != null
+        ? ClientDtoCodec.decodeList(json, ClientDtoCodec.decodeAttendanceRecord)
+        : [];
+  }
+
+  Future<void> raiseAttendanceIssue({
+    required String message,
+    String? staffId,
+    String? title,
+  }) async {}
+
+  Future<void> cacheInvoices(List<ClientInvoice> invoices) => saveJsonList(
+    StorageKeys.clientInvoices,
+    ClientDtoCodec.encodeList(invoices, ClientDtoCodec.encodeInvoice),
+  );
+
+  List<ClientInvoice>? getInvoices() {
+    final json = getJsonList(StorageKeys.clientInvoices);
+    return json != null
+        ? ClientDtoCodec.decodeList(json, ClientDtoCodec.decodeInvoice)
+        : null;
+  }
+
+  Future<void> cacheComplaints(List<ClientComplaint> complaints) => saveJsonList(
+    StorageKeys.clientComplaints,
+    ClientDtoCodec.encodeList(complaints, ClientDtoCodec.encodeComplaint),
+  );
+
+  Future<List<ClientComplaint>> getComplaints() async {
+    final json = getJsonList(StorageKeys.clientComplaints);
+    return json != null
+        ? ClientDtoCodec.decodeList(json, ClientDtoCodec.decodeComplaint)
+        : [];
+  }
 }
 
 class ClientDummyDataSource {
@@ -101,11 +223,16 @@ class ClientDummyDataSource {
     }
   }
 
+  Future<List<ClientAssignedStaff>> getAssignedStaff() => _api.getAssignedStaff();
   Future<ClientStaffProfile> getStaffProfile(String staffId) => _api.getStaffProfile(staffId);
   Future<ClientTodayAttendance> getTodayAttendance() => _api.getTodayAttendance();
   Future<List<ClientAttendanceRecord>> getAttendanceHistory() => _api.getAttendanceHistory();
-  Future<void> raiseAttendanceIssue(String message) => _api.raiseAttendanceIssue(message);
-  Future<ClientInvoice> getCurrentInvoice() => _api.getCurrentInvoice();
+  Future<void> raiseAttendanceIssue({
+    required String message,
+    String? staffId,
+    String? title,
+  }) => _api.raiseAttendanceIssue(message: message, staffId: staffId, title: title);
+  Future<List<ClientInvoice>> getInvoices() => _api.getInvoices();
   Future<List<ClientPaymentHistory>> getPaymentHistory() => _api.getPaymentHistory();
   Future<String> downloadInvoice(String invoiceId) => _api.downloadInvoice(invoiceId);
   Future<List<ClientComplaint>> getComplaints() => _api.getComplaints();

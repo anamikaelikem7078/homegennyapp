@@ -4,8 +4,10 @@ abstract final class AppRoutes {
   static const String login = '/login';
   static const String otp = '/otp';
   static const String forgotPassword = '/forgot-password';
+  static const String resetPassword = '/reset-password';
   static const String biometricLogin = '/biometric-login';
   static const String sessionExpired = '/session-expired';
+  static const String changePassword = '/change-password';
   static const String noInternet = '/no-internet';
   static const String updateApp = '/update-app';
   static const String chat = '/chat';
@@ -18,6 +20,8 @@ abstract final class AppRoutes {
     login,
     otp,
     forgotPassword,
+    resetPassword,
+    changePassword,
     biometricLogin,
   ];
 
@@ -26,6 +30,8 @@ abstract final class AppRoutes {
     login,
     otp,
     forgotPassword,
+    resetPassword,
+    changePassword,
     biometricLogin,
     sessionExpired,
     noInternet,

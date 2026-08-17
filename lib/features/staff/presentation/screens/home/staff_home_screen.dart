@@ -89,9 +89,9 @@ class StaffHomeScreen extends ConsumerWidget {
               _WelcomeHeader(name: userName),
               const SizedBox(height: 24),
               _ProfileSpotlightCard(
-                name: data.profile.name,
-                role: data.profile.role,
-                employeeId: data.profile.employeeId,
+                name: data.fullName,
+                role: data.series,
+                employeeId: data.staffCode,
                 onTap: () => context.push(StaffRoutes.profileCompletion),
                 onBiometricTap: () async {
                   final biometricViewModel = ref.read(biometricViewModelProvider.notifier);
@@ -1192,26 +1192,12 @@ class _TaskTile extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            task.isCompleted
-                ? Icons.check_circle_rounded
-                : Icons.radio_button_unchecked,
-            color: task.isCompleted ? AppColors.success : AppColors.primary,
+            task.done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+            color: task.done ? AppColors.success : AppColors.primary,
           ),
           SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(task.title, style: Theme.of(context).textTheme.titleSmall),
-                Text(task.dueTime, style: Theme.of(context).textTheme.bodySmall),
-              ],
-            ),
-          ),
-          DsStatusChip(
-            label: task.priority.name,
-            type: task.priority == TaskPriority.high
-                ? DsStatusType.error
-                : DsStatusType.warning,
+            child: Text(task.title, style: Theme.of(context).textTheme.titleSmall),
           ),
         ],
       ),
@@ -1256,6 +1242,7 @@ class StaffProfileCompletionScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(staffProfileProvider);
+    final completionPct = ref.watch(staffDashboardProvider).valueOrNull?.completionPct ?? 0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
@@ -1390,7 +1377,7 @@ class StaffProfileCompletionScreen extends ConsumerWidget {
                                 ),
                                 child: Center(
                                   child: Text(
-                                    '${p.completionPercent}%',
+                                    '$completionPct%',
                                     style: GoogleFonts.libreCaslonText(
                                       fontSize: 24,
                                       fontWeight: FontWeight.w600,

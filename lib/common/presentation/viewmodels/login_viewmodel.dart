@@ -29,9 +29,13 @@ class LoginViewModel extends StateNotifier<LoginState> {
     final result = await _repository.login(phone: phone, password: password);
 
     return result.fold(
-      onSuccess: (_) {
+      onSuccess: (tokens) {
         _failedAttempts = 0;
-        state = state.copyWith(isLoading: false, loginSuccess: true);
+        state = state.copyWith(
+          isLoading: false, 
+          loginSuccess: true,
+          mustChangePassword: tokens.mustChangePassword,
+        );
         return true;
       },
       onError: (failure) {
@@ -55,21 +59,25 @@ class LoginState {
     this.isLoading = false,
     this.errorMessage,
     this.loginSuccess = false,
+    this.mustChangePassword = false,
   });
 
   final bool isLoading;
   final String? errorMessage;
   final bool loginSuccess;
+  final bool mustChangePassword;
 
   LoginState copyWith({
     bool? isLoading,
     String? errorMessage,
     bool? loginSuccess,
+    bool? mustChangePassword,
   }) {
     return LoginState(
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage,
       loginSuccess: loginSuccess ?? this.loginSuccess,
+      mustChangePassword: mustChangePassword ?? this.mustChangePassword,
     );
   }
 }

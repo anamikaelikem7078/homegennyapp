@@ -44,6 +44,17 @@ abstract class BaseRemoteDataSource {
     return _extractData(response);
   }
 
+  Future<Map<String, dynamic>> patchJson(
+    String path, {
+    Map<String, dynamic>? data,
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      path,
+      data: data,
+    );
+    return _extractData(response);
+  }
+
   Future<Map<String, dynamic>> deleteJson(String path) async {
     final response = await _dio.delete<Map<String, dynamic>>(path);
     return _extractData(response);

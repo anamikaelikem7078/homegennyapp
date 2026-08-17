@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/router/route_helpers.dart';
+import '../../domain/models/rm_models.dart';
 import '../screens/rm_dashboard_screen.dart';
 import '../screens/rm_pipeline_screen.dart';
 import '../screens/rm_tasks_screen.dart';
@@ -14,19 +15,26 @@ import '../screens/rm_track2_dl_screen.dart';
 import '../screens/rm_track3_echallan_screen.dart';
 import '../screens/rm_track4_pv_screen.dart';
 import '../screens/rm_track5_medical_screen.dart';
+import '../screens/rm_assessment_screen.dart';
 import '../screens/rm_stage3_training_screen.dart';
 import '../screens/rm_stage3_video_upload_screen.dart';
 import '../screens/rm_stage3_video_review_screen.dart';
 import '../screens/rm_stage4_hub_screen.dart';
 import '../screens/rm_stage4_a1_screen.dart';
-import '../screens/rm_stage4_otp_screen.dart';
 import '../screens/rm_stage4_a2_screen.dart';
-
 import '../screens/rm_stage4_a2_client_screen.dart';
-import '../screens/rm_stage4_sow_amendment_screen.dart';
 import '../screens/rm_stage4_a3_screen.dart';
-import '../screens/rm_stage4_complete_screen.dart';
 import '../screens/rm_stage5_trial_checkin_screen.dart';
+import '../screens/rm_placement_create_screen.dart';
+import '../screens/rm_placement_detail_screen.dart';
+import '../screens/rm_trials_screen.dart';
+import '../screens/rm_deferred_screen.dart';
+import '../screens/rm_terminal_screen.dart';
+import '../screens/rm_attendance_screen.dart';
+import '../screens/rm_invoice_preview_screen.dart';
+import '../screens/rm_staff_incidents_screen.dart';
+import '../screens/rm_locations_screen.dart';
+import '../screens/rm_upgrades_screen.dart';
 import '../../../client/presentation/screens/payments/client_invoice_screen.dart';
 import '../screens/rm_compliance_alerts_screen.dart';
 import '../../../staff/presentation/screens/home/staff_active_placement_screen.dart';
@@ -69,7 +77,11 @@ final List<RouteBase> rmRoutes = [
     name: 'rmStaffDetail',
     builder: (context, state) {
       final id = state.pathParameters['id']!;
-      return RmStaffDetailScreen(staffId: id);
+      final extra = state.extra;
+      return RmStaffDetailScreen(
+        staffId: id,
+        initialStaff: extra is StaffRow ? extra : null,
+      );
     },
   ),
   slideRoute(
@@ -121,6 +133,14 @@ final List<RouteBase> rmRoutes = [
     },
   ),
   slideRoute(
+    path: '/rm/staff/:id/stage2-5/assessment',
+    name: 'rmStage25Assessment',
+    builder: (context, state) {
+      final id = state.pathParameters['id']!;
+      return RmAssessmentScreen(staffId: id);
+    },
+  ),
+  slideRoute(
     path: '/rm/staff/:id/stage3/training',
     name: 'rmStage3Training',
     builder: (context, state) {
@@ -157,15 +177,8 @@ final List<RouteBase> rmRoutes = [
     name: 'rmStage4A1',
     builder: (context, state) {
       final id = state.pathParameters['id']!;
-      return RmStage4A1Screen(staffId: id);
-    },
-  ),
-  slideRoute(
-    path: '/rm/staff/:id/stage4/a1-otp',
-    name: 'rmStage4A1OTP',
-    builder: (context, state) {
-      final id = state.pathParameters['id']!;
-      return RmStage4OtpScreen(staffId: id);
+      final clientId = state.extra as String? ?? '';
+      return RmStage4A1Screen(staffId: id, clientId: clientId);
     },
   ),
   slideRoute(
@@ -173,7 +186,8 @@ final List<RouteBase> rmRoutes = [
     name: 'rmStage4A2',
     builder: (context, state) {
       final id = state.pathParameters['id']!;
-      return RmStage4A2Screen(staffId: id);
+      final clientId = state.extra as String? ?? '';
+      return RmStage4A2Screen(staffId: id, clientId: clientId);
     },
   ),
   slideRoute(
@@ -185,27 +199,12 @@ final List<RouteBase> rmRoutes = [
     },
   ),
   slideRoute(
-    path: '/rm/staff/:id/stage4/sow-amendment',
-    name: 'rmStage4SowAmendment',
-    builder: (context, state) {
-      final id = state.pathParameters['id']!;
-      return RmStage4SowAmendmentScreen(staffId: id);
-    },
-  ),
-  slideRoute(
     path: '/rm/staff/:id/stage4/a3',
     name: 'rmStage4A3',
     builder: (context, state) {
       final id = state.pathParameters['id']!;
-      return RmStage4A3Screen(staffId: id);
-    },
-  ),
-  slideRoute(
-    path: '/rm/staff/:id/stage4/complete',
-    name: 'rmStage4Complete',
-    builder: (context, state) {
-      final id = state.pathParameters['id']!;
-      return RmStage4CompleteScreen(staffId: id);
+      final clientId = state.extra as String? ?? '';
+      return RmStage4A3Screen(staffId: id, clientId: clientId);
     },
   ),
   slideRoute(
@@ -213,6 +212,69 @@ final List<RouteBase> rmRoutes = [
     name: 'rmStage5TrialCheckin',
     builder: (context, state) {
       return const RmStage5TrialCheckinScreen();
+    },
+  ),
+  slideRoute(
+    path: '/rm/staff/:id/placement/create',
+    name: 'rmPlacementCreate',
+    builder: (context, state) {
+      final id = state.pathParameters['id']!;
+      return RmPlacementCreateScreen(staffId: id);
+    },
+  ),
+  slideRoute(
+    path: '/rm/placements/:placementId',
+    name: 'rmPlacementDetail',
+    builder: (context, state) {
+      final placementId = state.pathParameters['placementId']!;
+      final staffId = state.extra as String? ?? '';
+      return RmPlacementDetailScreen(placementId: placementId, staffId: staffId);
+    },
+  ),
+  fadeRoute(
+    path: '/rm/trials',
+    name: 'rmTrials',
+    builder: (context, state) => const RmTrialsScreen(),
+  ),
+  fadeRoute(
+    path: '/rm/deferred',
+    name: 'rmDeferred',
+    builder: (context, state) => const RmDeferredScreen(),
+  ),
+  fadeRoute(
+    path: '/rm/terminal',
+    name: 'rmTerminal',
+    builder: (context, state) => const RmTerminalScreen(),
+  ),
+  fadeRoute(
+    path: '/rm/attendance',
+    name: 'rmAttendance',
+    builder: (context, state) => const RmAttendanceScreen(),
+  ),
+  fadeRoute(
+    path: '/rm/locations',
+    name: 'rmLocations',
+    builder: (context, state) => const RmLocationsScreen(),
+  ),
+  fadeRoute(
+    path: '/rm/upgrades',
+    name: 'rmUpgrades',
+    builder: (context, state) => const RmUpgradesScreen(),
+  ),
+  slideRoute(
+    path: '/rm/staff/:id/invoice-preview',
+    name: 'rmStaffInvoicePreview',
+    builder: (context, state) {
+      final id = state.pathParameters['id']!;
+      return RmInvoicePreviewScreen(staffId: id);
+    },
+  ),
+  slideRoute(
+    path: '/rm/staff/:id/incidents',
+    name: 'rmStaffIncidents',
+    builder: (context, state) {
+      final id = state.pathParameters['id']!;
+      return RmStaffIncidentsScreen(staffId: id);
     },
   ),
   slideRoute(

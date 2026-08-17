@@ -81,10 +81,14 @@ abstract final class ExceptionHandler {
   static String? _extractMessage(dynamic data) {
     if (data == null) return null;
     if (data is String) return data;
+    if (data is List) {
+      final parts = data.map(_extractMessage).whereType<String>().toList();
+      return parts.isEmpty ? null : parts.join('\n');
+    }
     if (data is Map) {
-      return data['message'] as String? ??
-          data['error'] as String? ??
-          data['detail'] as String?;
+      return _extractMessage(data['message']) ??
+          _extractMessage(data['error']) ??
+          _extractMessage(data['detail']);
     }
     return null;
   }

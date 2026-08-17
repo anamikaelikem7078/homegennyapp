@@ -13,63 +13,32 @@ class StaffDummyApi {
 
   StaffProfile get _profile => const StaffProfile(
         id: 'STF-001',
-        name: 'Rajesh Kumar',
+        staffCode: 'staff001',
+        fullName: 'Rajesh Kumar',
+        mobile: '+91 98765 43210',
         email: 'rajesh.kumar@homegenny.com',
-        phone: '+91 98765 43210',
-        role: 'Field Staff',
-        department: 'Home Services',
-        employeeId: 'HG-2024-0847',
-        joiningDate: '15 Jan 2024',
-        completionPercent: 72,
-        avatarUrl: null,
+        series: 'MAID',
+        pipelineStage: 'S3_TRAIN',
+        address: '42, Green Park Extension, New Delhi',
+        dateOfBirth: '1996-05-15',
       );
 
   Future<StaffDashboardData> getDashboard() => _simulate(
         StaffDashboardData(
-          profile: _profile,
-          tasks: _tasks,
-          currentStage: _pipeline.firstWhere(
-            (s) => s.status == PipelineStageStatus.current,
-          ),
-          attendanceToday: _attendanceRecords.first,
-          unreadNotifications: 3,
-          profileCompletion: 72,
+          staffCode: _profile.staffCode,
+          fullName: _profile.fullName,
+          series: _profile.series,
+          pipelineStage: _profile.pipelineStage,
+          completionPct: 72,
+          assignedRmName: 'Amit Verma',
+          assignedRmPhone: '+91 98123 45678',
+          todayTasks: _tasks,
         ),
       );
 
   List<StaffTask> get _tasks => const [
-        StaffTask(
-          id: 't1',
-          title: 'Complete safety training',
-          description: 'Watch safety video and pass quiz',
-          dueTime: 'Today, 5:00 PM',
-          priority: TaskPriority.high,
-          isCompleted: false,
-        ),
-        StaffTask(
-          id: 't2',
-          title: 'Upload ID proof',
-          description: 'Aadhaar card verification pending',
-          dueTime: 'Today, 6:00 PM',
-          priority: TaskPriority.high,
-          isCompleted: false,
-        ),
-        StaffTask(
-          id: 't3',
-          title: 'Sign employment agreement',
-          description: 'Digital signature required',
-          dueTime: 'Tomorrow',
-          priority: TaskPriority.medium,
-          isCompleted: false,
-        ),
-        StaffTask(
-          id: 't4',
-          title: 'Record introduction video',
-          description: 'Client-facing certification video',
-          dueTime: 'This week',
-          priority: TaskPriority.medium,
-          isCompleted: true,
-        ),
+        StaffTask(id: '1', title: 'Complete safety training', done: false),
+        StaffTask(id: '2', title: 'Upload ID proof', done: false),
       ];
 
   Future<List<StaffTask>> getTodaysTasks() => _simulate(_tasks);
@@ -122,6 +91,8 @@ class StaffDummyApi {
   Future<List<PipelineStage>> getPipeline() => _simulate(_pipeline);
 
   Future<StaffProfile> getProfile() => _simulate(_profile);
+
+  Future<void> updateProfile({String? address, String? email}) => _simulate(null);
 
   List<StaffDocument> get _documents => const [
         StaffDocument(
@@ -333,42 +304,36 @@ class StaffDummyApi {
   Future<void> signAgreement(String signature) => _simulate(null);
 
   DeploymentInfo get _deployment => const DeploymentInfo(
+        hasActivePlacement: true,
+        placementId: 'PLC-001',
         clientName: 'Priya Sharma',
-        clientPhone: '+91 99887 76655',
-        workLocation: '42, Green Park Extension, New Delhi - 110016',
-        latitude: 28.5672,
-        longitude: 77.2100,
-        joiningDate: '1 Mar 2024',
-        rmName: 'Amit Verma',
-        rmPhone: '+91 98123 45678',
-        rmEmail: 'amit.verma@homegenny.com',
+        deploymentAddress: '42, Green Park Extension, New Delhi - 110016',
+        deploymentDate: '2024-03-01T00:00:00.000Z',
+        trialStatus: 'CONFIRMED',
       );
 
   Future<DeploymentInfo> getDeployment() => _simulate(_deployment);
 
   final List<AttendanceRecord> _attendanceRecords = [
     const AttendanceRecord(
-      id: 'a1',
-      date: 'Today',
+      date: '2026-08-15',
       checkIn: '09:02 AM',
       checkOut: null,
-      status: AttendanceDayStatus.present,
+      status: 'present',
       location: 'Green Park, Delhi',
     ),
     const AttendanceRecord(
-      id: 'a2',
-      date: 'Yesterday',
+      date: '2026-08-14',
       checkIn: '09:15 AM',
       checkOut: '06:30 PM',
-      status: AttendanceDayStatus.late,
+      status: 'present',
       location: 'Green Park, Delhi',
     ),
     const AttendanceRecord(
-      id: 'a3',
-      date: '18 Jul 2024',
+      date: '2026-08-13',
       checkIn: '08:55 AM',
       checkOut: '06:15 PM',
-      status: AttendanceDayStatus.present,
+      status: 'present',
       location: 'Green Park, Delhi',
     ),
   ];
@@ -378,31 +343,29 @@ class StaffDummyApi {
     return _attendanceRecords.first;
   }
 
-  Future<CheckInResult> checkIn({String? selfiePath}) async {
+  Future<CheckInResult> checkIn({double? latitude, double? longitude}) async {
     await Future<void>.delayed(_delay);
     if (_attendanceRecords.isNotEmpty) {
       _attendanceRecords[0] = AttendanceRecord(
-        id: _attendanceRecords[0].id,
         date: _attendanceRecords[0].date,
         checkIn: '09:02 AM',
         checkOut: null,
-        status: AttendanceDayStatus.present,
+        status: 'present',
         location: _attendanceRecords[0].location,
       );
     }
     return const CheckInResult(
       success: true,
-      message: 'Checked in successfully',
+      attendanceId: 'a1',
+      status: 'CHECKED_IN',
       timestamp: '09:02 AM',
-      gpsVerified: true,
     );
   }
 
-  Future<CheckInResult> checkOut() async {
+  Future<CheckInResult> checkOut({double? latitude, double? longitude}) async {
     await Future<void>.delayed(_delay);
     if (_attendanceRecords.isNotEmpty) {
       _attendanceRecords[0] = AttendanceRecord(
-        id: _attendanceRecords[0].id,
         date: _attendanceRecords[0].date,
         checkIn: _attendanceRecords[0].checkIn,
         checkOut: '06:30 PM',
@@ -412,9 +375,9 @@ class StaffDummyApi {
     }
     return const CheckInResult(
       success: true,
-      message: 'Checked out successfully',
+      attendanceId: 'a1',
+      status: 'CHECKED_OUT',
       timestamp: '06:30 PM',
-      gpsVerified: true,
     );
   }
 

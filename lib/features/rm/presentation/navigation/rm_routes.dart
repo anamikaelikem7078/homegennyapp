@@ -6,6 +6,12 @@ abstract final class RmRoutes {
   static const String alerts = '/rm/alerts';
   static const String profile = '/rm/profile';
   static const String staffIntake = '/rm/staff-intake';
+  static const String trials = '/rm/trials';
+  static const String deferred = '/rm/deferred';
+  static const String terminal = '/rm/terminal';
+  static const String attendance = '/rm/attendance';
+  static const String locations = '/rm/locations';
+  static const String upgrades = '/rm/upgrades';
 
   static String staffDetail(String id) => '/rm/staff/$id';
   static String verificationDashboard(String id) => '/rm/staff/$id/verification';
@@ -15,21 +21,26 @@ abstract final class RmRoutes {
   static String track4(String id) => '/rm/staff/$id/verification/track4';
   static String track5(String id) => '/rm/staff/$id/verification/track5';
   
+  static String stage25Assessment(String id) => '/rm/staff/$id/stage2-5/assessment';
+
   static String stage3Training(String id) => '/rm/staff/$id/stage3/training';
   static String stage3VideoUpload(String id) => '/rm/staff/$id/stage3/video-upload';
   static String stage3VideoReview(String id) => '/rm/staff/$id/stage3/video-review';
 
   static String stage4Hub(String id) => '/rm/staff/$id/stage4/hub';
   static String stage4A1(String id) => '/rm/staff/$id/stage4/a1';
-  static String stage4A1OTP(String id) => '/rm/staff/$id/stage4/a1-otp';
   static String stage4A2(String id) => '/rm/staff/$id/stage4/a2';
-  
   static String stage4A2Client(String id) => '/rm/staff/$id/stage4/a2-client';
-  static String stage4SowAmendment(String id) => '/rm/staff/$id/stage4/sow-amendment';
   static String stage4A3(String id) => '/rm/staff/$id/stage4/a3';
-  static String stage4Complete(String id) => '/rm/staff/$id/stage4/complete';
 
   static String stage5TrialCheckin(String id) => '/rm/staff/$id/stage5/trial-checkin';
+
+  static String placementCreate(String staffId) => '/rm/staff/$staffId/placement/create';
+  static String placementDetail(String placementId) => '/rm/placements/$placementId';
+  static String staffAttendance(String staffId) => '/rm/staff/$staffId/attendance';
+  static String staffInvoicePreview(String staffId) => '/rm/staff/$staffId/invoice-preview';
+  static String staffIncidents(String staffId) => '/rm/staff/$staffId/incidents';
+  static String incidentCreate(String staffId) => '/rm/staff/$staffId/incidents/new';
 
   // Demo Sequential Flow Routes
   static String staffActivePlacement(String id) => '/rm/staff/$id/demo/active-placement';

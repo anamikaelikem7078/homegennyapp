@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../../core/utils/currency_formatter.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/client_models.dart';
 import '../../navigation/client_routes.dart';
@@ -26,7 +27,7 @@ class _ClientPaymentsTabScreenState
 
   @override
   Widget build(BuildContext context) {
-    final invoice = ref.watch(clientInvoiceProvider);
+    final invoices = ref.watch(clientInvoicesProvider);
 
     return Scaffold(
       backgroundColor: context.theme.scaffoldBackgroundColor,
@@ -43,10 +44,15 @@ class _ClientPaymentsTabScreenState
           ),
         ),
       ),
-      body: invoice.when(
+      body: invoices.when(
         loading: () => const DsLoadingWidget(),
         error: (_, __) => DsErrorState(title: context.l10n.error),
-        data: (inv) => ListView(
+        data: (list) {
+          if (list.isEmpty) {
+            return _buildEmptyInvoices(context);
+          }
+          final inv = list.first;
+          return ListView(
           padding: const EdgeInsets.all(24),
           children: [
             Text(
@@ -104,7 +110,7 @@ class _ClientPaymentsTabScreenState
                         ),
                       ),
                       Text(
-                        '#INV-2023-890', // Static for prototype per design, or inv.invoiceNumber
+                        '#${inv.id}',
                         style: GoogleFonts.inter(
                           color: Colors.black45,
                           fontSize: 12,
@@ -123,7 +129,7 @@ class _ClientPaymentsTabScreenState
                   ),
                   SizedBox(height: 4),
                   Text(
-                    '₹18,500', // inv.amount
+                    CurrencyFormatter.inr(inv.totalAmount),
                     style: GoogleFonts.libreCaslonText(
                       color: context.colors.onSurface,
                       fontSize: 40,
@@ -235,26 +241,35 @@ class _ClientPaymentsTabScreenState
                   ),
                   SizedBox(width: 16),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'HDFC Bank Credit Card',
-                          style: GoogleFonts.inter(
-                            color: context.colors.onSurface,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Ending in 4022',
-                          style: GoogleFonts.inter(
-                            color: context.colors.onSurfaceVariant,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final profile = ref.watch(clientProfileProvider);
+                        final method = profile.valueOrNull?.paymentMethod;
+                        final last4 = profile.valueOrNull?.accountLast4;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              method ?? 'No payment method on file',
+                              style: GoogleFonts.inter(
+                                color: context.colors.onSurface,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (last4 != null) ...[
+                              SizedBox(height: 2),
+                              Text(
+                                'Ending in $last4',
+                                style: GoogleFonts.inter(
+                                  color: context.colors.onSurfaceVariant,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        );
+                      },
                     ),
                   ),
                   Switch(
@@ -270,51 +285,23 @@ class _ClientPaymentsTabScreenState
               ),
             ),
             SizedBox(height: 32),
-            // Recent Transactions Ledger
-            Text(
-              context.l10n.recentTransactions,
-              style: GoogleFonts.libreCaslonText(
-                color: context.colors.onSurface,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: context.theme.cardColor,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.theme.dividerColor, width: 1),
-              ),
-              child: Column(
-                children: [
-                  _LedgerItem(
-                    title: 'Monthly Maintenance',
-                    date: 'Sep 01, 2023',
-                    amount: '-₹15,000',
-                    isNegative: true,
-                  ),
-                  const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                  _LedgerItem(
-                    title: 'Pool Access Fee',
-                    date: 'Aug 24, 2023',
-                    amount: '-₹3,500',
-                    isNegative: true,
-                  ),
-                  const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                  _LedgerItem(
-                    title: 'Refund: Overcharge',
-                    date: 'Aug 15, 2023',
-                    amount: '+₹1,200',
-                    isNegative: false,
-                  ),
-                ],
-              ),
-            ),
+            // "Recent Transactions" ledger removed — there is no real
+            // transactions endpoint; use the Payment History action card
+            // above instead, which is honestly backed by dummy data.
             SizedBox(height: 100), // Padding for floating nav
           ],
-        ),
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildEmptyInvoices(BuildContext context) {
+    return const DsEmptyState(
+      title: 'No invoices yet',
+      message:
+          'Invoices appear after your Relationship Manager approves shifts and Finance runs payroll.',
+      icon: Icons.receipt_long_outlined,
     );
   }
 }
@@ -370,85 +357,18 @@ class _PaymentActionCard extends StatelessWidget {
   }
 }
 
-class _LedgerItem extends StatelessWidget {
-  const _LedgerItem({
-    required this.title,
-    required this.date,
-    required this.amount,
-    required this.isNegative,
-  });
-  final String title;
-  final String date;
-  final String amount;
-  final bool isNegative;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isNegative ? Colors.red.shade50 : Colors.green.shade50,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              isNegative
-                  ? Icons.arrow_outward_rounded
-                  : Icons.south_west_rounded,
-              color: isNegative ? Colors.red.shade400 : Colors.green.shade500,
-              size: 16,
-            ),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    color: context.colors.onSurface,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  date,
-                  style: GoogleFonts.inter(
-                    color: context.colors.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            amount,
-            style: GoogleFonts.inter(
-              color: isNegative
-                  ? context.colors.onSurface
-                  : Colors.green.shade600,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Invoice detail.
 class ClientInvoiceScreen extends ConsumerWidget {
   const ClientInvoiceScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final invoice = ref.watch(clientInvoiceProvider);
+    final invoices = ref.watch(clientInvoicesProvider);
+
+    Future<ClientInvoice?> firstInvoice() async {
+      final list = await ref.read(clientInvoicesProvider.future);
+      return list.isEmpty ? null : list.first;
+    }
 
     return Scaffold(
       backgroundColor: context.theme.scaffoldBackgroundColor,
@@ -472,7 +392,8 @@ class ClientInvoiceScreen extends ConsumerWidget {
           IconButton(
             icon: Icon(Icons.download_outlined, color: Color(0xFF1A56FF)),
             onPressed: () async {
-              final inv = await ref.read(clientInvoiceProvider.future);
+              final inv = await firstInvoice();
+              if (inv == null) return;
               final result = await ref
                   .read(clientRepositoryProvider)
                   .downloadInvoice(inv.id);
@@ -489,11 +410,21 @@ class ClientInvoiceScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: invoice.when(
+      body: invoices.when(
         loading: () =>
             Center(child: CircularProgressIndicator(color: Color(0xFF1A56FF))),
         error: (_, __) => Center(child: Text(context.l10n.errorLoadingInvoice)),
-        data: (inv) => ListView(
+        data: (list) {
+          if (list.isEmpty) {
+            return const DsEmptyState(
+              title: 'No invoices yet',
+              message:
+                  'Invoices appear after your Relationship Manager approves shifts and Finance runs payroll.',
+              icon: Icons.receipt_long_outlined,
+            );
+          }
+          final inv = list.first;
+          return ListView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           children: [
             Container(
@@ -570,7 +501,7 @@ class ClientInvoiceScreen extends ConsumerWidget {
                   ),
                   SizedBox(height: 24),
                   Text(
-                    'HG-INV-\n2407-001', // Ideally inv.invoiceNumber
+                    inv.id,
                     style: GoogleFonts.libreCaslonText(
                       fontSize: 32,
                       color: context.colors.onSurface,
@@ -580,7 +511,7 @@ class ClientInvoiceScreen extends ConsumerWidget {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Issued on July 14, 2024',
+                    'For ${inv.billingMonth}',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: context.colors.onSurfaceVariant,
@@ -599,7 +530,7 @@ class ClientInvoiceScreen extends ConsumerWidget {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    '₹18,500', // Ideally inv.amount
+                    CurrencyFormatter.inr(inv.totalAmount),
                     style: GoogleFonts.libreCaslonText(
                       fontSize: 36,
                       color: const Color(0xFF1A56FF),
@@ -608,22 +539,15 @@ class ClientInvoiceScreen extends ConsumerWidget {
                   SizedBox(height: 40),
 
                   // Fees breakdown
-                  _buildFeeRow(
-                    context,
-                    'Service Fee',
-                    'Premium Home Consultation',
-                    '₹15,000',
-                  ),
-                  SizedBox(height: 24),
-                  _buildFeeRow(
-                    context,
-                    'Platform Fee',
-                    'Concierge Management',
-                    '₹678',
-                  ),
-                  SizedBox(height: 24),
-                  _buildFeeRow(context, 'GST', 'Tax (18%)', '₹2,822'),
-                  SizedBox(height: 40),
+                  for (final item in inv.items) ...[
+                    _buildFeeRow(
+                      context,
+                      item.description,
+                      '',
+                      CurrencyFormatter.inr(item.amount),
+                    ),
+                    SizedBox(height: 24),
+                  ],
 
                   // Divider with dots
                   Row(
@@ -687,11 +611,10 @@ class ClientInvoiceScreen extends ConsumerWidget {
                         Icons.share_outlined,
                         context.l10n.share,
                         onTap: () async {
-                          final inv = await ref.read(
-                            clientInvoiceProvider.future,
-                          );
+                          final inv = await firstInvoice();
+                          if (inv == null) return;
                           Share.share(
-                            'Invoice: ${inv.invoiceNumber}\nAmount: ${inv.amount}\nDue Date: ${inv.dueDate}',
+                            'Invoice: ${inv.id}\nAmount: ${CurrencyFormatter.inr(inv.totalAmount)}\nDue Date: ${inv.dueDate}',
                           );
                         },
                       ),
@@ -701,9 +624,8 @@ class ClientInvoiceScreen extends ConsumerWidget {
                         Icons.download_outlined,
                         context.l10n.download,
                         onTap: () async {
-                          final inv = await ref.read(
-                            clientInvoiceProvider.future,
-                          );
+                          final inv = await firstInvoice();
+                          if (inv == null) return;
                           final result = await ref
                               .read(clientRepositoryProvider)
                               .downloadInvoice(inv.id);
@@ -747,7 +669,8 @@ class ClientInvoiceScreen extends ConsumerWidget {
             ),
             SizedBox(height: 40),
           ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -772,14 +695,16 @@ class ClientInvoiceScreen extends ConsumerWidget {
                 color: context.colors.onSurface,
               ),
             ),
-            SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: context.colors.onSurfaceVariant,
+            if (subtitle.isNotEmpty) ...[
+              SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: context.colors.onSurfaceVariant,
+                ),
               ),
-            ),
+            ],
           ],
         ),
         Text(
@@ -1128,7 +1053,7 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final invoice = ref.watch(clientInvoiceProvider);
+    final invoices = ref.watch(clientInvoicesProvider);
 
     return Scaffold(
       backgroundColor: context.theme.scaffoldBackgroundColor,
@@ -1159,11 +1084,21 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: invoice.when(
+      body: invoices.when(
         loading: () =>
             Center(child: CircularProgressIndicator(color: Color(0xFF1A56FF))),
         error: (_, __) => Center(child: Text(context.l10n.error)),
-        data: (inv) => SingleChildScrollView(
+        data: (list) {
+          if (list.isEmpty) {
+            return const DsEmptyState(
+              title: 'No invoices yet',
+              message:
+                  'Invoices appear after your Relationship Manager approves shifts and Finance runs payroll.',
+              icon: Icons.receipt_long_outlined,
+            );
+          }
+          final inv = list.first;
+          return SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1213,7 +1148,7 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
                             ),
                             SizedBox(height: 8),
                             Text(
-                              context.l10n.referenceInvoice(inv.invoiceNumber),
+                              context.l10n.referenceInvoice(inv.id),
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -1239,7 +1174,7 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
                     ),
                     SizedBox(height: 24),
                     Text(
-                      inv.amount,
+                      CurrencyFormatter.inr(inv.totalAmount),
                       style: GoogleFonts.libreCaslonText(
                         fontSize: 42,
                         fontWeight: FontWeight.w500,
@@ -1257,11 +1192,14 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
                     SizedBox(height: 24),
                     const Divider(color: Color(0xFFF3F4F6), height: 1),
                     SizedBox(height: 24),
-                    _buildFeeRow(context, 'Service Fee', '₹15,000'),
-                    SizedBox(height: 16),
-                    _buildFeeRow(context, 'Platform Charge', '₹2,500'),
-                    SizedBox(height: 16),
-                    _buildFeeRow(context, 'Taxes (GST)', '₹1,000'),
+                    for (final item in inv.items) ...[
+                      _buildFeeRow(
+                        context,
+                        item.description,
+                        CurrencyFormatter.inr(item.amount),
+                      ),
+                      SizedBox(height: 16),
+                    ],
                   ],
                 ),
               ),
@@ -1272,7 +1210,7 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () => context.push(Uri(path: ClientRoutes.paymentGateway, queryParameters: {'invoiceId': inv.id, 'amount': inv.amount.toString()}).toString()),
+                  onPressed: () => context.push(Uri(path: ClientRoutes.paymentGateway, queryParameters: {'invoiceId': inv.id, 'amount': inv.totalAmount.toString()}).toString()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1A56FF),
                     foregroundColor: Colors.white,
@@ -1327,7 +1265,8 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
               ),
             ],
           ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -1433,7 +1372,7 @@ class _ClientUpiPaymentScreenState extends ConsumerState<ClientUpiPaymentScreen>
     result.fold(
       onSuccess: (_) {
         context.showDsSnackBar(context.l10n.paymentSuccessful, type: DsSnackBarType.success);
-        ref.invalidate(clientInvoiceProvider);
+        ref.invalidate(clientInvoicesProvider);
         ref.invalidate(clientPaymentHistoryProvider);
         ref.invalidate(clientDashboardProvider);
         context.pop();
@@ -1495,7 +1434,7 @@ class _ClientUpiPaymentScreenState extends ConsumerState<ClientUpiPaymentScreen>
               ),
               SizedBox(height: 8),
               Text(
-                '₹18,500',
+                CurrencyFormatter.inr(widget.amount),
                 style: GoogleFonts.libreCaslonText(
                   fontSize: 48,
                   color: context.colors.onSurface,

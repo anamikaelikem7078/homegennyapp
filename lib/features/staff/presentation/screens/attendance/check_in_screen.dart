@@ -56,9 +56,11 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
     }
 
     setState(() => _isSubmitting = true);
-    final result = await ref.read(staffRepositoryProvider).checkIn(
-          selfiePath: _selfie!.path,
-        );
+    // Note: the backend's check-in endpoint only accepts optional
+    // latitude/longitude — there is no selfie field. The selfie capture
+    // above is a local-only verification step; no location package is
+    // wired into the app yet, so coordinates aren't sent.
+    final result = await ref.read(staffRepositoryProvider).checkIn();
     if (!mounted) return;
     setState(() => _isSubmitting = false);
 
@@ -67,7 +69,7 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
         ref.invalidate(staffTodayAttendanceProvider);
         ref.invalidate(staffAttendanceHistoryProvider);
         ref.invalidate(staffDashboardProvider);
-        context.showDsSnackBar(data.message, type: DsSnackBarType.success);
+        context.showDsSnackBar('Checked in successfully', type: DsSnackBarType.success);
         context.go(StaffRoutes.attendance);
       },
       onError: (failure) {

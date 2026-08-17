@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
-import '../../../../../core/utils/communication_helper.dart';
 
 /// Client deployment details screen.
 class DeploymentScreen extends ConsumerWidget {
@@ -109,7 +108,7 @@ class DeploymentScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    info.clientName.isNotEmpty ? info.clientName : 'Priya Sharma',
+                    info.clientName ?? 'No active client',
                     style: GoogleFonts.libreCaslonText(
                       fontSize: 28,
                       fontWeight: FontWeight.w600,
@@ -133,44 +132,9 @@ class DeploymentScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  GestureDetector(
-                    onTap: () => CommunicationHelper.makePhoneCall(
-                      context,
-                      '+91 98765 43210',
-                      recipientName: 'Active Client',
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.phone_outlined, color: Color(0xFF1A56FF), size: 16),
-                        const SizedBox(width: 8),
-                        Text(
-                          '+91 98765 43210',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF1A56FF),
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.email_outlined, color: Color(0xFF1A56FF), size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        'priya.s@homegenny.com',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: const Color(0xFF0F172A),
-                        ),
-                      ),
-                    ],
-                  ),
+                  // Note: the backend never returns a client phone/email for
+                  // staff (clientPhone is always null, no email field exists)
+                  // — no contact details to show here yet.
                 ],
               ),
             ),
@@ -221,7 +185,7 @@ class DeploymentScreen extends ConsumerWidget {
                       const Icon(Icons.calendar_today_outlined, color: Color(0xFF1A56FF), size: 18),
                       const SizedBox(width: 12),
                       Text(
-                        info.joiningDate,
+                        info.deploymentDate ?? '—',
                         style: GoogleFonts.inter(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -306,44 +270,11 @@ class DeploymentScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'B-42, The Imperial Heights',
+                          info.deploymentAddress ?? 'Address not available',
                           style: GoogleFonts.inter(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: const Color(0xFF0F172A),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Sector 45, Gurgaon, Haryana,\n122003',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: const Color(0xFF64748B),
-                            height: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.domain, size: 14, color: Color(0xFF475569)),
-                              const SizedBox(width: 6),
-                              Text(
-                                'APARTMENT UNIT',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF475569),
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ],

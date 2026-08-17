@@ -1,14 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:uuid/uuid.dart';
-import '../../../../common/domain/models/document_entity.dart';
-import '../../../../common/domain/models/staff_entity.dart';
-import '../../../../common/domain/models/training_entity.dart';
-import '../../../../common/domain/models/video_certification_entity.dart';
-import '../../../../common/domain/models/agreement_entity.dart';
-import '../../../../common/domain/models/placement_entity.dart';
-import '../../../../common/domain/models/attendance_entity.dart';
-
-
 import '../../../../common/domain/models/staff_entity.dart';
 import '../../../../common/domain/models/user_model.dart';
 import '../../../../core/constants/api_constants.dart';
@@ -29,14 +19,6 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
     return StaffDtoCodec.decodeDashboard(json);
   }
 
-  Future<List<StaffTask>> getTodaysTasks() async {
-    final json = await getJson(ApiConstants.staffTasks);
-    return StaffDtoCodec.decodeList(
-      json['items'] as List<dynamic>? ?? [],
-      StaffDtoCodec.decodeTask,
-    );
-  }
-
   Future<List<PipelineStage>> getPipeline() async {
     final json = await getJson(ApiConstants.staffPipeline);
     return StaffDtoCodec.decodeList(
@@ -48,6 +30,51 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
   Future<StaffProfile> getProfile() async {
     final json = await getJson(ApiConstants.staffProfile);
     return StaffDtoCodec.decodeProfile(json);
+  }
+
+  Future<void> updateProfile({String? address, String? email}) async {
+    await putJson(
+      ApiConstants.staffProfile,
+      data: {
+        if (address != null) 'address': address,
+        if (email != null) 'email': email,
+      },
+    );
+  }
+
+  Future<DeploymentInfo> getDeployment() async {
+    final json = await getJson(ApiConstants.staffDeployment);
+    return StaffDtoCodec.decodeDeployment(json);
+  }
+
+  Future<CheckInResult> checkIn({double? latitude, double? longitude}) async {
+    final json = await postJson(
+      ApiConstants.staffAttendanceCheckIn,
+      data: {
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+      },
+    );
+    return StaffDtoCodec.decodeCheckInResult(json);
+  }
+
+  Future<CheckInResult> checkOut({double? latitude, double? longitude}) async {
+    final json = await postJson(
+      ApiConstants.staffAttendanceCheckOut,
+      data: {
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+      },
+    );
+    return StaffDtoCodec.decodeCheckInResult(json);
+  }
+
+  Future<List<AttendanceRecord>> getAttendanceHistory() async {
+    final json = await getJson(ApiConstants.staffAttendanceHistory);
+    return StaffDtoCodec.decodeList(
+      json['history'] as List<dynamic>? ?? [],
+      StaffDtoCodec.decodeAttendance,
+    );
   }
 
   Future<List<StaffDocument>> getDocuments({int page = 1}) async {
@@ -96,29 +123,14 @@ class StaffLocalDataSource extends BaseLocalDataSource {
       final entity = hive.staffBox.get(user!.id) as StaffEntity?;
       if (entity != null) {
         return StaffDashboardData(
-          profile: StaffProfile(
-            id: entity.id,
-            name: entity.name,
-            email: entity.email ?? 'no-email',
-            phone: entity.phone,
-            role: 'Staff',
-            department: 'General',
-            employeeId: entity.staffCode,
-            joiningDate: entity.createdAt.toIso8601String(),
-            completionPercent: 50,
-            avatarUrl: null,
-          ),
-          tasks: [],
-          currentStage: PipelineStage(
-            id: 'stage-1',
-            title: entity.pipelineStage,
-            description: 'Current Stage',
-            status: PipelineStageStatus.current,
-            completedAt: null,
-          ),
-          attendanceToday: null,
-          unreadNotifications: 0,
-          profileCompletion: 50,
+          staffCode: entity.staffCode,
+          fullName: entity.name,
+          series: '',
+          pipelineStage: entity.pipelineStage,
+          completionPct: 0,
+          assignedRmName: '',
+          assignedRmPhone: '',
+          todayTasks: const [],
         );
       }
     }
@@ -135,15 +147,12 @@ class StaffLocalDataSource extends BaseLocalDataSource {
       if (entity != null) {
         return StaffProfile(
           id: entity.id,
-          name: entity.name,
+          staffCode: entity.staffCode,
+          fullName: entity.name,
+          mobile: entity.phone,
           email: entity.email ?? 'no-email',
-          phone: entity.phone,
-          role: 'Staff',
-          department: 'General',
-          employeeId: entity.staffCode,
-          joiningDate: entity.createdAt.toIso8601String(),
-          completionPercent: 50,
-          avatarUrl: null,
+          series: '',
+          pipelineStage: entity.pipelineStage,
         );
       }
     }
@@ -201,20 +210,22 @@ class StaffLocalDataSource extends BaseLocalDataSource {
 
   Future<void> signAgreement(String signature) async {}
 
-  Future<AttendanceRecord?> getTodayAttendance() async {
-    return null;
+  Future<void> cacheDeployment(DeploymentInfo info) =>
+      saveJson(StorageKeys.staffDeployment, StaffDtoCodec.encodeDeployment(info));
+
+  DeploymentInfo? getDeployment() {
+    final json = getJson(StorageKeys.staffDeployment);
+    return json != null ? StaffDtoCodec.decodeDeployment(json) : null;
   }
 
-  Future<CheckInResult> checkIn() async {
-    return CheckInResult(success: true, message: 'Checked In', timestamp: DateTime.now().toString(), gpsVerified: true);
-  }
-
-  Future<CheckInResult> checkOut() async {
-    return CheckInResult(success: true, message: 'Checked Out', timestamp: DateTime.now().toString(), gpsVerified: true);
-  }
+  Future<void> cacheAttendanceHistory(List<AttendanceRecord> history) => saveJsonList(
+        StorageKeys.staffAttendanceHistory,
+        StaffDtoCodec.encodeList(history, StaffDtoCodec.encodeAttendance),
+      );
 
   Future<List<AttendanceRecord>> getAttendanceHistory() async {
-    return [];
+    final list = getJsonList(StorageKeys.staffAttendanceHistory);
+    return list?.map(StaffDtoCodec.decodeAttendance).toList() ?? [];
   }
 
   Future<MonthlyAttendance> getMonthlyAttendance(String month) async {
@@ -245,6 +256,8 @@ class StaffDummyDataSource {
   Future<List<StaffTask>> getTodaysTasks() => _api.getTodaysTasks();
   Future<List<PipelineStage>> getPipeline() => _api.getPipeline();
   Future<StaffProfile> getProfile() => _api.getProfile();
+  Future<void> updateProfile({String? address, String? email}) =>
+      _api.updateProfile(address: address, email: email);
   Future<List<StaffDocument>> getDocuments() => _api.getDocuments();
   Future<StaffDocument> getDocument(String id) => _api.getDocument(id);
   Future<void> uploadDocument(String name, String type, String filePath) => _api.uploadDocument(name, type, filePath);
@@ -262,8 +275,10 @@ class StaffDummyDataSource {
   Future<void> signAgreement(String signature) => _api.signAgreement(signature);
   Future<DeploymentInfo> getDeployment() => _api.getDeployment();
   Future<AttendanceRecord?> getTodayAttendance() => _api.getTodayAttendance();
-  Future<CheckInResult> checkIn({String? selfiePath}) => _api.checkIn(selfiePath: selfiePath);
-  Future<CheckInResult> checkOut() => _api.checkOut();
+  Future<CheckInResult> checkIn({double? latitude, double? longitude}) =>
+      _api.checkIn(latitude: latitude, longitude: longitude);
+  Future<CheckInResult> checkOut({double? latitude, double? longitude}) =>
+      _api.checkOut(latitude: latitude, longitude: longitude);
   Future<List<AttendanceRecord>> getAttendanceHistory() => _api.getAttendanceHistory();
   Future<MonthlyAttendance> getMonthlyAttendance(String month) =>
       _api.getMonthlyAttendance(month);

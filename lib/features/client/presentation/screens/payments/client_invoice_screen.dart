@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../rm/presentation/navigation/rm_routes.dart';
+import '../../../../../core/utils/currency_formatter.dart';
+import '../../../../../design_system/design_system.dart';
+import '../../../domain/models/client_models.dart';
+import '../../providers/client_providers.dart';
 
-class ClientInvoiceScreen extends StatelessWidget {
+class ClientInvoiceScreen extends ConsumerWidget {
   const ClientInvoiceScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final invoices = ref.watch(clientInvoicesProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
       extendBody: true,
@@ -17,34 +24,53 @@ class ClientInvoiceScreen extends StatelessWidget {
         centerTitle: false,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF111827)),
-          onPressed: () {},
+          onPressed: () {
+            if (context.canPop()) context.pop();
+          },
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              'Invoice\n— March 2024',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.libreCaslonText(
-                color: const Color(0xFF2C3246),
-                fontSize: 40,
-                fontWeight: FontWeight.w500,
-                height: 1.1,
+      body: invoices.when(
+        loading: () => const Center(child: DsLoadingWidget()),
+        error: (_, __) => const Center(child: DsErrorState(title: 'Error')),
+        data: (list) {
+          if (list.isEmpty) {
+            return const Center(
+              child: DsEmptyState(
+                title: 'No invoices yet',
+                message:
+                    'Invoices appear after your Relationship Manager approves shifts and Finance runs payroll.',
+                icon: Icons.receipt_long_outlined,
               ),
+            );
+          }
+          final invoice = list.first;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 120),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'Invoice\n— ${invoice.billingMonth}',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.libreCaslonText(
+                    color: const Color(0xFF2C3246),
+                    fontSize: 40,
+                    fontWeight: FontWeight.w500,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 48),
+                _buildBillingCard(context, invoice),
+              ],
             ),
-            const SizedBox(height: 48),
-            _buildBillingCard(context),
-          ],
-        ),
+          );
+        },
       ),
       bottomNavigationBar: _buildBottomNav(),
     );
   }
 
-  Widget _buildBillingCard(BuildContext context) {
+  Widget _buildBillingCard(BuildContext context, ClientInvoice invoice) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -71,19 +97,17 @@ class ClientInvoiceScreen extends StatelessWidget {
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       children: [
-                        _buildRow('Staff Salary', '₹18,000'),
-                        const SizedBox(height: 16),
-                        const Divider(color: Color(0xFFF3F4F6), height: 1),
-                        const SizedBox(height: 16),
-                        _buildRow('Employer ESIC/PF', '₹2,385'),
-                        const SizedBox(height: 16),
-                        const Divider(color: Color(0xFFF3F4F6), height: 1),
-                        const SizedBox(height: 16),
-                        _buildRow('Management Fee', '₹3,000'),
-                        const SizedBox(height: 16),
-                        const Divider(color: Color(0xFFF3F4F6), height: 1),
-                        const SizedBox(height: 16),
-                        _buildRow('GST (18% on fee)', '₹540'),
+                        for (var i = 0; i < invoice.items.length; i++) ...[
+                          _buildRow(
+                            invoice.items[i].description,
+                            CurrencyFormatter.inr(invoice.items[i].amount),
+                          ),
+                          if (i != invoice.items.length - 1) ...[
+                            const SizedBox(height: 16),
+                            const Divider(color: Color(0xFFF3F4F6), height: 1),
+                            const SizedBox(height: 16),
+                          ],
+                        ],
                       ],
                     ),
                   ),
@@ -104,7 +128,7 @@ class ClientInvoiceScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '₹23,925',
+                          CurrencyFormatter.inr(invoice.totalAmount),
                           style: GoogleFonts.inter(
                             color: const Color(0xFF0044CC),
                             fontSize: 32,

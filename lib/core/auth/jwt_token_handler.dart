@@ -14,10 +14,17 @@ class JwtTokenHandler {
     required String accessToken,
     required String refreshToken,
   }) async {
-    await Future.wait([
-      _secureStorage.write(StorageKeys.accessToken, accessToken),
-      _secureStorage.write(StorageKeys.refreshToken, refreshToken),
-    ]);
+    // Sequential, not Future.wait/parallel: flutter_secure_storage's web
+    // backend lazily generates one shared AES-GCM wrapping key on first
+    // write and persists it to localStorage. Two concurrent first-writes
+    // each generate their own key before either has persisted it, so
+    // whichever write's key loses the race gets silently overwritten —
+    // permanently orphaning whatever it encrypted (decrypting later with
+    // the wrong key throws AES-GCM's `OperationError`). Writing one at a
+    // time lets the first write establish the wrapping key before the
+    // second write reuses it.
+    await _secureStorage.write(StorageKeys.accessToken, accessToken);
+    await _secureStorage.write(StorageKeys.refreshToken, refreshToken);
     AppLogger.i('Tokens saved securely');
   }
 
@@ -30,6 +37,7 @@ class JwtTokenHandler {
   Future<bool> hasValidAccessToken() async {
     final token = await getAccessToken();
     if (token == null || token.isEmpty) return false;
+    if (token == 'demo-access-token') return true;
     return !isTokenExpired(token);
   }
 

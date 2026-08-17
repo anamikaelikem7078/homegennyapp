@@ -7,7 +7,6 @@ import '../../../core/extensions/context_extensions.dart';
 import '../../../core/presentation/widgets/responsive_layout.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/utils/validators.dart';
-import '../providers/auth_provider.dart';
 import '../viewmodels/login_viewmodel.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/models/user_role.dart';
@@ -53,18 +52,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _onLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final phone = _phoneController.text.trim();
     final success = await ref
         .read(loginViewModelProvider.notifier)
-        .login(
-          phone: _phoneController.text.trim(),
-          password: _passwordController.text,
-        );
+        .login(phone: phone, password: _passwordController.text);
 
     if (!mounted || !success) return;
 
-    final phone = _phoneController.text.trim();
-    // Always go to OTP flow, even for demo
-    context.go('${AppRoutes.otp}?phone=${Uri.encodeComponent(phone)}');
+    final loginState = ref.read(loginViewModelProvider);
+    if (loginState.mustChangePassword) {
+      context.go(AppRoutes.changePassword);
+    } else {
+      context.go(
+        Uri(path: AppRoutes.otp, queryParameters: {'phone': phone}).toString(),
+      );
+    }
   }
 
   @override
@@ -433,35 +435,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         SizedBox(height: 32),
         // Demo shortcuts at the bottom
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildDemoShortcut('Client Demo', '9800000004'),
-            SizedBox(width: 16),
-            _buildDemoShortcut('Staff Demo', '9800000002'),
-            SizedBox(width: 16),
-            _buildDemoShortcut('RM Demo', '9800000001'),
-          ],
-        ),
+        // Row(
+        //   mainAxisAlignment: MainAxisAlignment.center,
+        //   children: [
+        //     _buildDemoShortcut('Client Demo', '9800000004'),
+        //     SizedBox(width: 16),
+        //     _buildDemoShortcut('Staff Demo', '9800000002'),
+        //     SizedBox(width: 16),
+        //     _buildDemoShortcut('RM Demo', '9800000001'),
+        //   ],
+        // ),
       ],
     ); 
   }
 
-  Widget _buildDemoShortcut(String label, String phone) {
-    return InkWell(
-      onTap: () {
-        _phoneController.text = phone;
-        _passwordController.text = 'HomeGenny@2024';
-      },
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: const Color(0xFF9CA3AF),
-          decoration: TextDecoration.underline,
-        ),
-      ),
-    );
-  }
+  // Widget _buildDemoShortcut(String label, String phone) {
+  //   return InkWell(
+  //     onTap: () {
+  //       _phoneController.text = phone;
+  //       _passwordController.text = 'HomeGenny@2024';
+  //     },
+  //     child: Text(
+  //       label,
+  //       style: GoogleFonts.inter(
+  //         fontSize: 12,
+  //         fontWeight: FontWeight.w500,
+  //         color: const Color(0xFF9CA3AF),
+  //         decoration: TextDecoration.underline,
+  //       ),
+  //     ),
+  //   );
+  // }
 }
