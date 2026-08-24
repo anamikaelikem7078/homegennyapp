@@ -101,7 +101,7 @@ class SplashViewModel {
   SplashDestination _roleDestination(UserRole role) {
     return switch (role) {
       UserRole.staff => SplashDestination.staffDashboard,
-      UserRole.rm => SplashDestination.rmDashboard,
+      UserRole.rm || UserRole.bm || UserRole.admin => SplashDestination.rmDashboard,
       UserRole.client => SplashDestination.clientDashboard,
     };
   }

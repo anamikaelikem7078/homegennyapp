@@ -42,7 +42,8 @@ class RmDashboardScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 _buildToolsRow(context),
                 const SizedBox(height: 24),
-                if (data.seriesDistribution.isNotEmpty) _buildSeriesBreakdown(data.seriesDistribution),
+                if (data.seriesDistribution.isNotEmpty)
+                  _buildSeriesBreakdown(data.seriesDistribution),
               ],
             ),
           ),
@@ -61,16 +62,27 @@ class RmDashboardScreen extends ConsumerWidget {
           CircleAvatar(
             backgroundColor: RmTheme.electricBlue.withOpacity(0.1),
             child: Text(
-              (userName?.trim().isNotEmpty ?? false) ? userName!.trim()[0].toUpperCase() : 'R',
-              style: const TextStyle(color: RmTheme.electricBlue, fontWeight: FontWeight.w700),
+              (userName?.trim().isNotEmpty ?? false)
+                  ? userName!.trim()[0].toUpperCase()
+                  : 'R',
+              style: const TextStyle(
+                color: RmTheme.electricBlue,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Hello, ${userName ?? 'RM'}', style: RmTheme.headline(null).copyWith(fontSize: 18)),
-              Text('RM Dashboard', style: RmTheme.body(null).copyWith(fontSize: 12)),
+              Text(
+                'Hello, ${userName ?? 'RM'}',
+                style: RmTheme.headline(null).copyWith(fontSize: 18),
+              ),
+              Text(
+                'RM Dashboard',
+                style: RmTheme.body(null).copyWith(fontSize: 12),
+              ),
             ],
           ),
         ],
@@ -79,31 +91,100 @@ class RmDashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildStatsGrid(bool isTablet, RmDashboardKpis kpis) {
-    return GridView.count(
-      crossAxisCount: isTablet ? 4 : 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: isTablet ? 2.0 : 1.5,
-      children: [
-        _buildStatCard('Total Staff', '${kpis.totalStaff}', Icons.people_outline, RmTheme.textPrimary),
-        _buildStatCard('Active Pipeline', '${kpis.activePipeline}', Icons.trending_up, RmTheme.electricBlue),
-        _buildStatCard('Pending Verification', '${kpis.pendingVerification}', Icons.fact_check_outlined, RmTheme.amberWarning),
-        _buildStatCard('Trials Active', '${kpis.trialPlacements}', Icons.play_circle_outline, RmTheme.emeraldGreen),
-        _buildStatCard('Deployed', '${kpis.activePlacements}', Icons.check_circle_outline, RmTheme.emeraldGreen),
-        _buildStatCard('Training Queue', '${kpis.trainingQueue}', Icons.school_outlined, RmTheme.electricBlueLight),
-        _buildStatCard('Deployment Ready', '${kpis.deploymentQueue}', Icons.local_shipping_outlined, RmTheme.electricBlue),
-        _buildStatCard('Deferred', '${kpis.deferredCases}', Icons.pause_circle_outline, RmTheme.textSecondary),
-        _buildStatCard('Open Incidents', '${kpis.openIncidents}', Icons.report_problem_outlined, RmTheme.crimsonDanger),
-        _buildStatCard('Pending Shifts', '${kpis.pendingShifts}', Icons.pending_actions, RmTheme.amberWarning),
-        _buildStatCard('Pending Video', '${kpis.pendingVideo}', Icons.videocam_outlined, RmTheme.electricBlueLight),
-        _buildStatCard('Monthly Placements', '${kpis.monthlyPlacements}', Icons.insights_outlined, RmTheme.textPrimary),
-      ],
+    return SizedBox(
+      height: 280, // Fixed height for 2 rows of cards
+      child: GridView.count(
+        scrollDirection: Axis.horizontal,
+        crossAxisCount: 2,
+        shrinkWrap: false,
+        physics: const BouncingScrollPhysics(),
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.85, // Adjust width of the cards
+        children: [
+          _buildStatCard(
+            'Total Staff',
+            '${kpis.totalStaff}',
+            Icons.people_outline,
+            RmTheme.textPrimary,
+          ),
+          _buildStatCard(
+            'Active Pipeline',
+            '${kpis.activePipeline}',
+            Icons.trending_up,
+            RmTheme.electricBlue,
+          ),
+          _buildStatCard(
+            'Pending Verification',
+            '${kpis.pendingVerification}',
+            Icons.fact_check_outlined,
+            RmTheme.amberWarning,
+          ),
+          _buildStatCard(
+            'Trials Active',
+            '${kpis.trialPlacements}',
+            Icons.play_circle_outline,
+            RmTheme.emeraldGreen,
+          ),
+          _buildStatCard(
+            'Deployed',
+            '${kpis.activePlacements}',
+            Icons.check_circle_outline,
+            RmTheme.emeraldGreen,
+          ),
+          _buildStatCard(
+            'Training Queue',
+            '${kpis.trainingQueue}',
+            Icons.school_outlined,
+            RmTheme.electricBlueLight,
+          ),
+          _buildStatCard(
+            'Deployment Ready',
+            '${kpis.deploymentQueue}',
+            Icons.local_shipping_outlined,
+            RmTheme.electricBlue,
+          ),
+          _buildStatCard(
+            'Deferred',
+            '${kpis.deferredCases}',
+            Icons.pause_circle_outline,
+            RmTheme.textSecondary,
+          ),
+          _buildStatCard(
+            'Open Incidents',
+            '${kpis.openIncidents}',
+            Icons.report_problem_outlined,
+            RmTheme.crimsonDanger,
+          ),
+          _buildStatCard(
+            'Pending Shifts',
+            '${kpis.pendingShifts}',
+            Icons.pending_actions,
+            RmTheme.amberWarning,
+          ),
+          _buildStatCard(
+            'Pending Video',
+            '${kpis.pendingVideo}',
+            Icons.videocam_outlined,
+            RmTheme.electricBlueLight,
+          ),
+          _buildStatCard(
+            'Monthly Placements',
+            '${kpis.monthlyPlacements}',
+            Icons.insights_outlined,
+            RmTheme.textPrimary,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -115,31 +196,70 @@ class RmDashboardScreen extends ConsumerWidget {
         ),
         border: Border.all(color: color.withOpacity(0.15), width: 1.5),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          Row(
+          // Watermark icon in the background
+          Positioned(
+            right: -16,
+            bottom: -16,
+            child: Icon(
+              icon,
+              size: 80,
+              color: color.withOpacity(0.06),
+            ),
+          ),
+          // Foreground content
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                child: Icon(icon, size: 16, color: color),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: RmTheme.label(null).copyWith(
+                        color: RmTheme.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, size: 18, color: color),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: RmTheme.label(null).copyWith(color: RmTheme.textSecondary, fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+              Text(
+                value,
+                style: RmTheme.headline(null).copyWith(
+                  color: RmTheme.textPrimary,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
                 ),
               ),
             ],
           ),
-          Text(value, style: RmTheme.headline(null).copyWith(color: RmTheme.textPrimary, fontSize: 28)),
         ],
       ),
     );
@@ -157,12 +277,18 @@ class RmDashboardScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Pipeline Distribution', style: RmTheme.title(null).copyWith(color: RmTheme.textPrimary)),
+          Text(
+            'Pipeline Distribution',
+            style: RmTheme.title(null).copyWith(color: RmTheme.textPrimary),
+          ),
           const SizedBox(height: 4),
           Text('Current staff across all stages', style: RmTheme.body(null)),
           const SizedBox(height: 24),
           if (total == 0)
-            Text('No staff in the pipeline yet.', style: RmTheme.body(null).copyWith(color: RmTheme.textSecondary))
+            Text(
+              'No staff in the pipeline yet.',
+              style: RmTheme.body(null).copyWith(color: RmTheme.textSecondary),
+            )
           else ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
@@ -172,7 +298,10 @@ class RmDashboardScreen extends ConsumerWidget {
                     if (entry.count > 0)
                       Expanded(
                         flex: entry.count,
-                        child: Container(height: 12, color: _stageColor(entry.stage)),
+                        child: Container(
+                          height: 12,
+                          color: _stageColor(entry.stage),
+                        ),
                       ),
                 ],
               ),
@@ -183,7 +312,10 @@ class RmDashboardScreen extends ConsumerWidget {
               runSpacing: 8,
               children: [
                 for (final entry in funnel)
-                  _buildLegend('${_shortStage(entry.stage)} (${entry.count})', _stageColor(entry.stage)),
+                  _buildLegend(
+                    '${_shortStage(entry.stage)} (${entry.count})',
+                    _stageColor(entry.stage),
+                  ),
               ],
             ),
           ],
@@ -194,19 +326,28 @@ class RmDashboardScreen extends ConsumerWidget {
 
   String _shortStage(String stage) {
     const labels = {
-      'S1_INTAKE': 'S1', 'S2_VERIFY': 'S2', 'S2_5_ASSESS': 'S2.5',
-      'S3_TRAIN': 'S3', 'S4_AGREEMENTS': 'S4', 'S5_DEPLOY': 'S5',
-      'DEFERRED': 'Deferred', 'TERMINAL': 'Terminal',
+      'S1_INTAKE': 'S1',
+      'S2_VERIFY': 'S2',
+      'S2_5_ASSESS': 'S2.5',
+      'S3_TRAIN': 'S3',
+      'S4_AGREEMENTS': 'S4',
+      'S5_DEPLOY': 'S5',
+      'DEFERRED': 'Deferred',
+      'TERMINAL': 'Terminal',
     };
     return labels[stage] ?? stage;
   }
 
   Color _stageColor(String stage) {
     const colors = {
-      'S1_INTAKE': Color(0xFFE5E7EB), 'S2_VERIFY': Color(0xFF9CA3AF),
-      'S2_5_ASSESS': Color(0xFF6B7280), 'S3_TRAIN': Color(0xFFD1D5DB),
-      'S4_AGREEMENTS': RmTheme.electricBlueLight, 'S5_DEPLOY': RmTheme.electricBlue,
-      'DEFERRED': RmTheme.amberWarning, 'TERMINAL': RmTheme.crimsonDanger,
+      'S1_INTAKE': Color(0xFFE5E7EB),
+      'S2_VERIFY': Color(0xFF9CA3AF),
+      'S2_5_ASSESS': Color(0xFF6B7280),
+      'S3_TRAIN': Color(0xFFD1D5DB),
+      'S4_AGREEMENTS': RmTheme.electricBlueLight,
+      'S5_DEPLOY': RmTheme.electricBlue,
+      'DEFERRED': RmTheme.amberWarning,
+      'TERMINAL': RmTheme.crimsonDanger,
     };
     return colors[stage] ?? RmTheme.textSecondary;
   }
@@ -215,9 +356,18 @@ class RmDashboardScreen extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 4),
-        Text(label, style: RmTheme.label(null).copyWith(fontSize: 10, color: RmTheme.textSecondary)),
+        Text(
+          label,
+          style: RmTheme.label(
+            null,
+          ).copyWith(fontSize: 10, color: RmTheme.textSecondary),
+        ),
       ],
     );
   }
@@ -226,11 +376,19 @@ class RmDashboardScreen extends ConsumerWidget {
     return Row(
       children: [
         Expanded(
-          child: _buildActionButton('Add New\nStaff', Icons.person_add_alt, () => context.push(RmRoutes.staffIntake)),
+          child: _buildActionButton(
+            'Add New\nStaff',
+            Icons.person_add_alt,
+            () => context.push(RmRoutes.staffIntake),
+          ),
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: _buildActionButton('View\nPipeline', Icons.view_kanban_outlined, () => context.push(RmRoutes.pipeline)),
+          child: _buildActionButton(
+            'View\nPipeline',
+            Icons.view_kanban_outlined,
+            () => context.push(RmRoutes.pipeline),
+          ),
         ),
       ],
     );
@@ -243,9 +401,18 @@ class RmDashboardScreen extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 24),
         decoration: BoxDecoration(
           color: RmTheme.cardSurface,
-          border: Border.all(color: RmTheme.electricBlue.withOpacity(0.15), width: 1.5),
+          border: Border.all(
+            color: RmTheme.electricBlue.withOpacity(0.15),
+            width: 1.5,
+          ),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: RmTheme.electricBlue.withOpacity(0.08), blurRadius: 16, offset: const Offset(0, 4))],
+          boxShadow: [
+            BoxShadow(
+              color: RmTheme.electricBlue.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -253,7 +420,10 @@ class RmDashboardScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [RmTheme.electricBlue.withOpacity(0.15), RmTheme.electricBlue.withOpacity(0.05)],
+                  colors: [
+                    RmTheme.electricBlue.withOpacity(0.15),
+                    RmTheme.electricBlue.withOpacity(0.05),
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -265,7 +435,11 @@ class RmDashboardScreen extends ConsumerWidget {
             Text(
               label,
               textAlign: TextAlign.center,
-              style: RmTheme.label(null).copyWith(fontWeight: FontWeight.w700, color: RmTheme.textPrimary, letterSpacing: 0.3),
+              style: RmTheme.label(null).copyWith(
+                fontWeight: FontWeight.w700,
+                color: RmTheme.textPrimary,
+                letterSpacing: 0.3,
+              ),
             ),
           ],
         ),
@@ -278,17 +452,37 @@ class RmDashboardScreen extends ConsumerWidget {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildToolChip(context, 'Attendance', Icons.event_available_outlined, () => context.push(RmRoutes.attendance)),
+          _buildToolChip(
+            context,
+            'Attendance',
+            Icons.event_available_outlined,
+            () => context.push(RmRoutes.attendance),
+          ),
           const SizedBox(width: 8),
-          _buildToolChip(context, 'Locations', Icons.place_outlined, () => context.push(RmRoutes.locations)),
+          _buildToolChip(
+            context,
+            'Locations',
+            Icons.place_outlined,
+            () => context.push(RmRoutes.locations),
+          ),
           const SizedBox(width: 8),
-          _buildToolChip(context, 'Upgrades', Icons.trending_up, () => context.push(RmRoutes.upgrades)),
+          _buildToolChip(
+            context,
+            'Upgrades',
+            Icons.trending_up,
+            () => context.push(RmRoutes.upgrades),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildToolChip(BuildContext context, String label, IconData icon, VoidCallback onTap) {
+  Widget _buildToolChip(
+    BuildContext context,
+    String label,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
     return ActionChip(
       avatar: Icon(icon, size: 16, color: RmTheme.electricBlue),
       label: Text(label),
@@ -309,7 +503,10 @@ class RmDashboardScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Series Breakdown', style: RmTheme.title(null).copyWith(color: RmTheme.textPrimary)),
+          Text(
+            'Series Breakdown',
+            style: RmTheme.title(null).copyWith(color: RmTheme.textPrimary),
+          ),
           const SizedBox(height: 16),
           Wrap(
             spacing: 12,
@@ -317,13 +514,21 @@ class RmDashboardScreen extends ConsumerWidget {
             children: [
               for (final s in series)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: RmTheme.offWhite,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: RmTheme.borderSubtle),
                   ),
-                  child: Text('${s.series}: ${s.count}', style: RmTheme.label(null).copyWith(fontWeight: FontWeight.w600)),
+                  child: Text(
+                    '${s.series}: ${s.count}',
+                    style: RmTheme.label(
+                      null,
+                    ).copyWith(fontWeight: FontWeight.w600),
+                  ),
                 ),
             ],
           ),

@@ -156,6 +156,10 @@ class RmRepositoryImpl implements RmRepository {
       _executor.mutate(remote: () => _remote.submitPv(staffId, notes: notes));
 
   @override
+  Future<Result<PvCloseResult>> closePv(String staffId, {required String result, String? notes}) =>
+      _executor.mutate(remote: () => _remote.closePv(staffId, result: result, notes: notes));
+
+  @override
   Future<Result<MedicalResult>> submitMedical(String staffId, {required bool passed, String? notes, String? verifiedBy}) =>
       _executor.mutate(remote: () => _remote.submitMedical(staffId, passed: passed, notes: notes, verifiedBy: verifiedBy));
 
@@ -239,6 +243,14 @@ class RmRepositoryImpl implements RmRepository {
   @override
   Future<Result<ScopeOfWork>> amendSow(String id, String content) =>
       _executor.mutate(remote: () => _remote.amendSow(id, content));
+
+  @override
+  Future<Result<ClientIndemnity>> createIndemnity({required String placementId, required String clauseVersion, required String clauseText}) =>
+      _executor.mutate(remote: () => _remote.createIndemnity(placementId: placementId, clauseVersion: clauseVersion, clauseText: clauseText));
+
+  @override
+  Future<Result<List<ClientIndemnity>>> listIndemnity(String placementId) =>
+      _executor.fetch(remote: () => _remote.listIndemnity(placementId));
 
   @override
   Future<Result<VideoCertPrompts>> getVideoCertPrompts(String series) =>

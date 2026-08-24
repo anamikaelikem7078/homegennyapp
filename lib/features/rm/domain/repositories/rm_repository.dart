@@ -66,6 +66,7 @@ abstract interface class RmRepository {
   Future<Result<DlResult>> verifyDl({required String dlNumber, required String dob, String? staffId});
   Future<Result<EchallanResult>> verifyEchallan(String dlNumber, {String? staffId});
   Future<Result<PvResult>> submitPv(String staffId, {String? notes});
+  Future<Result<PvCloseResult>> closePv(String staffId, {required String result, String? notes});
   Future<Result<MedicalResult>> submitMedical(String staffId, {required bool passed, String? notes, String? verifiedBy});
   Future<Result<Map<String, String>>> getVerificationStatus(String staffId);
 
@@ -95,6 +96,8 @@ abstract interface class RmRepository {
   Future<Result<ScopeOfWork>> updateSow(String id, String content);
   Future<Result<ScopeOfWork>> sendSow(String id);
   Future<Result<ScopeOfWork>> amendSow(String id, String content);
+  Future<Result<ClientIndemnity>> createIndemnity({required String placementId, required String clauseVersion, required String clauseText});
+  Future<Result<List<ClientIndemnity>>> listIndemnity(String placementId);
 
   // Video certification (S3, RM-usable read-only subset)
   Future<Result<VideoCertPrompts>> getVideoCertPrompts(String series);

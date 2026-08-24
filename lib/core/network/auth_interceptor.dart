@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../auth/jwt_token_handler.dart';
+import '../auth/session_event_bus.dart';
 import '../auth/token_refresh_service.dart';
 import '../constants/api_constants.dart';
 import '../exceptions/app_exceptions.dart';
@@ -109,6 +110,7 @@ class AuthInterceptor extends Interceptor {
           return handler.resolve(response);
         }
       } on TokenRefreshException {
+        SessionEventBus.instance.notifySessionExpired();
         return handler.reject(
           DioException(
             requestOptions: err.requestOptions,
@@ -118,6 +120,19 @@ class AuthInterceptor extends Interceptor {
           ),
         );
       }
+
+      // Refresh returned no token without throwing — the session is dead
+      // just the same, so treat it identically to the exception branch
+      // above instead of silently forwarding the original 401.
+      SessionEventBus.instance.notifySessionExpired();
+      return handler.reject(
+        DioException(
+          requestOptions: err.requestOptions,
+          response: err.response,
+          type: DioExceptionType.badResponse,
+          error: const UnauthorizedException(),
+        ),
+      );
     }
 
     handler.next(err);

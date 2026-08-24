@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -349,7 +350,11 @@ class _ClientComplaintUploadScreenState extends State<ClientComplaintUploadScree
                 ..._imagePaths.map((path) => Container(
                       decoration: AppDecorations.softCard(context),
                       clipBehavior: Clip.antiAlias,
-                      child: Image.file(File(path), fit: BoxFit.cover),
+                      // `Image.file` asserts on Flutter Web; the picked
+                      // path there is a `blob:` URL `Image.network` can load.
+                      child: kIsWeb
+                          ? Image.network(path, fit: BoxFit.cover)
+                          : Image.file(File(path), fit: BoxFit.cover),
                     )),
                 GestureDetector(
                   onTap: _pickImages,

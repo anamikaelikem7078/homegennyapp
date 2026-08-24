@@ -10,15 +10,21 @@ import '../../domain/models/rm_models.dart';
 import '../navigation/rm_routes.dart';
 import '../providers/rm_providers.dart';
 
-/// Placement creation — only reachable/enabled for staff at `S5_DEPLOY`.
-/// The backend itself does **not** enforce this stage restriction on
-/// `POST /placements` (verified — it accepts any staff at any stage), so
-/// this is a client-side gate (Rule 2). `POST /placements` always creates a
-/// `TRIAL` placement, never `CONFIRMED` — the UI must not imply otherwise
-/// (Rule 3).
+/// Placement creation — reachable once a staff member has a signed A1
+/// (employment agreement), from S4_AGREEMENTS onward (so A2/SOW and
+/// A3/Indemnity, both placement-scoped, have a real `placement_id` to point
+/// at as soon as A1 is signed — they don't wait for S5_DEPLOY). Still
+/// reachable at S5_DEPLOY too, as a fallback for older records. The backend
+/// itself does **not** enforce any stage restriction on `POST /placements`
+/// (verified — it accepts any staff at any stage), so this is a
+/// client-side gate (Rule 2). `POST /placements` always creates a `TRIAL`
+/// placement, never `CONFIRMED` — the UI must not imply otherwise (Rule 3).
 class RmPlacementCreateScreen extends ConsumerStatefulWidget {
-  const RmPlacementCreateScreen({super.key, required this.staffId});
+  const RmPlacementCreateScreen({super.key, required this.staffId, this.initialClient});
   final String staffId;
+  /// Pre-fills the client picker — set when navigated from the S4 hub,
+  /// which already had the RM pick a client for the agreement instruments.
+  final FinanceCustomer? initialClient;
 
   @override
   ConsumerState<RmPlacementCreateScreen> createState() => _RmPlacementCreateScreenState();
@@ -29,6 +35,12 @@ class _RmPlacementCreateScreenState extends ConsumerState<RmPlacementCreateScree
   final _salaryController = TextEditingController();
   final _feeController = TextEditingController();
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _client = widget.initialClient;
+  }
 
   @override
   void dispose() {
@@ -42,10 +54,12 @@ class _RmPlacementCreateScreenState extends ConsumerState<RmPlacementCreateScree
     if (selected != null) setState(() => _client = selected);
   }
 
+  bool _stageAllowsPlacement(String stage) => stage == PipelineStages.s4Agreements || stage == PipelineStages.s5Deploy;
+
   Future<void> _submit(StaffRow staff) async {
-    if (staff.pipelineStage != PipelineStages.s5Deploy) {
+    if (!_stageAllowsPlacement(staff.pipelineStage)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only staff at S5_DEPLOY can be placed.'), backgroundColor: RmTheme.crimsonDanger),
+        const SnackBar(content: Text('Placement is only available from S4_AGREEMENTS onward (once A1 is signed).'), backgroundColor: RmTheme.crimsonDanger),
       );
       return;
     }
@@ -91,10 +105,10 @@ class _RmPlacementCreateScreenState extends ConsumerState<RmPlacementCreateScree
         onRetry: () => ref.invalidate(staffByIdProvider(widget.staffId)),
         builder: (staff) {
           if (staff == null) return const Center(child: Text('Staff not found'));
-          if (staff.pipelineStage != PipelineStages.s5Deploy) {
+          if (!_stageAllowsPlacement(staff.pipelineStage)) {
             return Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('${staff.fullName} is at ${PipelineStages.label(staff.pipelineStage)} — placement is only available at S5_DEPLOY.'),
+              child: Text('${staff.fullName} is at ${PipelineStages.label(staff.pipelineStage)} — placement is only available from S4_AGREEMENTS onward.'),
             );
           }
           return SingleChildScrollView(

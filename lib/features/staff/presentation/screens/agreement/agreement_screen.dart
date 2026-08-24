@@ -26,8 +26,14 @@ class AgreementScreen extends ConsumerWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF)),
           onPressed: () {
+            // `canPop()` is false whenever this screen is the only entry on
+            // the stack — a browser refresh/direct URL load lands here with
+            // no prior route to pop back to (GoRouter rebuilds the stack
+            // from the URL alone). Without a fallback, back does nothing.
             if (context.canPop()) {
               context.pop();
+            } else {
+              context.go(StaffRoutes.home);
             }
           },
         ),

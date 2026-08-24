@@ -80,9 +80,16 @@ final routerProvider = Provider<GoRouter>((ref) {
               AppRoutes.clientDashboard;
         }
 
-        // Role-based route guards
-        if (location.startsWith('/rm') && authState.user?.role != UserRole.rm) {
-          return authState.user?.role.dashboardRoute;
+        // Role-based route guards. BM/ADMIN share the RM dashboard (see
+        // `UserRole.dashboardRoute`), so they must be allowed into `/rm`
+        // here too — excluding them would bounce them straight back to
+        // `/rm/dashboard`, which re-triggers this same guard forever.
+        final role = authState.user?.role;
+        if (location.startsWith('/rm') &&
+            role != UserRole.rm &&
+            role != UserRole.bm &&
+            role != UserRole.admin) {
+          return role?.dashboardRoute;
         }
         if (location.startsWith('/staff') && authState.user?.role != UserRole.staff) {
           return authState.user?.role.dashboardRoute;

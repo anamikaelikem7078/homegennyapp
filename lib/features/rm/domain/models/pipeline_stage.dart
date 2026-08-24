@@ -37,8 +37,14 @@ abstract final class PipelineStages {
   /// any active forward stage. This mirrors (and pre-checks ahead of) the
   /// backend's own FSM validation so the RM app can reject an illegal
   /// transition with a clear message instead of a raw 400.
+  ///
+  /// One deliberate exception: `S2_VERIFY → S3_TRAIN` is also legal — the
+  /// backend FSM allows skipping S2_5_ASSESS entirely for non-DR series
+  /// (the driver practical road test only applies to DR), so this is not a
+  /// "skip a step" violation for those staff.
   static bool canAdvance(String from, String to) {
     if (to == deferred || to == terminal) return order.contains(from);
+    if (from == s2Verify && to == s3Train) return true;
     return nextStage(from) == to;
   }
 

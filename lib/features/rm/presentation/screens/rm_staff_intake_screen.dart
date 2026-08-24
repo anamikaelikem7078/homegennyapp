@@ -82,6 +82,9 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
           _submitting = false;
           _result = intake;
         });
+        if (!intake.isRestricted) {
+          ref.read(intakeAadhaarProvider(intake.staff.id).notifier).state = _aadhaarController.text.trim();
+        }
         ref.invalidate(rmKanbanProvider);
         ref.invalidate(rmDashboardProvider);
         _goToPage(3);

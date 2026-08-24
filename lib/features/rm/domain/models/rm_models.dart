@@ -770,6 +770,36 @@ class ScopeOfWork {
   bool get isAcknowledged => status == 'ACKNOWLEDGED';
 }
 
+/// A3 — Client Indemnity. Placement-scoped (`/indemnity`), each clause
+/// version its own immutable row — never edited after creation. Unlike SOW,
+/// `POST /indemnity` both creates and sends in one call (there's no DRAFT
+/// state); the client then acknowledges or contests it.
+class ClientIndemnity {
+  const ClientIndemnity({
+    required this.id,
+    required this.placementId,
+    required this.clientId,
+    required this.clauseVersion,
+    required this.clauseText,
+    this.sentAt,
+    this.acknowledgedAt,
+    this.contested = false,
+    this.createdAt,
+  });
+
+  final String id;
+  final String placementId;
+  final String clientId;
+  final String clauseVersion;
+  final String clauseText;
+  final String? sentAt;
+  final String? acknowledgedAt;
+  final bool contested;
+  final String? createdAt;
+
+  bool get isAcknowledged => acknowledgedAt != null;
+}
+
 // ── Verification (S2) ──
 
 class AadhaarResult {
@@ -810,6 +840,19 @@ class PvResult {
   final String referenceNumber;
   final String status; // always PENDING on submit
   final String submittedAt;
+}
+
+class PvCloseResult {
+  const PvCloseResult({
+    required this.staffId,
+    required this.pvStatus,
+    required this.trackStatus,
+    required this.closedAt,
+  });
+  final String staffId;
+  final String pvStatus; // CLEAR | ADVERSE
+  final String trackStatus;
+  final String closedAt;
 }
 
 class MedicalResult {

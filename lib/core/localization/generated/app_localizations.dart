@@ -347,7 +347,7 @@ abstract class AppLocalizations {
   /// No description provided for @passwordTooShort.
   ///
   /// In en, this message translates to:
-  /// **'Password must be at least 6 characters'**
+  /// **'Password must be 8-72 characters'**
   String get passwordTooShort;
 
   /// No description provided for @otpRequired.

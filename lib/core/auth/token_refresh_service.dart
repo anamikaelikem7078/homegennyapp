@@ -4,6 +4,7 @@ import '../constants/api_constants.dart';
 import '../constants/storage_keys.dart';
 import '../exceptions/app_exceptions.dart';
 import '../storage/secure_storage_service.dart';
+import '../utils/json_normalizer.dart';
 import '../utils/logger.dart';
 import 'jwt_token_handler.dart';
 
@@ -64,13 +65,19 @@ class TokenRefreshService {
         throw const TokenRefreshException('No user id available for refresh');
       }
 
-      final response = await _refreshDio.post<Map<String, dynamic>>(
+      // Requesting `Map<String, dynamic>` as Dio's generic makes Dio cast
+      // the decoded JSON body internally, which throws a TypeError (not a
+      // DioException) on Flutter Web where the decoder produces a
+      // `LinkedHashMap<dynamic, dynamic>` — see `api_service.dart`'s
+      // `_asStringKeyedMap` for the same fix applied there.
+      final response = await _refreshDio.post<dynamic>(
         ApiConstants.authRefreshToken,
         data: {'userId': userId, 'refresh_token': refreshToken},
       );
 
-      final data = response.data;
-      final responseData = (data?['data'] as Map<String, dynamic>?) ?? data;
+      final data = response.data is Map ? asStringKeyedMap(response.data) : null;
+      final nestedData = data?['data'];
+      final responseData = (nestedData is Map ? asStringKeyedMap(nestedData) : null) ?? data;
       final newAccessToken = responseData?['access_token'] as String?;
       final newRefreshToken = responseData?['refresh_token'] as String? ?? refreshToken;
 

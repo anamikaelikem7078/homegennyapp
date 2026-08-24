@@ -245,6 +245,14 @@ class RmRemoteDataSource extends BaseRemoteDataSource {
     return RmDtoCodec.decodePv(json);
   }
 
+  Future<PvCloseResult> closePv(String staffId, {required String result, String? notes}) async {
+    final json = await postJson(ApiConstants.verificationPvClose(staffId), data: {
+      'result': result,
+      if (notes != null) 'notes': notes,
+    });
+    return RmDtoCodec.decodePvClose(json);
+  }
+
   Future<MedicalResult> submitMedical(String staffId, {required bool passed, String? notes, String? verifiedBy}) async {
     final json = await postJson(ApiConstants.verificationMedicalSubmit(staffId), data: {
       'passed': passed,
@@ -401,6 +409,21 @@ class RmRemoteDataSource extends BaseRemoteDataSource {
   Future<ScopeOfWork> amendSow(String id, String content) async {
     final json = await postJson(ApiConstants.sowAmend(id), data: {'content': content});
     return RmDtoCodec.decodeSow(json);
+  }
+
+  Future<ClientIndemnity> createIndemnity({required String placementId, required String clauseVersion, required String clauseText}) async {
+    final json = await postJson(ApiConstants.indemnity, data: {
+      'placement_id': placementId,
+      'clause_version': clauseVersion,
+      'clause_text': clauseText,
+    });
+    return RmDtoCodec.decodeIndemnity(json);
+  }
+
+  Future<List<ClientIndemnity>> listIndemnity(String placementId) async {
+    final json = await getJson(ApiConstants.indemnity, queryParameters: {'placement_id': placementId});
+    final items = (json['items'] as List<dynamic>?) ?? (json as List<dynamic>? ?? []);
+    return items.whereType<Map<String, dynamic>>().map(RmDtoCodec.decodeIndemnity).toList();
   }
 
   // ── Video certification (S3, RM-usable read-only subset) ──

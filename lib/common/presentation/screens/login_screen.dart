@@ -41,8 +41,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _localizedValidator(String? key) {
     if (key == null) return null;
     return switch (key) {
-      'emailRequired' => 'Mobile number or email required',
-      'emailInvalid' => 'Invalid mobile number or email',
+      'emailRequired' || 'phoneRequired' => 'Mobile number is required',
+      'emailInvalid' || 'phoneInvalid' => 'Enter a valid mobile number',
       'passwordRequired' => context.l10n.passwordRequired,
       'passwordTooShort' => context.l10n.passwordTooShort,
       _ => key,
@@ -96,8 +96,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   _buildHeader(),
                   SizedBox(height: 48),
                   _buildForm(loginState.isLoading),
-                  SizedBox(height: 48),
-                  _buildFooter(),
+                  // SizedBox(height: 48),
+                  // _buildFooter(),
                   SizedBox(height: 16),
                 ],
               ),
@@ -405,49 +405,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _buildFooter() {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              "Don't have an account? ",
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFF6B7280),
-              ),
-            ),
-            InkWell(
-              onTap: () {},
-              child: Text(
-                'Request\nAccess',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: _electricBlue,
-                ),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 32),
-        // Demo shortcuts at the bottom
-        // Row(
-        //   mainAxisAlignment: MainAxisAlignment.center,
-        //   children: [
-        //     _buildDemoShortcut('Client Demo', '9800000004'),
-        //     SizedBox(width: 16),
-        //     _buildDemoShortcut('Staff Demo', '9800000002'),
-        //     SizedBox(width: 16),
-        //     _buildDemoShortcut('RM Demo', '9800000001'),
-        //   ],
-        // ),
-      ],
-    ); 
-  }
+  // Widget _buildFooter() {
+  //   return Column(
+  //     children: [
+  //       Row(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           Text(
+  //             "Don't have an account? ",
+  //             style: GoogleFonts.inter(
+  //               fontSize: 14,
+  //               fontWeight: FontWeight.w500,
+  //               color: const Color(0xFF6B7280),
+  //             ),
+  //           ),
+  //           InkWell(
+  //             onTap: () {},
+  //             child: Text(
+  //               'Request\nAccess',
+  //               textAlign: TextAlign.center,
+  //               style: GoogleFonts.inter(
+  //                 fontSize: 14,
+  //                 fontWeight: FontWeight.w600,
+  //                 color: _electricBlue,
+  //               ),
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //       SizedBox(height: 32),
+  //       // Demo shortcuts at the bottom
+  //       // Row(
+  //       //   mainAxisAlignment: MainAxisAlignment.center,
+  //       //   children: [
+  //       //     _buildDemoShortcut('Client Demo', '9800000004'),
+  //       //     SizedBox(width: 16),
+  //       //     _buildDemoShortcut('Staff Demo', '9800000002'),
+  //       //     SizedBox(width: 16),
+  //       //     _buildDemoShortcut('RM Demo', '9800000001'),
+  //       //   ],
+  //       // ),
+  //     ],
+  //   ); 
+  // }
 
   // Widget _buildDemoShortcut(String label, String phone) {
   //   return InkWell(

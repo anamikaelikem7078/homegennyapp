@@ -122,7 +122,7 @@ class StaffHomeScreen extends ConsumerWidget {
                   Expanded(
                     child: _AttendanceBentoCard(
                       percentage: 92,
-                      onTap: () => context.push(StaffRoutes.attendance),
+                      onTap: () => context.go(StaffRoutes.attendance),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -1410,7 +1410,13 @@ class StaffProfileCompletionScreen extends ConsumerWidget {
                     iconBgColor: const Color(0xFFF1F5F9),
                     title: 'Personal Details',
                     subtitle: 'Completed on Oct 12',
-                    onTap: () => context.push(StaffRoutes.profile),
+                    onTap: () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go(StaffRoutes.profile);
+                      }
+                    },
                     statusWidget: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(

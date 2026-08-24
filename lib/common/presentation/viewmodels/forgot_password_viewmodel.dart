@@ -11,10 +11,10 @@ class ForgotPasswordViewModel extends StateNotifier<ForgotPasswordState> {
 
   final AuthRepository _repository;
 
-  Future<bool> sendResetLink({required String email}) async {
+  Future<bool> sendResetLink({required String phone}) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
 
-    final result = await _repository.forgotPassword(phone: email);
+    final result = await _repository.forgotPassword(phone: phone);
 
     return result.fold(
       onSuccess: (_) {

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../constants/api_constants.dart';
 import '../network/dio_client.dart';
+import '../utils/json_normalizer.dart';
 
 /// Shared HTTP helpers for all remote datasources.
 abstract class BaseRemoteDataSource {
@@ -13,7 +14,7 @@ abstract class BaseRemoteDataSource {
     String path, {
     Map<String, dynamic>? queryParameters,
   }) async {
-    final response = await _dio.get<Map<String, dynamic>>(
+    final response = await _dio.get<dynamic>(
       path,
       queryParameters: queryParameters,
     );
@@ -25,7 +26,7 @@ abstract class BaseRemoteDataSource {
     Map<String, dynamic>? data,
     Map<String, dynamic>? queryParameters,
   }) async {
-    final response = await _dio.post<Map<String, dynamic>>(
+    final response = await _dio.post<dynamic>(
       path,
       data: data,
       queryParameters: queryParameters,
@@ -37,7 +38,7 @@ abstract class BaseRemoteDataSource {
     String path, {
     Map<String, dynamic>? data,
   }) async {
-    final response = await _dio.put<Map<String, dynamic>>(
+    final response = await _dio.put<dynamic>(
       path,
       data: data,
     );
@@ -48,7 +49,7 @@ abstract class BaseRemoteDataSource {
     String path, {
     Map<String, dynamic>? data,
   }) async {
-    final response = await _dio.patch<Map<String, dynamic>>(
+    final response = await _dio.patch<dynamic>(
       path,
       data: data,
     );
@@ -56,7 +57,7 @@ abstract class BaseRemoteDataSource {
   }
 
   Future<Map<String, dynamic>> deleteJson(String path) async {
-    final response = await _dio.delete<Map<String, dynamic>>(path);
+    final response = await _dio.delete<dynamic>(path);
     return _extractData(response);
   }
 
@@ -65,7 +66,7 @@ abstract class BaseRemoteDataSource {
     required FormData formData,
     void Function(int sent, int total)? onProgress,
   }) async {
-    final response = await _dio.uploadMultipart<Map<String, dynamic>>(
+    final response = await _dio.uploadMultipart<dynamic>(
       path,
       formData: formData,
       onSendProgress: onProgress,
@@ -73,10 +74,18 @@ abstract class BaseRemoteDataSource {
     return _extractData(response);
   }
 
-  Map<String, dynamic> _extractData(Response<Map<String, dynamic>> response) {
+  // Requesting `Map<String, dynamic>` as Dio's response generic makes Dio
+  // cast the decoded JSON body to that exact type internally — but on
+  // Flutter Web, the JSON decoder (via the XHR path) produces untyped
+  // maps at every level of the tree, including nested objects, and that
+  // internal cast throws a TypeError instead of the intended DioException.
+  // Requesting `dynamic` and recursively normalizing via `asStringKeyedMap`
+  // (see `json_normalizer.dart`) fixes this for nested fields too, not
+  // just the top-level body.
+  Map<String, dynamic> _extractData(Response<dynamic> response) {
     final status = response.statusCode ?? 0;
-    final body = response.data;
-    if (status < 200 || status >= 300 || body == null) {
+    final rawBody = response.data;
+    if (status < 200 || status >= 300 || rawBody == null) {
       throw DioException(
         requestOptions: response.requestOptions,
         response: response,
@@ -84,8 +93,9 @@ abstract class BaseRemoteDataSource {
         message: 'Request failed with status $status',
       );
     }
-    if (body.containsKey('data') && body['data'] is Map<String, dynamic>) {
-      return body['data'] as Map<String, dynamic>;
+    final body = asStringKeyedMap(rawBody);
+    if (body.containsKey('data') && body['data'] is Map) {
+      return asStringKeyedMap(body['data']);
     }
     if (body.containsKey('data') && body['data'] is List) {
       return {'items': body['data']};

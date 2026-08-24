@@ -452,6 +452,18 @@ abstract final class RmDtoCodec {
         createdAt: _sn(j, ['createdAt', 'created_at']),
       );
 
+  static ClientIndemnity decodeIndemnity(Map<String, dynamic> j) => ClientIndemnity(
+        id: _s(j, ['id']),
+        placementId: _s(j, ['placementId', 'placement_id']),
+        clientId: _s(j, ['clientId', 'client_id']),
+        clauseVersion: _s(j, ['clauseVersion', 'clause_version']),
+        clauseText: _s(j, ['clauseText', 'clause_text']),
+        sentAt: _sn(j, ['sentAt', 'sent_at']),
+        acknowledgedAt: _sn(j, ['acknowledgedAt', 'acknowledged_at']),
+        contested: _b(j, ['contested']),
+        createdAt: _sn(j, ['createdAt', 'created_at']),
+      );
+
   // ── Verification (S2) ──
 
   static AadhaarResult decodeAadhaar(Map<String, dynamic> j) => AadhaarResult(
@@ -477,6 +489,13 @@ abstract final class RmDtoCodec {
         submittedAt: _s(j, ['submitted_at', 'submittedAt']),
       );
 
+  static PvCloseResult decodePvClose(Map<String, dynamic> j) => PvCloseResult(
+        staffId: _s(j, ['staff_id', 'staffId']),
+        pvStatus: _s(j, ['pv_status', 'pvStatus']),
+        trackStatus: _s(j, ['track_status', 'trackStatus']),
+        closedAt: _s(j, ['closed_at', 'closedAt']),
+      );
+
   static MedicalResult decodeMedical(Map<String, dynamic> j) => MedicalResult(
         status: _s(j, ['status']),
         notes: _s(j, ['notes']),
@@ -485,20 +504,44 @@ abstract final class RmDtoCodec {
 
   /// `GET /verification/:staffId` — aggregated read-back of all 5 tracks.
   /// No documented response schema (Swagger only shows `200: {}`), so this
-  /// decoder is intentionally forgiving: it treats the response as a map of
-  /// track-type keys to result maps, plus an optional `required`/`series`
-  /// hint list, and returns raw status strings per track rather than
-  /// asserting a specific shape.
+  /// decoder is intentionally forgiving about shape. In practice the live
+  /// backend returns `tracks` as a **list** of per-track objects (each with
+  /// a `track` key naming the track, e.g. `{track: "aadhaar", status:
+  /// "CLEAR", ...}`), not a map keyed by track name — an earlier version of
+  /// this decoder assumed the map shape and force-cast `tracks` to
+  /// `Map<String, dynamic>`, which threw on the real list response. Both
+  /// shapes are handled here so a future backend change to the map form
+  /// doesn't break this again.
+  /// `__all_required_clear__` is a synthetic key (not a real track name)
+  /// carrying the response's top-level `all_required_clear` flag, when
+  /// present — the authoritative "may this staff advance past S2_VERIFY"
+  /// signal, since which tracks are actually `required` varies by series
+  /// server-side and shouldn't be guessed client-side.
   static Map<String, String> decodeVerificationStatus(Map<String, dynamic> j) {
-    final tracks = (j['tracks'] as Map<String, dynamic>?) ?? j;
+    final rawTracks = j['tracks'] ?? j;
     final result = <String, String>{};
-    for (final entry in tracks.entries) {
-      if (entry.value is Map<String, dynamic>) {
-        final status = _sn(entry.value as Map<String, dynamic>, ['status']);
-        if (status != null) result[entry.key] = status;
-      } else if (entry.value is String) {
-        result[entry.key] = entry.value as String;
+
+    if (rawTracks is List) {
+      for (final entry in rawTracks) {
+        if (entry is! Map<String, dynamic>) continue;
+        final key = _sn(entry, ['track', 'track_type', 'type']);
+        final status = _sn(entry, ['status']);
+        if (key != null && status != null) result[key] = status;
       }
+    } else if (rawTracks is Map<String, dynamic>) {
+      for (final entry in rawTracks.entries) {
+        if (entry.value is Map<String, dynamic>) {
+          final status = _sn(entry.value as Map<String, dynamic>, ['status']);
+          if (status != null) result[entry.key] = status;
+        } else if (entry.value is String) {
+          result[entry.key] = entry.value as String;
+        }
+      }
+    }
+
+    final allRequiredClear = j['all_required_clear'] ?? j['allRequiredClear'];
+    if (allRequiredClear is bool) {
+      result['__all_required_clear__'] = allRequiredClear.toString();
     }
     return result;
   }

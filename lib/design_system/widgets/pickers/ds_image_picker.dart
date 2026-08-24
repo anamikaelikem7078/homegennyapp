@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -105,7 +106,13 @@ class _DsImagePickerState extends State<DsImagePicker> {
             child: _image != null
                 ? ClipRRect(
                     borderRadius: AppRadius.lgAll,
-                    child: Image.file(_image!, fit: BoxFit.cover),
+                    // `dart:io` File isn't backed by real filesystem access
+                    // on Flutter Web — `Image.file` asserts there. On web,
+                    // `image_picker`'s picked path is actually a `blob:`
+                    // URL, which `Image.network` can load directly.
+                    child: kIsWeb
+                        ? Image.network(_image!.path, fit: BoxFit.cover)
+                        : Image.file(_image!, fit: BoxFit.cover),
                   )
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,

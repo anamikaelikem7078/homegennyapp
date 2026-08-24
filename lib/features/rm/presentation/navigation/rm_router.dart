@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/router/route_helpers.dart';
 import '../../domain/models/rm_models.dart';
@@ -24,7 +23,6 @@ import '../screens/rm_stage4_a1_screen.dart';
 import '../screens/rm_stage4_a2_screen.dart';
 import '../screens/rm_stage4_a2_client_screen.dart';
 import '../screens/rm_stage4_a3_screen.dart';
-import '../screens/rm_stage5_trial_checkin_screen.dart';
 import '../screens/rm_placement_create_screen.dart';
 import '../screens/rm_placement_detail_screen.dart';
 import '../screens/rm_trials_screen.dart';
@@ -36,7 +34,6 @@ import '../screens/rm_staff_incidents_screen.dart';
 import '../screens/rm_locations_screen.dart';
 import '../screens/rm_upgrades_screen.dart';
 import '../../../client/presentation/screens/payments/client_invoice_screen.dart';
-import '../screens/rm_compliance_alerts_screen.dart';
 import '../../../staff/presentation/screens/home/staff_active_placement_screen.dart';
 import '../../../staff/presentation/screens/attendance/staff_daily_shift_screen.dart';
 import '../../../staff/presentation/screens/salary/staff_payslip_screen.dart';
@@ -186,8 +183,8 @@ final List<RouteBase> rmRoutes = [
     name: 'rmStage4A2',
     builder: (context, state) {
       final id = state.pathParameters['id']!;
-      final clientId = state.extra as String? ?? '';
-      return RmStage4A2Screen(staffId: id, clientId: clientId);
+      final placementId = state.extra as String? ?? '';
+      return RmStage4A2Screen(staffId: id, placementId: placementId);
     },
   ),
   slideRoute(
@@ -203,15 +200,8 @@ final List<RouteBase> rmRoutes = [
     name: 'rmStage4A3',
     builder: (context, state) {
       final id = state.pathParameters['id']!;
-      final clientId = state.extra as String? ?? '';
-      return RmStage4A3Screen(staffId: id, clientId: clientId);
-    },
-  ),
-  slideRoute(
-    path: '/rm/staff/:id/stage5/trial-checkin',
-    name: 'rmStage5TrialCheckin',
-    builder: (context, state) {
-      return const RmStage5TrialCheckinScreen();
+      final placementId = state.extra as String? ?? '';
+      return RmStage4A3Screen(staffId: id, placementId: placementId);
     },
   ),
   slideRoute(
@@ -219,7 +209,8 @@ final List<RouteBase> rmRoutes = [
     name: 'rmPlacementCreate',
     builder: (context, state) {
       final id = state.pathParameters['id']!;
-      return RmPlacementCreateScreen(staffId: id);
+      final initialClient = state.extra as FinanceCustomer?;
+      return RmPlacementCreateScreen(staffId: id, initialClient: initialClient);
     },
   ),
   slideRoute(
@@ -296,10 +287,5 @@ final List<RouteBase> rmRoutes = [
     path: '/rm/staff/:id/demo/client-invoice',
     name: 'clientInvoice',
     builder: (context, state) => const ClientInvoiceScreen(),
-  ),
-  slideRoute(
-    path: '/rm/staff/:id/demo/compliance-alerts',
-    name: 'rmComplianceAlerts',
-    builder: (context, state) => const RmComplianceAlertsScreen(),
   ),
 ];

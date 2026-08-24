@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -24,7 +25,7 @@ class ChangePasswordScreen extends ConsumerStatefulWidget {
 
 class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _otpController = TextEditingController(text: '123456');
+  final _otpController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
@@ -141,6 +142,8 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                         controller: _otpController,
                         keyboardType: TextInputType.number,
                         textInputAction: TextInputAction.next,
+                        maxLength: 6,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           color: _textColor,
@@ -149,8 +152,13 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                         decoration: _inputDecoration(
                           hint: 'Enter OTP',
                           prefixIcon: Icons.message_outlined,
-                        ),
-                        validator: (v) => v == null || v.isEmpty ? 'OTP is required' : null,
+                        ).copyWith(counterText: ''),
+                        validator: (v) {
+                          final err = Validators.otp(v);
+                          if (err == 'otpRequired') return context.l10n.otpRequired;
+                          if (err == 'otpInvalid') return context.l10n.otpInvalid;
+                          return err;
+                        },
                       ),
                     ),
                     SizedBox(height: 24),

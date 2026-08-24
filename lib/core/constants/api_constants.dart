@@ -69,6 +69,7 @@ abstract final class ApiConstants {
   static const String verificationDl = '/verification/dl';
   static String verificationEchallan(String dlNumber) => '/verification/echallan/$dlNumber';
   static String verificationPvSubmit(String staffId) => '/verification/pv/submit/$staffId';
+  static String verificationPvClose(String staffId) => '/verification/pv/$staffId/close';
   static String verificationMedicalSubmit(String staffId) => '/verification/medical/submit/$staffId';
   static String verificationStatus(String staffId) => '/verification/$staffId';
 
@@ -89,6 +90,8 @@ abstract final class ApiConstants {
   static String sowDetail(String id) => '/sow/$id';
   static String sowSend(String id) => '/sow/$id/send';
   static String sowAmend(String id) => '/sow/$id/amend';
+  static const String indemnity = '/indemnity';
+  static String indemnityDetail(String id) => '/indemnity/$id';
 
   // Video certification (S3)
   static String videoCertPrompts(String series) => '/video-cert/prompts/$series';

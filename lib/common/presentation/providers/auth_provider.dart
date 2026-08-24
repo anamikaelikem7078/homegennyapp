@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/session_event_bus.dart';
 import '../../../core/di/injection.dart';
 import '../../../core/utils/result.dart';
 import '../../domain/models/user_model.dart';
@@ -42,9 +45,24 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._repository) : super(const AuthState());
+  AuthNotifier(this._repository) : super(const AuthState()) {
+    // See `SessionEventBus` — `AuthInterceptor` reports a hard 401 through
+    // this dependency-free bus rather than reading `authProvider` directly,
+    // since the interceptor sits underneath this provider in the DI graph
+    // and a direct reference back up to it closes that graph into a cycle.
+    _sessionExpiredSub = SessionEventBus.instance.onSessionExpired.listen(
+      (_) => setSessionExpired(),
+    );
+  }
 
   final AuthRepository _repository;
+  late final StreamSubscription<void> _sessionExpiredSub;
+
+  @override
+  void dispose() {
+    _sessionExpiredSub.cancel();
+    super.dispose();
+  }
 
   Future<void> checkSession() async {
     state = state.copyWith(status: AuthStatus.loading, clearError: true);

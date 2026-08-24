@@ -73,7 +73,16 @@ class _ClientReplacementRequestScreenState
         centerTitle: true,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF000101)),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            // `canPop()` is false whenever this screen is the only stack
+            // entry — a browser refresh/direct URL load leaves nothing to
+            // pop back to. Popping unconditionally in that case can throw.
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(ClientRoutes.dashboard);
+            }
+          },
         ),
         title: Text(
           'HOMEGENNY',
@@ -376,9 +385,17 @@ class ClientReplacementStatusScreen extends ConsumerWidget {
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: Icon(Icons.arrow_forward_ios, color: context.colors.onSurface),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.colors.onSurface),
           onPressed: () {
-            if (context.canPop()) context.pop();
+            // `canPop()` is false whenever this screen is the only stack
+            // entry — a browser refresh/direct URL load, or arriving here
+            // straight from a push-replacement flow — leaving nothing to
+            // pop back to. Without a fallback, back does nothing.
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(ClientRoutes.dashboard);
+            }
           },
         ),
         title: Text(

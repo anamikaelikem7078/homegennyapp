@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../rm/presentation/navigation/rm_routes.dart';
 
 class StaffPayslipScreen extends StatelessWidget {
   const StaffPayslipScreen({super.key});
@@ -17,7 +16,9 @@ class StaffPayslipScreen extends StatelessWidget {
         centerTitle: false,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF111827)),
-          onPressed: () => context.push(RmRoutes.stage5TrialCheckin('demo')),
+          onPressed: () {
+            if (context.canPop()) context.pop();
+          },
         ),
         title: Text(
           'Payslip — March 2024',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -72,7 +73,11 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: _textColor),
-          onPressed: () => context.pop(),
+          // Reached via context.go() from ForgotPasswordScreen, which replaces
+          // the stack rather than pushing — so there's often nothing to pop
+          // back to. Fall back to re-navigating to the previous step instead
+          // of silently no-op'ing (or throwing on a "nothing to pop" state).
+          onPressed: () => context.canPop() ? context.pop() : context.go(AppRoutes.forgotPassword),
         ),
       ),
       body: SafeArea(
@@ -144,6 +149,8 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                         controller: _otpController,
                         keyboardType: TextInputType.number,
                         textInputAction: TextInputAction.next,
+                        maxLength: 6,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           color: _textColor,
@@ -152,8 +159,13 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                         decoration: _inputDecoration(
                           hint: 'Enter OTP',
                           prefixIcon: Icons.message_outlined,
-                        ),
-                        validator: (v) => v == null || v.isEmpty ? 'OTP is required' : null,
+                        ).copyWith(counterText: ''),
+                        validator: (v) {
+                          final err = Validators.otp(v);
+                          if (err == 'otpRequired') return context.l10n.otpRequired;
+                          if (err == 'otpInvalid') return context.l10n.otpInvalid;
+                          return err;
+                        },
                       ),
                     ),
                     SizedBox(height: 24),

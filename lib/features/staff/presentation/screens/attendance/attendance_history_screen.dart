@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
@@ -250,7 +251,7 @@ class StaffAttendanceHistoryScreen extends ConsumerWidget {
                                             Icon(Icons.login_rounded, color: textGrey, size: 16),
                                             const SizedBox(width: 8),
                                             Text(
-                                              'In: ${record.checkIn ?? '--:--'}',
+                                              'In: ${DateFormatter.time(record.checkIn)}',
                                               style: GoogleFonts.inter(
                                                 fontSize: 13,
                                                 color: textDark,
@@ -265,7 +266,7 @@ class StaffAttendanceHistoryScreen extends ConsumerWidget {
                                             Icon(Icons.logout_rounded, color: textGrey, size: 16),
                                             const SizedBox(width: 8),
                                             Text(
-                                              'Out: ${record.checkOut ?? '--:--'}',
+                                              'Out: ${DateFormatter.time(record.checkOut)}',
                                               style: GoogleFonts.inter(
                                                 fontSize: 13,
                                                 color: textDark,

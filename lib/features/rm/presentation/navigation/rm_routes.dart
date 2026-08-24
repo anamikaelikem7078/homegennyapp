@@ -33,8 +33,6 @@ abstract final class RmRoutes {
   static String stage4A2Client(String id) => '/rm/staff/$id/stage4/a2-client';
   static String stage4A3(String id) => '/rm/staff/$id/stage4/a3';
 
-  static String stage5TrialCheckin(String id) => '/rm/staff/$id/stage5/trial-checkin';
-
   static String placementCreate(String staffId) => '/rm/staff/$staffId/placement/create';
   static String placementDetail(String placementId) => '/rm/placements/$placementId';
   static String staffAttendance(String staffId) => '/rm/staff/$staffId/attendance';
@@ -47,5 +45,4 @@ abstract final class RmRoutes {
   static String staffDailyShift(String id) => '/rm/staff/$id/demo/daily-shift';
   static String staffPayslip(String id) => '/rm/staff/$id/demo/payslip';
   static String clientInvoice(String id) => '/rm/staff/$id/demo/client-invoice';
-  static String rmComplianceAlerts(String id) => '/rm/staff/$id/demo/compliance-alerts';
 }

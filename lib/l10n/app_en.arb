@@ -58,7 +58,7 @@
   "emailRequired": "Email is required",
   "emailInvalid": "Enter a valid email",
   "passwordRequired": "Password is required",
-  "passwordTooShort": "Password must be at least 6 characters",
+  "passwordTooShort": "Password must be 8-72 characters",
   "otpRequired": "OTP is required",
   "otpInvalid": "Enter a valid 6-digit OTP",
   "offlineBanner": "You are offline. Showing cached data where available.",

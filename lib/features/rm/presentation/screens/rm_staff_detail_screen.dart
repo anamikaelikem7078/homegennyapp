@@ -102,7 +102,7 @@ class _StaffDetailBody extends ConsumerWidget {
           const SizedBox(height: 16),
           _buildQuickLinks(context),
           const SizedBox(height: 24),
-          _buildPrimaryAction(context, ref),
+          _buildPrimaryAction(context, ref, placementAsync),
         ],
       ),
     );
@@ -321,7 +321,7 @@ class _StaffDetailBody extends ConsumerWidget {
     );
   }
 
-  Widget _buildPrimaryAction(BuildContext context, WidgetRef ref) {
+  Widget _buildPrimaryAction(BuildContext context, WidgetRef ref, AsyncValue<PlacementRow?> placementAsync) {
     switch (staff.pipelineStage) {
       case PipelineStages.s1Intake:
         return AdvanceStageButton(
@@ -356,10 +356,18 @@ class _StaffDetailBody extends ConsumerWidget {
           child: const Text('Continue Agreements'),
         );
       case PipelineStages.s5Deploy:
+        final placement = placementAsync.valueOrNull;
+        if (placement == null) {
+          return FilledButton(
+            onPressed: () => context.push(RmRoutes.placementCreate(staff.id)),
+            style: FilledButton.styleFrom(backgroundColor: RmTheme.emeraldGreen, minimumSize: const Size.fromHeight(52)),
+            child: const Text('Create Placement'),
+          );
+        }
         return FilledButton(
-          onPressed: () => context.push(RmRoutes.placementCreate(staff.id)),
+          onPressed: () => context.push(RmRoutes.placementDetail(placement.id), extra: staff.id),
           style: FilledButton.styleFrom(backgroundColor: RmTheme.emeraldGreen, minimumSize: const Size.fromHeight(52)),
-          child: const Text('Create Placement'),
+          child: Text(placement.isTrial ? 'Manage Trial Placement' : 'View Placement'),
         );
       default:
         return const SizedBox.shrink();

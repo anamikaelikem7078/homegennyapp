@@ -7,7 +7,6 @@ import '../../../core/router/app_routes.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/utils/validators.dart';
 import '../viewmodels/forgot_password_viewmodel.dart';
-import '../widgets/app_button.dart';
 
 /// Forgot password screen.
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
@@ -20,19 +19,19 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
 
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
   String? _localizedValidator(String? key) {
     if (key == null) return null;
     return switch (key) {
-      'emailRequired' => context.l10n.emailRequired,
-      'emailInvalid' => context.l10n.emailInvalid,
+      'phoneRequired' => 'Mobile number is required',
+      'phoneInvalid' => 'Enter a valid mobile number',
       _ => key,
     };
   }
@@ -40,10 +39,10 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   Future<void> _sendResetLink() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final phone = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
     final success = await ref
         .read(forgotPasswordViewModelProvider.notifier)
-        .sendResetLink(email: phone);
+        .sendResetLink(phone: phone);
 
     if (!mounted) return;
 
@@ -121,7 +120,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
-                    'Enter your email and we\'ll send reset instructions to your inbox.',
+                    'Enter your mobile number and we\'ll send an OTP to reset your password.',
                     style: GoogleFonts.inter(
                       fontSize: 15,
                       fontWeight: FontWeight.w400,
@@ -132,9 +131,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   ),
                 ),
                 SizedBox(height: 48),
-                // Email Field
+                // Phone Field
                 Text(
-                  'Email Address',
+                  'Mobile Number',
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -143,18 +142,18 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 ),
                 SizedBox(height: 8),
                 TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     color: const Color(0xFF1A1C1E),
                   ),
                   decoration: InputDecoration(
-                    hintText: 'hello@example.com',
+                    hintText: '+1 (555) 000-0000',
                     hintStyle: GoogleFonts.inter(
                       color: const Color(0xFF9CA3AF),
                     ),
-                    prefixIcon: Icon(Icons.mail_outline, color: Color(0xFF6B7280)),
+                    prefixIcon: Icon(Icons.phone_android_rounded, color: Color(0xFF6B7280)),
                     filled: true,
                     fillColor: Colors.white,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -171,7 +170,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                       borderSide: const BorderSide(color: Color(0xFF1A56FF), width: 1.5),
                     ),
                   ),
-                  validator: (v) => _localizedValidator(Validators.email(v)),
+                  validator: (v) => _localizedValidator(Validators.phone(v)),
                 ),
                 SizedBox(height: 32),
                 // Button

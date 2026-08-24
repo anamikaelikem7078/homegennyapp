@@ -53,30 +53,40 @@ class DsSkeletonLoader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
+    // A plain Column, not a ListView: this loader only ever renders a fixed,
+    // small itemCount and is frequently nested inside another scrollable
+    // (e.g. AsyncValueWidget used inside a SingleChildScrollView/Column) —
+    // a ListView there gets unbounded height and throws
+    // "Vertical viewport was given unbounded height".
+    return Padding(
       padding: EdgeInsets.all(AppSpacing.md),
-      itemCount: itemCount,
-      separatorBuilder: (_, index) => SizedBox(height: AppSpacing.md),
-      itemBuilder: (context, index) => Container(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        decoration: AppDecorations.softCard(context),
-        child: Row(
-          children: [
-            if (showAvatar)
-              const DsShimmerLoader(width: 48, height: 48, borderRadius: BorderRadius.all(Radius.circular(24))),
-            if (showAvatar) SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        children: [
+          for (var index = 0; index < itemCount; index++) ...[
+            if (index > 0) SizedBox(height: AppSpacing.md),
+            Container(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              decoration: AppDecorations.softCard(context),
+              child: Row(
                 children: [
-                  DsShimmerLoader(width: double.infinity, height: 14),
-                  SizedBox(height: AppSpacing.xs),
-                  DsShimmerLoader(width: 120, height: 12),
+                  if (showAvatar)
+                    const DsShimmerLoader(width: 48, height: 48, borderRadius: BorderRadius.all(Radius.circular(24))),
+                  if (showAvatar) SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        DsShimmerLoader(width: double.infinity, height: 14),
+                        SizedBox(height: AppSpacing.xs),
+                        DsShimmerLoader(width: 120, height: 12),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }

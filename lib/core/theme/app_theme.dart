@@ -78,6 +78,7 @@ abstract final class AppTheme {
       brightness: brightness,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: scaffoldBackground,
+      cardColor: cardColor,
       textTheme: textTheme,
       dividerColor: dividerColor,
       appBarTheme: AppBarTheme(

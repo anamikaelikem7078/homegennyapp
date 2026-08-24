@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../common/presentation/providers/auth_provider.dart';
+import '../../../../../core/utils/date_formatter.dart';
 import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
@@ -144,9 +145,9 @@ class StaffAttendanceHubScreen extends ConsumerWidget {
                           final isPresent = r.status == 'present';
                           final isInProgress = r.status == 'in_progress';
                           final subtitle = r.checkOut != null
-                              ? 'In: ${r.checkIn ?? '—'} · Out: ${r.checkOut}'
+                              ? 'In: ${DateFormatter.time(r.checkIn, fallback: '—')} · Out: ${DateFormatter.time(r.checkOut)}'
                               : r.checkIn != null
-                                  ? 'In: ${r.checkIn}'
+                                  ? 'In: ${DateFormatter.time(r.checkIn)}'
                                   : 'Absent';
                           return _HistoryLogItem(
                             title: r.date,
@@ -315,8 +316,8 @@ class _TactileAttendanceToggleState extends State<_TactileAttendanceToggle> {
       statusColor = const Color(0xFF64748B);
     }
 
-    final checkInTime = record?.checkIn ?? '--:--';
-    final checkOutTime = record?.checkOut ?? '--:--';
+    final checkInTime = DateFormatter.timestamp(record?.checkIn);
+    final checkOutTime = DateFormatter.timestamp(record?.checkOut);
 
     return Container(
       padding: const EdgeInsets.all(24),

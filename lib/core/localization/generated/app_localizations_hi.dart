@@ -141,7 +141,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get passwordRequired => 'पासवर्ड आवश्यक है';
 
   @override
-  String get passwordTooShort => 'पासवर्ड कम से कम 6 अक्षर का होना चाहिए';
+  String get passwordTooShort => 'पासवर्ड 8-72 अक्षर का होना चाहिए';
 
   @override
   String get otpRequired => 'OTP आवश्यक है';

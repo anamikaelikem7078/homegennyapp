@@ -15,7 +15,11 @@ abstract final class Validators {
     if (value == null || value.isEmpty) {
       return 'passwordRequired';
     }
-    if (value.length < 6) {
+    // Backend requires 8-72 characters (see auth_datasource.dart change-password
+    // comment) — a shorter client-side minimum lets a password pass here and
+    // then fail server-side with a message that doesn't match what the UI told
+    // the user.
+    if (value.length < 8 || value.length > 72) {
       return 'passwordTooShort';
     }
     return null;
@@ -25,8 +29,10 @@ abstract final class Validators {
     if (value == null || value.trim().isEmpty) {
       return 'phoneRequired';
     }
-    // Match optional '+' followed by digits, spaces, or hyphens, length 10-15 digits
-    final phoneRegex = RegExp(r'^\+?[0-9\s\-]{10,15}$');
+    // Digits only (optionally a leading '+' with country code), 10-13 digits —
+    // no embedded spaces/hyphens, which previously let malformed strings like
+    // "12-345 678" pass through to the OTP-send API.
+    final phoneRegex = RegExp(r'^\+?[0-9]{10,13}$');
     if (!phoneRegex.hasMatch(value.trim())) {
       return 'phoneInvalid';
     }

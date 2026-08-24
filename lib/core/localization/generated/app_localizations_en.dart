@@ -140,7 +140,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get passwordRequired => 'Password is required';
 
   @override
-  String get passwordTooShort => 'Password must be at least 6 characters';
+  String get passwordTooShort => 'Password must be 8-72 characters';
 
   @override
   String get otpRequired => 'OTP is required';

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../rm/presentation/navigation/rm_routes.dart';
 import '../../../../../core/utils/currency_formatter.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/client_models.dart';
+import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
 
 class ClientInvoiceScreen extends ConsumerWidget {
@@ -147,7 +147,15 @@ class ClientInvoiceScreen extends ConsumerWidget {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: () => context.push(RmRoutes.rmComplianceAlerts('demo')),
+                            onPressed: () => context.push(
+                              Uri(
+                                path: ClientRoutes.paymentGateway,
+                                queryParameters: {
+                                  'invoiceId': invoice.id,
+                                  'amount': invoice.totalAmount.toString(),
+                                },
+                              ).toString(),
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF0044CC),
                               foregroundColor: Colors.white,

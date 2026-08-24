@@ -195,6 +195,11 @@ final rmSowListProvider = FutureProvider.family<List<ScopeOfWork>, String>((ref,
   return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
 });
 
+final rmIndemnityListProvider = FutureProvider.family<List<ClientIndemnity>, String>((ref, placementId) async {
+  final result = await ref.watch(rmRepositoryProvider).listIndemnity(placementId);
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+});
+
 final rmVideoCertPromptsProvider = FutureProvider.family<VideoCertPrompts, String>((ref, series) async {
   final result = await ref.watch(rmRepositoryProvider).getVideoCertPrompts(series);
   return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
@@ -212,6 +217,14 @@ final rmVideoCertsProvider = FutureProvider.family<List<VideoCertItem>, String>(
 /// source of truth.
 final verificationSessionProvider =
     StateProvider.family<Set<String>, String>((ref, staffId) => <String>{});
+
+/// Session-local carry-over of the Aadhaar number entered at S1 intake, so
+/// the Aadhaar eKYC screen (S2) can pre-fill it. The backend never stores
+/// or returns the raw Aadhaar number (`toStaffDto` only exposes a
+/// `restricted_list` table keyed by a SHA hash, not the plaintext number —
+/// see `staff.mapper.ts` / `schema.prisma`), so there is no server-side
+/// value to fetch here; this only survives for the current app session.
+final intakeAadhaarProvider = StateProvider.family<String?, String>((ref, staffId) => null);
 
 final rmVerificationStatusProvider = FutureProvider.family<Map<String, String>, String>((ref, staffId) async {
   final result = await ref.watch(rmRepositoryProvider).getVerificationStatus(staffId);

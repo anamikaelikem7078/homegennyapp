@@ -59,10 +59,20 @@ class _DsOtpFieldState extends State<DsOtpField> {
       return;
     }
 
+    // Jumping focus synchronously inside `onChanged` races the text field's
+    // own commit of the just-typed character — on some platforms the field
+    // being left ends up with its input connection torn down before the
+    // character is flushed, so it renders blank even though a digit was
+    // typed. Deferring to the next frame lets the current field finish
+    // committing first.
     if (value.isNotEmpty && index < widget.length - 1) {
-      _focusNodes[index + 1].requestFocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusNodes[index + 1].requestFocus();
+      });
     } else if (value.isEmpty && index > 0) {
-      _focusNodes[index - 1].requestFocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusNodes[index - 1].requestFocus();
+      });
     }
 
     widget.onChanged?.call(_otp);
@@ -99,8 +109,9 @@ class _DsOtpFieldState extends State<DsOtpField> {
             textAlign: TextAlign.center,
             keyboardType: TextInputType.number,
             maxLength: 1,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            style: (Theme.of(context).textTheme.headlineSmall ?? const TextStyle()).copyWith(
                   fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
                 ),
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(

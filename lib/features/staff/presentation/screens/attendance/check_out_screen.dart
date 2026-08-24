@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
@@ -131,14 +132,14 @@ class _StaffCheckOutScreenState extends ConsumerState<StaffCheckOutScreen> {
           if (record.checkOut != null) {
             return DsEmptyState(
               title: 'Already checked out',
-              message: 'You checked out at ${record.checkOut}',
+              message: 'You checked out at ${DateFormatter.timestamp(record.checkOut)}',
               icon: Icons.check_circle_outline_rounded,
               actionLabel: 'Back to attendance',
               onAction: () => context.go(StaffRoutes.attendance),
             );
           }
 
-          final checkInTime = record.checkIn ?? '09:02 AM';
+          final checkInTime = record.checkIn != null ? DateFormatter.timestamp(record.checkIn) : '09:02 AM';
 
           return Stack(
             children: [
