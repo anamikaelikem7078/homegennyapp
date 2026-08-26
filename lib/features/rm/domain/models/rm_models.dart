@@ -213,7 +213,7 @@ class WageConfig {
     required this.managementPct,
     this.professionalTax = 0,
     this.gstApplicable = true,
-    this.gstType = 'intra',
+    this.gstType = 'intra_state',
     this.gstPct = 18,
   });
 
@@ -234,7 +234,7 @@ class WageConfig {
 
   final bool bonusApplicable;
   final num bonusPct;
-  final String bonusFrequency; // monthly | annual
+  final String bonusFrequency; // monthly | yearly — must match wage-calculator.util.ts's enum exactly
 
   final num leaveDays;
 
@@ -251,7 +251,7 @@ class WageConfig {
   final num professionalTax;
 
   final bool gstApplicable;
-  final String gstType; // intra | inter
+  final String gstType; // intra_state | inter_state — must match wage-calculator.util.ts's enum exactly
   final num gstPct;
 
   Map<String, dynamic> toJson() => {

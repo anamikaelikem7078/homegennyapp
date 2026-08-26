@@ -57,7 +57,9 @@ class _RmWageConfigFormState extends ConsumerState<RmWageConfigForm> {
   final _professionalTax = TextEditingController(text: '0');
 
   bool _gstApplicable = true;
-  String _gstType = 'intra';
+  // Must match wage-calculator.util.ts's gst_type enum exactly ('intra'/'inter' was
+  // silently ignored server-side, always falling back to intra_state).
+  String _gstType = 'intra_state';
   final _gstPct = TextEditingController(text: '18');
 
   Timer? _debounce;
@@ -234,7 +236,7 @@ class _RmWageConfigFormState extends ConsumerState<RmWageConfigForm> {
             SegmentedButton<String>(
               segments: const [
                 ButtonSegment(value: 'monthly', label: Text('Monthly')),
-                ButtonSegment(value: 'annual', label: Text('Annual')),
+                ButtonSegment(value: 'yearly', label: Text('Annual')),
               ],
               selected: {_bonusFrequency},
               onSelectionChanged: (s) {
@@ -290,8 +292,8 @@ class _RmWageConfigFormState extends ConsumerState<RmWageConfigForm> {
             const SizedBox(height: 6),
             SegmentedButton<String>(
               segments: const [
-                ButtonSegment(value: 'intra', label: Text('Intra-state')),
-                ButtonSegment(value: 'inter', label: Text('Inter-state')),
+                ButtonSegment(value: 'intra_state', label: Text('Intra-state')),
+                ButtonSegment(value: 'inter_state', label: Text('Inter-state')),
               ],
               selected: {_gstType},
               onSelectionChanged: (s) {
