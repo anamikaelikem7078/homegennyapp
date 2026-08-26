@@ -281,7 +281,7 @@ class _StaffDetailBody extends ConsumerWidget {
             title: 'Placement',
             status: 'Ready for placement — no placement created yet',
             done: false,
-            onTap: () => context.push(RmRoutes.placementCreate(staff.id)),
+            onTap: () => context.push(RmRoutes.stage5Hub(staff.id)),
           );
         }
         return _buildSectionCard(
@@ -359,7 +359,7 @@ class _StaffDetailBody extends ConsumerWidget {
         final placement = placementAsync.valueOrNull;
         if (placement == null) {
           return FilledButton(
-            onPressed: () => context.push(RmRoutes.placementCreate(staff.id)),
+            onPressed: () => context.push(RmRoutes.stage5Hub(staff.id)),
             style: FilledButton.styleFrom(backgroundColor: RmTheme.emeraldGreen, minimumSize: const Size.fromHeight(52)),
             child: const Text('Create Placement'),
           );

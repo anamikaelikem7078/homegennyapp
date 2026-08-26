@@ -60,6 +60,7 @@ abstract interface class RmRepository {
   Future<Result<List<PlacementRow>>> listPlacements({String? staffId, String? clientId, int limit, int offset});
   Future<Result<PlacementRow>> confirmPlacement(String id);
   Future<Result<void>> exitPlacement(String id, {required String exitDate, required String exitScenarioCode});
+  Future<Result<WageBreakup>> calculateWage(Map<String, dynamic> wageConfig);
 
   // Verification (S2)
   Future<Result<AadhaarResult>> verifyAadhaar({required String aadhaarNumber, required String otp, String? staffId});
@@ -85,7 +86,7 @@ abstract interface class RmRepository {
 
   // Agreements + SOW (S4)
   Future<Result<List<Agreement>>> listAgreements({String? staffId, String? clientId, String? status});
-  Future<Result<Agreement>> createAgreement({String? staffId, required String clientId, required String type, String? placementId});
+  Future<Result<Agreement>> createAgreement({String? staffId, String? clientId, required String type, String? placementId});
   Future<Result<SendOtpResult>> sendEsignOtp({required String staffId, required String agreementType, required String staffName});
   Future<Result<void>> verifyEsignOtp({required String staffId, required String agreementType, required String otp});
   Future<Result<SignAgreementResult>> signAgreement(String id, {String? otp});

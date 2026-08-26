@@ -210,6 +210,11 @@ class RmRemoteDataSource extends BaseRemoteDataSource {
     });
   }
 
+  Future<WageBreakup> calculateWage(Map<String, dynamic> wageConfig) async {
+    final json = await postJson(ApiConstants.placementsCalculateWage, data: wageConfig);
+    return RmDtoCodec.decodeWageBreakup(json);
+  }
+
   // ── Verification (S2) ──
 
   Future<AadhaarResult> verifyAadhaar({required String aadhaarNumber, required String otp, String? staffId}) async {
@@ -337,10 +342,10 @@ class RmRemoteDataSource extends BaseRemoteDataSource {
     return items.whereType<Map<String, dynamic>>().map(RmDtoCodec.decodeAgreement).toList();
   }
 
-  Future<Agreement> createAgreement({String? staffId, required String clientId, required String type, String? placementId}) async {
+  Future<Agreement> createAgreement({String? staffId, String? clientId, required String type, String? placementId}) async {
     final json = await postJson(ApiConstants.agreements, data: {
       if (staffId != null) 'staff_id': staffId,
-      'client_id': clientId,
+      if (clientId != null && clientId.isNotEmpty) 'client_id': clientId,
       'type': type,
       if (placementId != null) 'placement_id': placementId,
     });

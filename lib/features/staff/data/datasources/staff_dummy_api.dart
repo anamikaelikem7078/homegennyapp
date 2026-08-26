@@ -13,6 +13,7 @@ class StaffDummyApi {
 
   StaffProfile get _profile => const StaffProfile(
         id: 'STF-001',
+        staffApplicantId: 'STF-001',
         staffCode: 'staff001',
         fullName: 'Rajesh Kumar',
         mobile: '+91 98765 43210',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -144,12 +145,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 TextFormField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
+                  maxLength: 10,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     color: const Color(0xFF1A1C1E),
                   ),
                   decoration: InputDecoration(
-                    hintText: '+1 (555) 000-0000',
+                    hintText: '9876543210',
                     hintStyle: GoogleFonts.inter(
                       color: const Color(0xFF9CA3AF),
                     ),
@@ -157,6 +160,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     filled: true,
                     fillColor: Colors.white,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    counterText: '',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: const BorderSide(color: Color(0xFFE5E7EB)),

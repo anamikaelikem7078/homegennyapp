@@ -95,8 +95,11 @@ class _DsOtpFieldState extends State<DsOtpField> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    // Deliberately not theme-brightness-driven: this field is always dropped
+    // into a fixed light-styled dialog/card (see rm_agreement_instrument_screen.dart),
+    // regardless of the app's ambient dark/light theme, so branching on
+    // `Theme.of(context).brightness` could pick a light box fill together
+    // with light (near-white) text, making entered digits invisible.
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: List.generate(widget.length, (index) {
@@ -111,21 +114,17 @@ class _DsOtpFieldState extends State<DsOtpField> {
             maxLength: 1,
             style: (Theme.of(context).textTheme.headlineSmall ?? const TextStyle()).copyWith(
                   fontWeight: FontWeight.w700,
-                  color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+                  color: AppColors.lightTextPrimary,
                 ),
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
               counterText: '',
               filled: true,
-              fillColor: isDark
-                  ? AppColors.darkSurfaceVariant
-                  : AppColors.lightSurfaceVariant,
+              fillColor: AppColors.lightSurfaceVariant,
               border: OutlineInputBorder(
                 borderRadius: AppRadius.mdAll,
-                borderSide: BorderSide(
-                  color: isDark
-                      ? AppColors.darkBorder
-                      : AppColors.lightBorder,
+                borderSide: const BorderSide(
+                  color: AppColors.lightBorder,
                 ),
               ),
               focusedBorder: OutlineInputBorder(

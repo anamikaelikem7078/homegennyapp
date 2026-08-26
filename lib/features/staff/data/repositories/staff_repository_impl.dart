@@ -1,4 +1,7 @@
+import 'package:file_picker/file_picker.dart';
+
 import '../../../../core/data/repository_executor.dart';
+import '../../../../core/utils/file_hash.dart';
 import '../../../../core/utils/result.dart';
 import '../../domain/models/staff_models.dart';
 import '../../domain/repositories/staff_repository.dart';
@@ -122,13 +125,89 @@ class StaffRepositoryImpl implements StaffRepository {
   Future<Result<QuizResult>> submitQuiz(String courseId, Map<String, int> answers) =>
       _executor.mutate(dummy: () => _dummy.submitQuiz(courseId, answers));
 
-  @override
-  Future<Result<List<VideoCertPrompt>>> getVideoCertPrompts() =>
-      _executor.fetch(local: () async => await _local.getVideoCertPrompts().then((l) => l.isEmpty ? null : l), dummy: _dummy.getVideoCertPrompts);
+  // The video-cert endpoints key everything on staff_applicants.id (checked
+  // via phone-match ownership), which is a different id from the logged-in
+  // *user* account — /staff/profile's `id` field is the latter. Only
+  // `staffApplicantId` is safe to send here.
+  String _requireStaffApplicantId(StaffProfile profile) {
+    final id = profile.staffApplicantId;
+    if (id == null || id.isEmpty) {
+      throw StateError('No staff record linked to this account yet.');
+    }
+    return id;
+  }
 
   @override
-  Future<Result<void>> uploadVideoCert(String promptId) =>
-      _executor.mutateVoid(dummy: () async { await _local.uploadVideoCert(promptId); await _dummy.uploadVideoCert(promptId); });
+  Future<Result<List<VideoCertPrompt>>> getVideoCertPrompts() => _executor.fetch(
+        remote: () async {
+          final profile = await _remote.getProfile();
+          final staffId = _requireStaffApplicantId(profile);
+          final prompts = await _remote.getVideoCertPrompts(profile.series);
+          final uploads = await _remote.getVideoCertList(staffId);
+          return prompts.map((prompt) {
+            final matches = uploads.where((u) => u.promptKey == prompt.id);
+            if (matches.isEmpty) return prompt;
+            // Most recent attempt for this prompt drives its badge — list is
+            // already ordered by createdAt desc, so the first match is latest.
+            final latest = matches.first;
+            return VideoCertPrompt(
+              id: prompt.id,
+              title: prompt.title,
+              instructions: prompt.instructions,
+              status: latest.status,
+            );
+          }).toList();
+        },
+        local: () async => await _local.getVideoCertPrompts().then((l) => l.isEmpty ? null : l),
+        dummy: _dummy.getVideoCertPrompts,
+      );
+
+  @override
+  Future<Result<void>> uploadVideoCert(
+    String promptId,
+    PlatformFile file, {
+    void Function(int sent, int total)? onProgress,
+  }) =>
+      _executor.mutateVoid(
+        remote: () async {
+          final profile = await _remote.getProfile();
+          final staffId = _requireStaffApplicantId(profile);
+          final expectedHash = await sha256OfPlatformFile(file);
+
+          final previousUploads = await _remote.getVideoCertList(staffId);
+          final attemptNumber = previousUploads
+                  .where((u) => u.promptKey == promptId)
+                  .length +
+              1;
+
+          final destination = await _remote.getVideoCertUploadUrl(
+            staffId: staffId,
+            series: profile.series,
+            filename: file.name,
+            sha256Hash: expectedHash,
+          );
+
+          await _remote.uploadVideoCertFile(
+            uploadUrl: destination.uploadUrl,
+            gcsKey: destination.gcsKey,
+            file: file,
+            fields: destination.fields,
+            onProgress: onProgress,
+          );
+
+          await _remote.finalizeVideoCert(
+            staffId: staffId,
+            promptKey: promptId,
+            gcsKey: destination.gcsKey,
+            expectedHash: expectedHash,
+            attemptNumber: attemptNumber,
+          );
+        },
+        dummy: () async {
+          await _local.uploadVideoCert(promptId);
+          await _dummy.uploadVideoCert(promptId);
+        },
+      );
 
   @override
   Future<Result<StaffAgreement>> getAgreement() =>

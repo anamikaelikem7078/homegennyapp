@@ -112,7 +112,10 @@ class DsLoadingWidget extends StatelessWidget {
           SizedBox(
             width: size,
             height: size,
-            child: const CircularProgressIndicator(strokeWidth: 3),
+            child: const CircularProgressIndicator(
+              strokeWidth: 3,
+              color: Color(0xFF1A56FF),
+            ),
           ),
           if (message != null) ...[
             SizedBox(height: AppSpacing.lg),

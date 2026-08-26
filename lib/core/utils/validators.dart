@@ -29,12 +29,24 @@ abstract final class Validators {
     if (value == null || value.trim().isEmpty) {
       return 'phoneRequired';
     }
-    // Digits only (optionally a leading '+' with country code), 10-13 digits —
-    // no embedded spaces/hyphens, which previously let malformed strings like
-    // "12-345 678" pass through to the OTP-send API.
-    final phoneRegex = RegExp(r'^\+?[0-9]{10,13}$');
+    // Exactly 10 digits, no country code, no embedded spaces/hyphens — this
+    // app only deals in Indian mobile numbers (aadhaar_number/mobile are sent
+    // raw to RM intake, eKYC, and login/OTP APIs, all of which expect a bare
+    // 10-digit number).
+    final phoneRegex = RegExp(r'^[0-9]{10}$');
     if (!phoneRegex.hasMatch(value.trim())) {
       return 'phoneInvalid';
+    }
+    return null;
+  }
+
+  static String? aadhaar(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'aadhaarRequired';
+    }
+    final aadhaarRegex = RegExp(r'^[0-9]{12}$');
+    if (!aadhaarRegex.hasMatch(value.trim())) {
+      return 'aadhaarInvalid';
     }
     return null;
   }

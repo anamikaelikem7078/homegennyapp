@@ -1,12 +1,19 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:camera/camera.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:video_player/video_player.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
+
 /// Video certification prompt list.
 class StaffVideoCertificationScreen extends ConsumerWidget {
   const StaffVideoCertificationScreen({super.key});
@@ -14,6 +21,11 @@ class StaffVideoCertificationScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final prompts = ref.watch(staffVideoCertProvider);
+    final promptList = prompts.valueOrNull;
+    final allApproved =
+        promptList != null &&
+        promptList.isNotEmpty &&
+        promptList.every((p) => p.status == VideoCertStatus.approved);
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
@@ -22,10 +34,15 @@ class StaffVideoCertificationScreen extends ConsumerWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF)),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Color(0xFF1A56FF),
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
+            } else {
+              context.go(StaffRoutes.profile);
             }
           },
         ),
@@ -34,9 +51,11 @@ class StaffVideoCertificationScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(right: 16),
             child: CircleAvatar(
               radius: 16,
-              backgroundImage: const NetworkImage('https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=400'),
+              backgroundImage: const NetworkImage(
+                'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=400',
+              ),
             ),
-          )
+          ),
         ],
       ),
       body: prompts.when(
@@ -45,118 +64,137 @@ class StaffVideoCertificationScreen extends ConsumerWidget {
         data: (list) => Column(
           children: [
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                children: [
-                  Text(
-                    'Video Certification',
-                    style: GoogleFonts.libreCaslonText(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF0F172A),
-                    ),
+              child: RefreshIndicator(
+                color: const Color(0xFF1A56FF),
+                onRefresh: () => ref.refresh(staffVideoCertProvider.future),
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Complete your profile by certifying your identity\nand service quality through our verification\nprocess.',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      color: const Color(0xFF64748B),
-                      height: 1.5,
+                  children: [
+                    Text(
+                      'Video Certification',
+                      style: GoogleFonts.libreCaslonText(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF0F172A),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 32),
-                  ...list.map((prompt) => _PromptTile(prompt: prompt)),
-                  const SizedBox(height: 16),
-                  
-                  // Assistance Container
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Complete your profile by certifying your identity\nand service quality through our verification\nprocess.',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: const Color(0xFF64748B),
+                        height: 1.5,
+                      ),
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.info_outline, color: Color(0xFF475569), size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Need assistance?',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF0F172A),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Review our video quality guidelines to ensure faster\napproval from our curation team.',
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: const Color(0xFF475569),
-                                ),
-                              ),
-                            ],
+                    const SizedBox(height: 32),
+                    ...list.map((prompt) => _PromptTile(prompt: prompt)),
+                    const SizedBox(height: 16),
+
+                    // Assistance Container
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.info_outline,
+                            color: Color(0xFF475569),
+                            size: 20,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Need assistance?',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Review our video quality guidelines to ensure faster\napproval from our curation team.',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: const Color(0xFF475569),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFBF9F8).withOpacity(0.9),
-          border: const Border(top: BorderSide(color: Color(0xFFF1F5F9))),
-        ),
-        child: SafeArea(
-          child: SizedBox(
-            height: 52,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                final list = prompts.valueOrNull;
-                if (list != null && list.isNotEmpty) {
-                  final nextPrompt = list.firstWhere(
-                    (p) => p.status != VideoCertStatus.approved && p.status != VideoCertStatus.uploaded,
-                    orElse: () => list.first,
-                  );
-                  context.push(
-                    '${StaffRoutes.videoCertRecord}?promptId=${nextPrompt.id}&title=${Uri.encodeComponent(nextPrompt.title)}',
-                  );
-                }
-              },
-              icon: const Icon(Icons.play_circle_outline, color: Colors.white),
-              label: Text(
-                'START RECORDING',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1,
-                  color: Colors.white,
-                ),
+      bottomNavigationBar: allApproved
+          ? null
+          : Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFBF9F8).withOpacity(0.9),
+                border: const Border(top: BorderSide(color: Color(0xFFF1F5F9))),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A56FF),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+              child: SafeArea(
+                child: SizedBox(
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      final list = prompts.valueOrNull;
+                      if (list != null && list.isNotEmpty) {
+                        final nextPrompt = list.firstWhere(
+                          (p) =>
+                              p.status != VideoCertStatus.approved &&
+                              p.status != VideoCertStatus.uploaded,
+                          orElse: () => list.first,
+                        );
+                        context.push(
+                          '${StaffRoutes.videoCertRecord}?promptId=${nextPrompt.id}&title=${Uri.encodeComponent(nextPrompt.title)}',
+                        );
+                      }
+                    },
+                    icon: const Icon(
+                      Icons.play_circle_outline,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      'START RECORDING',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1,
+                        color: Colors.white,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1A56FF),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -235,36 +273,62 @@ class _PromptTile extends StatelessWidget {
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 24),
-          GestureDetector(
-            onTap: () {
-              if (prompt.status == VideoCertStatus.approved) {
-                context.push(StaffRoutes.videoCertStatus(prompt.id));
-              } else {
-                context.push(
-                  '${StaffRoutes.videoCertRecord}?promptId=${prompt.id}&title=${Uri.encodeComponent(prompt.title)}',
-                );
-              }
-            },
-            child: Row(
-              children: [
-                Text(
-                  prompt.status == VideoCertStatus.approved ? 'RE-UPLOAD' : 'RECORD NOW',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1A56FF),
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  prompt.status == VideoCertStatus.approved ? Icons.chevron_right : Icons.videocam_outlined,
-                  color: const Color(0xFF1A56FF),
-                  size: 16,
-                ),
-              ],
+          if (prompt.status != VideoCertStatus.approved) ...[
+            const SizedBox(height: 24),
+            _buildAction(context),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAction(BuildContext context) {
+    // `uploaded` means a video was already submitted and is awaiting
+    // review — surface that instead of a re-upload action so staff can't
+    // fire off another submission while one is already pending.
+    if (prompt.status == VideoCertStatus.uploaded) {
+      return GestureDetector(
+        onTap: () => context.push(StaffRoutes.videoCertStatus(prompt.id)),
+        child: Row(
+          children: [
+            Text(
+              'UNDER REVIEW',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF64748B),
+                letterSpacing: 1.2,
+              ),
             ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: Color(0xFF64748B), size: 16),
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => context.push(
+        '${StaffRoutes.videoCertRecord}?promptId=${prompt.id}&title=${Uri.encodeComponent(prompt.title)}',
+      ),
+      child: Row(
+        children: [
+          Text(
+            prompt.status == VideoCertStatus.rejected
+                ? 'RE-RECORD'
+                : 'RECORD NOW',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1A56FF),
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.videocam_outlined,
+            color: Color(0xFF1A56FF),
+            size: 16,
           ),
         ],
       ),
@@ -346,11 +410,215 @@ class _PromptTile extends StatelessWidget {
 }
 
 /// Record video screen.
-class StaffRecordVideoScreen extends StatelessWidget {
+class StaffRecordVideoScreen extends StatefulWidget {
   const StaffRecordVideoScreen({super.key, this.promptId, this.title});
 
   final String? promptId;
   final String? title;
+
+  @override
+  State<StaffRecordVideoScreen> createState() => _StaffRecordVideoScreenState();
+}
+
+class _StaffRecordVideoScreenState extends State<StaffRecordVideoScreen> {
+  List<CameraDescription> _cameras = [];
+  CameraController? _controller;
+  int _cameraIndex = 0;
+  bool _initializing = true;
+  String? _error;
+  bool _isRecording = false;
+  Duration _elapsed = Duration.zero;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initCamera() async {
+    setState(() {
+      _initializing = true;
+      _error = null;
+    });
+    try {
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        setState(() {
+          _initializing = false;
+          _error = 'No camera found on this device.';
+        });
+        return;
+      }
+      // Prefer the front camera for a self-recorded certification video.
+      final frontIndex = _cameras.indexWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+      );
+      _cameraIndex = frontIndex != -1 ? frontIndex : 0;
+      await _startController(_cameras[_cameraIndex]);
+    } on CameraException catch (e) {
+      setState(() {
+        _initializing = false;
+        _error = e.description ?? 'Unable to access the camera.';
+      });
+    } catch (e) {
+      setState(() {
+        _initializing = false;
+        _error = 'Unable to access the camera.';
+      });
+    }
+  }
+
+  Future<void> _startController(CameraDescription description) async {
+    final controller = CameraController(
+      description,
+      ResolutionPreset.high,
+      enableAudio: true,
+    );
+    await controller.initialize();
+    if (!mounted) {
+      await controller.dispose();
+      return;
+    }
+    setState(() {
+      _controller = controller;
+      _initializing = false;
+      _error = null;
+    });
+  }
+
+  Future<void> _flipCamera() async {
+    if (_isRecording || _cameras.length < 2) return;
+    final oldController = _controller;
+    setState(() {
+      _controller = null;
+      _initializing = true;
+    });
+    await oldController?.dispose();
+    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
+    try {
+      await _startController(_cameras[_cameraIndex]);
+    } on CameraException catch (e) {
+      setState(() {
+        _initializing = false;
+        _error = e.description ?? 'Unable to access the camera.';
+      });
+    }
+  }
+
+  Future<void> _toggleRecording() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+
+    if (_isRecording) {
+      try {
+        final file = await controller.stopVideoRecording();
+        _timer?.cancel();
+        setState(() {
+          _isRecording = false;
+          _elapsed = Duration.zero;
+        });
+        if (!mounted) return;
+        context.push(
+          '${StaffRoutes.videoCertPreview}?promptId=${widget.promptId}',
+          extra: file,
+        );
+      } on CameraException catch (e) {
+        context.showDsSnackBar(
+          e.description ?? 'Failed to stop recording',
+          type: DsSnackBarType.error,
+        );
+      }
+      return;
+    }
+
+    try {
+      await controller.startVideoRecording();
+      setState(() {
+        _isRecording = true;
+        _elapsed = Duration.zero;
+      });
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _elapsed += const Duration(seconds: 1));
+      });
+    } on CameraException catch (e) {
+      if (!mounted) return;
+      context.showDsSnackBar(
+        e.description ?? 'Failed to start recording',
+        type: DsSnackBarType.error,
+      );
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  Widget _buildCameraBody() {
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.videocam_off_outlined,
+                color: Colors.white,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: _initCamera,
+                child: Text(
+                  'RETRY',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFFF8820),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final controller = _controller;
+    if (_initializing ||
+        controller == null ||
+        !controller.value.isInitialized) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
+    }
+
+    return FittedBox(
+      fit: BoxFit.cover,
+      child: SizedBox(
+        width: controller.value.previewSize?.height ?? 1,
+        height: controller.value.previewSize?.width ?? 1,
+        child: CameraPreview(controller),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -370,7 +638,10 @@ class StaffRecordVideoScreen extends StatelessWidget {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF)),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Color(0xFF1A56FF),
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -404,6 +675,7 @@ class StaffRecordVideoScreen extends StatelessWidget {
               const SizedBox(height: 32),
               Expanded(
                 child: Container(
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
                     color: const Color(0xFF1A1C23),
@@ -417,23 +689,7 @@ class StaffRecordVideoScreen extends StatelessWidget {
                   ),
                   child: Stack(
                     children: [
-                      // Simulated video preview area
-                      Positioned.fill(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(24),
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.white.withOpacity(0.1),
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.5),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                      Positioned.fill(child: _buildCameraBody()),
                       Positioned(
                         top: 20,
                         left: 20,
@@ -442,14 +698,18 @@ class StaffRecordVideoScreen extends StatelessWidget {
                             Container(
                               width: 8,
                               height: 8,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFEF4444),
+                              decoration: BoxDecoration(
+                                color: _isRecording
+                                    ? const Color(0xFFEF4444)
+                                    : Colors.white54,
                                 shape: BoxShape.circle,
                               ),
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'PREVIEW',
+                              _isRecording
+                                  ? _formatDuration(_elapsed)
+                                  : 'PREVIEW',
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -464,38 +724,11 @@ class StaffRecordVideoScreen extends StatelessWidget {
                         top: 16,
                         right: 16,
                         child: IconButton(
-                          icon: const Icon(Icons.flip_camera_ios_outlined, color: Colors.white),
-                          onPressed: () {},
-                        ),
-                      ),
-                      Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.white.withOpacity(0.2)),
-                              ),
-                              child: const Icon(
-                                Icons.videocam_rounded,
-                                color: Colors.white,
-                                size: 48,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              'READY TO CAPTURE',
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1.5,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
+                          icon: const Icon(
+                            Icons.flip_camera_ios_outlined,
+                            color: Colors.white,
+                          ),
+                          onPressed: _isRecording ? null : _flipCamera,
                         ),
                       ),
                     ],
@@ -504,7 +737,7 @@ class StaffRecordVideoScreen extends StatelessWidget {
               ),
               const SizedBox(height: 32),
               Text(
-                title ?? 'Service Demonstration',
+                widget.title ?? 'Service Demonstration',
                 style: GoogleFonts.libreCaslonText(
                   fontSize: 24,
                   fontWeight: FontWeight.w400,
@@ -516,11 +749,13 @@ class StaffRecordVideoScreen extends StatelessWidget {
               SizedBox(
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () => context.push(
-                    '${StaffRoutes.videoCertPreview}?promptId=$promptId',
-                  ),
+                  onPressed: (_initializing || _error != null)
+                      ? null
+                      : _toggleRecording,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF8820),
+                    backgroundColor: _isRecording
+                        ? const Color(0xFFEF4444)
+                        : const Color(0xFFFF8820),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -533,13 +768,16 @@ class StaffRecordVideoScreen extends StatelessWidget {
                         width: 12,
                         height: 12,
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
+                          color: _isRecording ? Colors.white : null,
+                          shape: _isRecording
+                              ? BoxShape.rectangle
+                              : BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 2),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'START RECORDING',
+                        _isRecording ? 'STOP RECORDING' : 'START RECORDING',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -557,7 +795,10 @@ class StaffRecordVideoScreen extends StatelessWidget {
                 children: [
                   Column(
                     children: [
-                      const Icon(Icons.mic_none_outlined, color: Color(0xFF737373)),
+                      const Icon(
+                        Icons.mic_none_outlined,
+                        color: Color(0xFF737373),
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         'Audio On',
@@ -574,7 +815,7 @@ class StaffRecordVideoScreen extends StatelessWidget {
                       const Icon(Icons.hd_outlined, color: Color(0xFF737373)),
                       const SizedBox(height: 4),
                       Text(
-                        '4K Quality',
+                        'HD Quality',
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           color: const Color(0xFF737373),
@@ -593,10 +834,61 @@ class StaffRecordVideoScreen extends StatelessWidget {
 }
 
 /// Video preview before upload.
-class StaffVideoPreviewScreen extends StatelessWidget {
-  const StaffVideoPreviewScreen({super.key, this.promptId});
+class StaffVideoPreviewScreen extends StatefulWidget {
+  const StaffVideoPreviewScreen({super.key, this.promptId, this.videoFile});
 
   final String? promptId;
+  final XFile? videoFile;
+
+  @override
+  State<StaffVideoPreviewScreen> createState() =>
+      _StaffVideoPreviewScreenState();
+}
+
+class _StaffVideoPreviewScreenState extends State<StaffVideoPreviewScreen> {
+  VideoPlayerController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final file = widget.videoFile;
+    if (file != null) {
+      // On web, camera/video_player never expose a filesystem path — the
+      // recorded file comes back as a blob: URL, so dart:io's File (and its
+      // Platform check) must be avoided there.
+      final controller = kIsWeb
+          ? VideoPlayerController.networkUrl(Uri.parse(file.path))
+          : VideoPlayerController.file(File(file.path));
+      _controller = controller;
+      controller.initialize().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  void _togglePlayback() {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    setState(() {
+      if (controller.value.isPlaying) {
+        controller.pause();
+      } else {
+        controller.play();
+      }
+    });
+  }
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -617,7 +909,10 @@ class StaffVideoPreviewScreen extends StatelessWidget {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF)),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Color(0xFF1A56FF),
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -642,6 +937,7 @@ class StaffVideoPreviewScreen extends StatelessWidget {
               const SizedBox(height: 24),
               Expanded(
                 child: Container(
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
                     color: const Color(0xFF0F1219),
@@ -653,78 +949,118 @@ class StaffVideoPreviewScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        top: 20,
-                        left: 20,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white.withOpacity(0.2)),
-                          ),
-                          child: Text(
-                            '00:45',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white,
+                  child: Builder(
+                    builder: (context) {
+                      final controller = _controller;
+                      final isReady =
+                          controller != null && controller.value.isInitialized;
+                      return Stack(
+                        children: [
+                          if (isReady)
+                            Positioned.fill(
+                              child: FittedBox(
+                                fit: BoxFit.cover,
+                                child: SizedBox(
+                                  width: controller.value.size.width,
+                                  height: controller.value.size.height,
+                                  child: VideoPlayer(controller),
+                                ),
+                              ),
+                            )
+                          else
+                            const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                            ),
+                          Positioned(
+                            top: 20,
+                            left: 20,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.5),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.2),
+                                ),
+                              ),
+                              child: Text(
+                                isReady
+                                    ? _formatDuration(controller.value.duration)
+                                    : '00:00',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 20,
-                        right: 20,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFF8820),
-                            borderRadius: BorderRadius.circular(16),
+                          Positioned(
+                            top: 20,
+                            right: 20,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF8820),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'RECORDED',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.5,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 6,
-                                height: 6,
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
+                          if (isReady)
+                            Center(
+                              child: GestureDetector(
+                                onTap: _togglePlayback,
+                                child: Container(
+                                  width: 64,
+                                  height: 64,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Icon(
+                                    controller.value.isPlaying
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                    color: const Color(0xFF1A1A1A),
+                                    size: 36,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'RECORDED',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.5,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Center(
-                        child: Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Icon(
-                            Icons.play_arrow_rounded,
-                            color: Color(0xFF1A1A1A),
-                            size: 36,
-                          ),
-                        ),
-                      ),
-                    ],
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
@@ -771,7 +1107,8 @@ class StaffVideoPreviewScreen extends StatelessWidget {
                       height: 56,
                       child: ElevatedButton(
                         onPressed: () => context.push(
-                          '${StaffRoutes.videoCertUpload}?promptId=$promptId',
+                          '${StaffRoutes.videoCertUpload}?promptId=${widget.promptId}',
+                          extra: widget.videoFile,
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFFF8820),
@@ -815,22 +1152,65 @@ class StaffVideoPreviewScreen extends StatelessWidget {
 
 /// Upload video screen.
 class StaffVideoUploadScreen extends ConsumerStatefulWidget {
-  const StaffVideoUploadScreen({super.key, this.promptId});
+  const StaffVideoUploadScreen({super.key, this.promptId, this.recordedFile});
 
   final String? promptId;
+  final XFile? recordedFile;
 
   @override
   ConsumerState<StaffVideoUploadScreen> createState() =>
       _StaffVideoUploadScreenState();
 }
 
-class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen> {
+class _StaffVideoUploadScreenState
+    extends ConsumerState<StaffVideoUploadScreen> {
   bool _uploading = false;
+  double? _progress;
   PlatformFile? _pickedFile;
+  bool _preparingRecordedFile = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final recordedFile = widget.recordedFile;
+    if (recordedFile != null) {
+      _preparingRecordedFile = true;
+      _loadRecordedFile(recordedFile);
+    }
+  }
+
+  Future<void> _loadRecordedFile(XFile recordedFile) async {
+    PlatformFile platformFile;
+    // On web, PlatformFile needs in-memory bytes — a filesystem path isn't
+    // usable there (same constraint file_picker has, see `_pickVideo` below).
+    if (kIsWeb) {
+      final bytes = await recordedFile.readAsBytes();
+      platformFile = PlatformFile(
+        name: recordedFile.name,
+        size: bytes.length,
+        bytes: bytes,
+      );
+    } else {
+      final file = File(recordedFile.path);
+      platformFile = PlatformFile(
+        path: recordedFile.path,
+        name: recordedFile.name,
+        size: file.existsSync() ? file.lengthSync() : 0,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _pickedFile = platformFile;
+      _preparingRecordedFile = false;
+    });
+  }
 
   Future<void> _pickVideo() async {
+    // On web, file_picker never exposes a filesystem path — only in-memory
+    // bytes — so `withData` must be forced there or the file is unusable.
     final result = await FilePicker.platform.pickFiles(
       type: FileType.video,
+      withData: kIsWeb,
     );
     if (result != null) {
       setState(() {
@@ -841,13 +1221,28 @@ class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen>
 
   Future<void> _upload() async {
     if (widget.promptId == null) return;
-    if (_pickedFile == null) {
-      context.showDsSnackBar('Please select a video', type: DsSnackBarType.warning);
+    final file = _pickedFile;
+    if (file == null) {
+      context.showDsSnackBar(
+        'Please select a video',
+        type: DsSnackBarType.warning,
+      );
       return;
     }
-    setState(() => _uploading = true);
-    final result =
-        await ref.read(staffRepositoryProvider).uploadVideoCert(widget.promptId!);
+    setState(() {
+      _uploading = true;
+      _progress = null;
+    });
+    final result = await ref
+        .read(staffRepositoryProvider)
+        .uploadVideoCert(
+          widget.promptId!,
+          file,
+          onProgress: (sent, total) {
+            if (!mounted || total <= 0) return;
+            setState(() => _progress = sent / total);
+          },
+        );
     if (!mounted) return;
     setState(() => _uploading = false);
     result.fold(
@@ -880,7 +1275,10 @@ class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen>
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF)),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Color(0xFF1A56FF),
+          ),
           onPressed: () {
             if (context.canPop() && !_uploading) {
               context.pop();
@@ -918,7 +1316,7 @@ class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen>
                               width: 180,
                               height: 180,
                               child: CircularProgressIndicator(
-                                value: _uploading ? null : 0.05,
+                                value: _uploading ? _progress : 0.05,
                                 strokeWidth: 4,
                                 backgroundColor: const Color(0xFFE5E5E5),
                                 color: const Color(0xFF1A56FF),
@@ -961,7 +1359,11 @@ class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _uploading ? 'Uploading...' : 'Ready to upload',
+                        _uploading
+                            ? (_progress != null
+                                  ? 'Uploading... ${(_progress! * 100).toStringAsFixed(0)}%'
+                                  : 'Uploading...')
+                            : 'Ready to upload',
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           color: const Color(0xFF404040),
@@ -971,7 +1373,33 @@ class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen>
                   ),
                 ),
               ),
-              if (_pickedFile != null)
+              if (_preparingRecordedFile)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE5E5E5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        'Preparing recorded video...',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF404040),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (_pickedFile != null)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -1036,10 +1464,16 @@ class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen>
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE5E5E5), style: BorderStyle.solid),
+                      border: Border.all(
+                        color: const Color(0xFFE5E5E5),
+                        style: BorderStyle.solid,
+                      ),
                     ),
                     child: Center(
-                      child: Text('Tap to select video', style: GoogleFonts.inter(color: Colors.blue)),
+                      child: Text(
+                        'Tap to select video',
+                        style: GoogleFonts.inter(color: Colors.blue),
+                      ),
                     ),
                   ),
                 ),
@@ -1047,7 +1481,9 @@ class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen>
               SizedBox(
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _uploading ? null : _upload,
+                  onPressed: (_uploading || _preparingRecordedFile)
+                      ? null
+                      : _upload,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1A56FF),
                     elevation: 0,
@@ -1059,7 +1495,10 @@ class _StaffVideoUploadScreenState extends ConsumerState<StaffVideoUploadScreen>
                       ? const SizedBox(
                           width: 24,
                           height: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
                         )
                       : Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1135,7 +1574,10 @@ class StaffVideoApprovalScreen extends ConsumerWidget {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF)),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Color(0xFF1A56FF),
+          ),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -1197,7 +1639,9 @@ class StaffVideoApprovalScreen extends ConsumerWidget {
                           Expanded(
                             child: Container(
                               decoration: const BoxDecoration(
-                                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                                borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(16),
+                                ),
                                 gradient: LinearGradient(
                                   colors: [Color(0xFFF1F5F9), Colors.white],
                                   begin: Alignment.topCenter,
@@ -1235,10 +1679,12 @@ class StaffVideoApprovalScreen extends ConsumerWidget {
                                 const Divider(color: Color(0xFFE5E5E5)),
                                 const SizedBox(height: 24),
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           'SUBMITTED',
@@ -1261,10 +1707,14 @@ class StaffVideoApprovalScreen extends ConsumerWidget {
                                       ],
                                     ),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
                                       children: [
                                         Text(
-                                          prompt.status == VideoCertStatus.approved ? 'REVIEWER' : 'ESTIMATED REVIEW',
+                                          prompt.status ==
+                                                  VideoCertStatus.approved
+                                              ? 'REVIEWER'
+                                              : 'ESTIMATED REVIEW',
                                           style: GoogleFonts.inter(
                                             fontSize: 10,
                                             fontWeight: FontWeight.w600,
@@ -1274,7 +1724,10 @@ class StaffVideoApprovalScreen extends ConsumerWidget {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          prompt.status == VideoCertStatus.approved ? 'Admin Panel' : '24-48 Hours',
+                                          prompt.status ==
+                                                  VideoCertStatus.approved
+                                              ? 'Admin Panel'
+                                              : '24-48 Hours',
                                           style: GoogleFonts.inter(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w500,
@@ -1296,15 +1749,13 @@ class StaffVideoApprovalScreen extends ConsumerWidget {
                   SizedBox(
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (context.canPop()) {
-                          context.pop();
-                        } else {
-                          context.go(StaffRoutes.videoCertification);
-                        }
-                      },
+                      onPressed: () =>
+                          context.go(StaffRoutes.videoCertification),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: prompt.status == VideoCertStatus.approved ? const Color(0xFF1A56FF) : const Color(0xFFFF8820),
+                        backgroundColor:
+                            prompt.status == VideoCertStatus.approved
+                            ? const Color(0xFF1A56FF)
+                            : const Color(0xFFFF8820),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -1324,7 +1775,9 @@ class StaffVideoApprovalScreen extends ConsumerWidget {
                           ),
                           const SizedBox(width: 8),
                           Icon(
-                            prompt.status == VideoCertStatus.approved ? Icons.arrow_forward : Icons.list,
+                            prompt.status == VideoCertStatus.approved
+                                ? Icons.arrow_forward
+                                : Icons.list,
                             color: Colors.white,
                             size: 18,
                           ),
@@ -1376,7 +1829,11 @@ class StaffVideoApprovalScreen extends ConsumerWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.check_circle_outline, color: Color(0xFF10B981), size: 14),
+            const Icon(
+              Icons.check_circle_outline,
+              color: Color(0xFF10B981),
+              size: 14,
+            ),
             const SizedBox(width: 6),
             Text(
               'APPROVED',

@@ -2,18 +2,42 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/di/injection.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/router/app_routes.dart';
-import '../widgets/app_button.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/app_widgets.dart';
 
-/// Session expired screen.
-class SessionExpiredScreen extends ConsumerWidget {
+/// Session expired screen. Logs the user out and returns them to the login
+/// screen automatically rather than waiting for a manual tap, since a dead
+/// session isn't something the user can act on from here.
+class SessionExpiredScreen extends ConsumerStatefulWidget {
   const SessionExpiredScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SessionExpiredScreen> createState() =>
+      _SessionExpiredScreenState();
+}
+
+class _SessionExpiredScreenState extends ConsumerState<SessionExpiredScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _autoLogout());
+  }
+
+  Future<void> _autoLogout() async {
+    // Goes through the notifier (not the repository directly) so
+    // `authProvider`'s status flips to `unauthenticated`. Leaving it at
+    // `sessionExpired` would make the router's redirect rule bounce
+    // `context.go(AppRoutes.login)` straight back to this screen.
+    await ref.read(authProvider.notifier).logout();
+    if (mounted) {
+      context.go(AppRoutes.login);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = context.l10n;
 
     return Scaffold(
@@ -29,17 +53,9 @@ class SessionExpiredScreen extends ConsumerWidget {
                 message: l10n.sessionExpiredMessage,
                 iconColor: context.colors.error,
               ),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(),
               const Spacer(),
-              AppButton(
-                label: l10n.signInAgain,
-                onPressed: () async {
-                  await ref.read(authRepositoryProvider).logout();
-                  if (context.mounted) {
-                    context.go(AppRoutes.login);
-                  }
-                },
-                icon: Icons.login_rounded,
-              ),
             ],
           ),
         ),

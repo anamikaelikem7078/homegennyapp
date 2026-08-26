@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../../common/domain/models/staff_entity.dart';
 import '../../../../common/domain/models/user_model.dart';
 import '../../../../core/constants/api_constants.dart';
@@ -105,6 +107,103 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
         'type': type,
         'file': await MultipartFile.fromFile(filePath),
       }),
+    );
+  }
+
+  Future<List<VideoCertPrompt>> getVideoCertPrompts(String series) async {
+    final json = await getJson(ApiConstants.videoCertPrompts(series));
+    return StaffDtoCodec.decodeVideoCertPrompts(json);
+  }
+
+  Future<List<VideoCertUploadRecord>> getVideoCertList(String staffId) async {
+    final json = await getJson(ApiConstants.videoCertList(staffId));
+    return StaffDtoCodec.decodeList(
+      json['items'] as List<dynamic>? ?? [],
+      StaffDtoCodec.decodeVideoCertUpload,
+    );
+  }
+
+  Future<VideoCertUploadUrlInfo> getVideoCertUploadUrl({
+    required String staffId,
+    required String series,
+    required String filename,
+    String? sha256Hash,
+  }) async {
+    final json = await postJson(
+      ApiConstants.videoCertUploadUrl,
+      data: {
+        'staffId': staffId,
+        'series': series,
+        'filename': filename,
+        if (sha256Hash != null) 'sha256Hash': sha256Hash,
+      },
+    );
+    return VideoCertUploadUrlInfo.fromJson(json);
+  }
+
+  /// Uploads the raw video file to `uploadUrl` — either our own backend's
+  /// local-disk endpoint (a relative path, e.g. `/api/v1/video-cert/local-upload`,
+  /// hit through the authenticated Dio instance with a `key` field added) or
+  /// a real GCS signed POST URL (absolute, hit with a bare Dio so our
+  /// bearer token is never sent to Google) — trusting whichever shape the
+  /// backend actually returned rather than assuming one mode.
+  Future<void> uploadVideoCertFile({
+    required String uploadUrl,
+    required String gcsKey,
+    required PlatformFile file,
+    Map<String, dynamic>? fields,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final isAbsolute = uploadUrl.startsWith('http://') || uploadUrl.startsWith('https://');
+    final formMap = <String, dynamic>{...?fields};
+    if (!isAbsolute) {
+      formMap['key'] = gcsKey;
+    }
+    // On web `file_picker`'s `PlatformFile.path` getter *throws* the moment
+    // it's read (not just returns null) — never touch it there, only bytes.
+    final filePath = kIsWeb ? null : file.path;
+    formMap['file'] = filePath != null
+        ? await MultipartFile.fromFile(filePath, filename: file.name)
+        : MultipartFile.fromBytes(file.bytes!, filename: file.name);
+    final formData = FormData.fromMap(formMap);
+
+    if (isAbsolute) {
+      await Dio().post<dynamic>(uploadUrl, data: formData, onSendProgress: onProgress);
+      return;
+    }
+
+    final basePath = Uri.parse(ApiConstants.baseUrl).path;
+    var uploadPath = uploadUrl;
+    if (basePath.isNotEmpty && uploadPath.startsWith(basePath)) {
+      uploadPath = uploadPath.substring(basePath.length);
+    }
+    await uploadMultipart(uploadPath, formData: formData, onProgress: onProgress);
+  }
+
+  Future<bool> verifyVideoCertHash({required String key, required String expectedHash}) async {
+    final json = await postJson(
+      ApiConstants.videoCertVerifyHash,
+      data: {'key': key, 'expectedHash': expectedHash},
+    );
+    return json['valid'] as bool? ?? false;
+  }
+
+  Future<void> finalizeVideoCert({
+    required String staffId,
+    required String promptKey,
+    required String gcsKey,
+    required String expectedHash,
+    int? attemptNumber,
+  }) async {
+    await postJson(
+      ApiConstants.videoCertFinalize,
+      data: {
+        'staffId': staffId,
+        'promptKey': promptKey,
+        'gcsKey': gcsKey,
+        'expectedHash': expectedHash,
+        if (attemptNumber != null) 'attemptNumber': attemptNumber,
+      },
     );
   }
 }

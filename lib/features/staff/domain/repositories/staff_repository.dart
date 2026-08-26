@@ -1,3 +1,5 @@
+import 'package:file_picker/file_picker.dart';
+
 import '../../../../core/utils/result.dart';
 import '../models/staff_models.dart';
 
@@ -18,7 +20,11 @@ abstract interface class StaffRepository {
   Future<Result<List<QuizQuestion>>> getQuiz(String courseId);
   Future<Result<QuizResult>> submitQuiz(String courseId, Map<String, int> answers);
   Future<Result<List<VideoCertPrompt>>> getVideoCertPrompts();
-  Future<Result<void>> uploadVideoCert(String promptId);
+  Future<Result<void>> uploadVideoCert(
+    String promptId,
+    PlatformFile file, {
+    void Function(int sent, int total)? onProgress,
+  });
   Future<Result<StaffAgreement>> getAgreement();
   Future<Result<void>> signAgreement(String signature);
   Future<Result<DeploymentInfo>> getDeployment();

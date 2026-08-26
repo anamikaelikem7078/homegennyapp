@@ -1,3 +1,4 @@
+import 'package:camera/camera.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/page_transitions.dart';
@@ -189,12 +190,14 @@ List<RouteBase> get staffRoutes => [
             path: 'preview',
             builder: (context, state) => StaffVideoPreviewScreen(
               promptId: state.uri.queryParameters['promptId'],
+              videoFile: state.extra as XFile?,
             ),
           ),
           GoRoute(
             path: 'upload',
             builder: (context, state) => StaffVideoUploadScreen(
               promptId: state.uri.queryParameters['promptId'],
+              recordedFile: state.extra as XFile?,
             ),
           ),
           GoRoute(

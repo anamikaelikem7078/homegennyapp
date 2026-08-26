@@ -63,6 +63,7 @@ abstract final class ApiConstants {
   static const String placements = '/placements';
   static String placementConfirm(String id) => '/placements/$id/confirm';
   static String placementExit(String id) => '/placements/$id/exit';
+  static const String placementsCalculateWage = '/placements/calculate-wage';
 
   // Verification (S2)
   static const String verificationAadhaar = '/verification/aadhaar';
@@ -96,6 +97,9 @@ abstract final class ApiConstants {
   // Video certification (S3)
   static String videoCertPrompts(String series) => '/video-cert/prompts/$series';
   static const String videoCertViewUrl = '/video-cert/view-url';
+  static const String videoCertUploadUrl = '/video-cert/upload-url';
+  static const String videoCertVerifyHash = '/video-cert/verify-hash';
+  static const String videoCertFinalize = '/video-cert/finalize';
   static String videoCertList(String staffId) => '/video-cert/list/$staffId';
 
   // Finance (client picker for placements)

@@ -140,6 +140,10 @@ class RmRepositoryImpl implements RmRepository {
       _executor.mutateVoid(remote: () => _remote.exitPlacement(id, exitDate: exitDate, exitScenarioCode: exitScenarioCode));
 
   @override
+  Future<Result<WageBreakup>> calculateWage(Map<String, dynamic> wageConfig) =>
+      _executor.mutate(remote: () => _remote.calculateWage(wageConfig));
+
+  @override
   Future<Result<AadhaarResult>> verifyAadhaar({required String aadhaarNumber, required String otp, String? staffId}) =>
       _executor.mutate(remote: () => _remote.verifyAadhaar(aadhaarNumber: aadhaarNumber, otp: otp, staffId: staffId));
 
@@ -204,7 +208,7 @@ class RmRepositoryImpl implements RmRepository {
       _executor.fetch(remote: () => _remote.listAgreements(staffId: staffId, clientId: clientId, status: status));
 
   @override
-  Future<Result<Agreement>> createAgreement({String? staffId, required String clientId, required String type, String? placementId}) =>
+  Future<Result<Agreement>> createAgreement({String? staffId, String? clientId, required String type, String? placementId}) =>
       _executor.mutate(remote: () => _remote.createAgreement(staffId: staffId, clientId: clientId, type: type, placementId: placementId));
 
   @override

@@ -160,6 +160,19 @@ abstract final class RmDtoCodec {
   static List<PlacementRow> decodePlacementList(Map<String, dynamic> j) =>
       _list(j['items'], decodePlacementRow);
 
+  static WageBreakup decodeWageBreakup(Map<String, dynamic> j) => WageBreakup(
+        netSalary: _n(j, ['net_salary', 'netSalary', 'staff_salary', 'staffSalary']),
+        managementFee: _n(j, ['management_fee', 'managementFee']),
+        grossSalary: _nn(j, ['gross_salary', 'grossSalary']),
+        ctc: _nn(j, ['ctc']),
+        employerPfAmount: _nn(j, ['employer_pf_amount', 'employerPfAmount']),
+        employeePfAmount: _nn(j, ['employee_pf_amount', 'employeePfAmount']),
+        employerEsicAmount: _nn(j, ['employer_esic_amount', 'employerEsicAmount']),
+        employeeEsicAmount: _nn(j, ['employee_esic_amount', 'employeeEsicAmount']),
+        bonusAmount: _nn(j, ['bonus_amount', 'bonusAmount']),
+        gstAmount: _nn(j, ['gst_amount', 'gstAmount']),
+      );
+
   static TrialRow decodeTrialRow(Map<String, dynamic> j) => TrialRow(
         id: _s(j, ['id']),
         staffId: _s(j, ['staff_id', 'staffId']),

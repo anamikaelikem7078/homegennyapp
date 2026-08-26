@@ -32,6 +32,7 @@ abstract final class StaffDtoCodec {
   // ── Profile ── (matches GET /staff/profile exactly)
   static Map<String, dynamic> encodeProfile(StaffProfile p) => {
         'id': p.id,
+        'staffApplicantId': p.staffApplicantId,
         'staffCode': p.staffCode,
         'fullName': p.fullName,
         'mobile': p.mobile,
@@ -44,6 +45,7 @@ abstract final class StaffDtoCodec {
 
   static StaffProfile decodeProfile(Map<String, dynamic> json) => StaffProfile(
         id: json['id'] as String? ?? '',
+        staffApplicantId: json['staffApplicantId'] as String?,
         staffCode: json['staffCode'] as String? ?? '',
         fullName: json['fullName'] as String? ?? '',
         mobile: json['mobile'] as String? ?? '',
@@ -165,6 +167,83 @@ abstract final class StaffDtoCodec {
     List<dynamic> json,
     T Function(Map<String, dynamic>) decoder,
   ) => json.map((e) => decoder(e as Map<String, dynamic>)).toList();
+
+  // ── Video certification ── (GET /video-cert/prompts/:series returns
+  // `{ count, minDuration, prompts: string[] }` — prompts have no server-side
+  // id/title, just the raw question text, so the app derives a stable
+  // `prompt_<n>` key (1-based, matching the `promptKey` example in the
+  // backend's own API docs) from list position.
+  static List<VideoCertPrompt> decodeVideoCertPrompts(Map<String, dynamic> json) {
+    final prompts = (json['prompts'] as List<dynamic>? ?? []).cast<String>();
+    return [
+      for (var i = 0; i < prompts.length; i++)
+        VideoCertPrompt(
+          id: 'prompt_${i + 1}',
+          title: 'Prompt ${i + 1}',
+          instructions: prompts[i],
+          status: VideoCertStatus.pending,
+        ),
+    ];
+  }
+
+  // ── Video certification upload record ── (matches a row returned by
+  // GET /video-cert/list/:staffId exactly — Prisma's VideoCertification
+  // model serialized as-is: camelCase field names).
+  static VideoCertUploadRecord decodeVideoCertUpload(Map<String, dynamic> json) =>
+      VideoCertUploadRecord(
+        id: json['id'] as String? ?? '',
+        promptKey: json['promptKey'] as String? ?? '',
+        reviewStatus: json['reviewStatus'] as String? ?? 'PENDING',
+        attemptNumber: json['attemptNumber'] as int? ?? 1,
+      );
+}
+
+/// Server-issued destination for a single video upload — matches
+/// POST /video-cert/upload-url's response exactly.
+class VideoCertUploadUrlInfo {
+  const VideoCertUploadUrlInfo({
+    required this.uploadUrl,
+    required this.gcsKey,
+    this.fields,
+  });
+
+  final String uploadUrl;
+  final String gcsKey;
+  final Map<String, dynamic>? fields;
+
+  factory VideoCertUploadUrlInfo.fromJson(Map<String, dynamic> json) =>
+      VideoCertUploadUrlInfo(
+        uploadUrl: json['uploadUrl'] as String,
+        gcsKey: json['gcsKey'] as String,
+        fields: (json['fields'] as Map<String, dynamic>?),
+      );
+}
+
+/// One row from GET /video-cert/list/:staffId — the staff's own upload
+/// history, used to drive per-prompt status badges instead of local state.
+class VideoCertUploadRecord {
+  const VideoCertUploadRecord({
+    required this.id,
+    required this.promptKey,
+    required this.reviewStatus,
+    required this.attemptNumber,
+  });
+
+  final String id;
+  final String promptKey;
+  final String reviewStatus;
+  final int attemptNumber;
+
+  VideoCertStatus get status {
+    switch (reviewStatus) {
+      case 'APPROVED':
+        return VideoCertStatus.approved;
+      case 'REJECTED':
+        return VideoCertStatus.rejected;
+      default:
+        return VideoCertStatus.pending;
+    }
+  }
 }
 
 /// Paginated staff documents response DTO.

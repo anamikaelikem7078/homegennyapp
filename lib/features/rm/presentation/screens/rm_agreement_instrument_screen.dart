@@ -17,17 +17,22 @@ import '../providers/rm_providers.dart';
 /// → sign → generate PDF. All three instruments follow the same sequence
 /// against `/agreements`, so one screen parameterized by `type` replaces
 /// what were three near-identical mockup screens plus a separate OTP page.
+///
+/// `clientId` is nullable — A1 (Employment Agreement) is staff-level and
+/// doesn't require a client to be picked first; A2 (Scope of Work) and A3
+/// (Client Indemnity) are client-specific documents and are only reachable
+/// once a placement (and therefore a client) exists.
 class RmAgreementInstrumentScreen extends ConsumerStatefulWidget {
   const RmAgreementInstrumentScreen({
     super.key,
     required this.staffId,
-    required this.clientId,
+    this.clientId,
     required this.type,
     required this.title,
   });
 
   final String staffId;
-  final String clientId;
+  final String? clientId;
   final String type;
   final String title;
 
@@ -59,7 +64,9 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
   }
 
   Agreement? _findAgreement(List<Agreement> agreements) {
-    final matches = agreements.where((a) => a.type == widget.type && a.clientId == widget.clientId).toList()
+    final matches = agreements
+        .where((a) => a.type == widget.type && (widget.clientId == null || a.clientId == widget.clientId))
+        .toList()
       ..sort((a, b) => (b.createdAt ?? '').compareTo(a.createdAt ?? ''));
     return matches.isEmpty ? null : matches.first;
   }
@@ -478,17 +485,19 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
             label: 'Instrument Type',
             value: '${widget.type} (Employment Agreement)',
           ),
-          const SizedBox(height: 10),
-          _buildDetailRow(
-            label: 'Client Name',
-            value: client?.customerName ?? 'Loading Client...',
-          ),
-          const SizedBox(height: 10),
-          _buildDetailRow(
-            label: 'Client ID',
-            value: widget.clientId,
-            isCode: true,
-          ),
+          if (widget.clientId != null) ...[
+            const SizedBox(height: 10),
+            _buildDetailRow(
+              label: 'Client Name',
+              value: client?.customerName ?? 'Loading Client...',
+            ),
+            const SizedBox(height: 10),
+            _buildDetailRow(
+              label: 'Client ID',
+              value: widget.clientId!,
+              isCode: true,
+            ),
+          ],
         ],
       ),
     ).animate().fadeIn(delay: 100.ms, duration: 400.ms).slideY(begin: 0.02, end: 0);

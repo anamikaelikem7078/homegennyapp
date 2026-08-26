@@ -9,16 +9,20 @@ import '../../domain/models/pipeline_stage.dart';
 import '../../domain/models/rm_models.dart';
 import '../navigation/rm_routes.dart';
 import '../providers/rm_providers.dart';
+import '../widgets/rm_wage_config_form.dart';
 
-/// Placement creation — reachable once a staff member has a signed A1
-/// (employment agreement), from S4_AGREEMENTS onward (so A2/SOW and
-/// A3/Indemnity, both placement-scoped, have a real `placement_id` to point
-/// at as soon as A1 is signed — they don't wait for S5_DEPLOY). Still
-/// reachable at S5_DEPLOY too, as a fallback for older records. The backend
-/// itself does **not** enforce any stage restriction on `POST /placements`
-/// (verified — it accepts any staff at any stage), so this is a
-/// client-side gate (Rule 2). `POST /placements` always creates a `TRIAL`
-/// placement, never `CONFIRMED` — the UI must not imply otherwise (Rule 3).
+/// Placement creation — only reachable once a staff member is at
+/// S5_DEPLOY. The backend now hard-gates `POST /placements` on
+/// `pipeline_stage === 'S5_DEPLOY'` (400 otherwise, naming the current
+/// stage), so the client-side check below is a pre-flight UX nicety, not
+/// the source of truth — the 400 is still handled as a safety net for a
+/// stale cached staff object.
+///
+/// The RM chooses **Trial** (default — unchanged behavior, salary/fee
+/// optional) or **Confirm Now** (`status: "CONFIRMED"`, which skips the
+/// trial step entirely; the backend then requires `staff_salary` and
+/// `management_fee` in the same request, so both fields become mandatory
+/// in that mode).
 class RmPlacementCreateScreen extends ConsumerStatefulWidget {
   const RmPlacementCreateScreen({super.key, required this.staffId, this.initialClient});
   final String staffId;
@@ -35,6 +39,9 @@ class _RmPlacementCreateScreenState extends ConsumerState<RmPlacementCreateScree
   final _salaryController = TextEditingController();
   final _feeController = TextEditingController();
   bool _submitting = false;
+  bool _confirmNow = false;
+  bool _detailedWage = false;
+  WageConfig? _wageConfig;
 
   @override
   void initState() {
@@ -54,17 +61,32 @@ class _RmPlacementCreateScreenState extends ConsumerState<RmPlacementCreateScree
     if (selected != null) setState(() => _client = selected);
   }
 
-  bool _stageAllowsPlacement(String stage) => stage == PipelineStages.s4Agreements || stage == PipelineStages.s5Deploy;
+  bool _stageAllowsPlacement(String stage) => stage == PipelineStages.s5Deploy;
+
+  bool get _confirmFieldsFilled => _detailedWage
+      ? (_wageConfig != null && _wageConfig!.basicWage > 0 && _wageConfig!.managementPct > 0)
+      : (_salaryController.text.trim().isNotEmpty && _feeController.text.trim().isNotEmpty);
 
   Future<void> _submit(StaffRow staff) async {
     if (!_stageAllowsPlacement(staff.pipelineStage)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Placement is only available from S4_AGREEMENTS onward (once A1 is signed).'), backgroundColor: RmTheme.crimsonDanger),
+        SnackBar(content: Text('Placement can only be created once the staff has reached S5_DEPLOY (current stage: ${staff.pipelineStage}).'), backgroundColor: RmTheme.crimsonDanger),
       );
       return;
     }
     if (_client == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a client first')));
+      return;
+    }
+    if (_confirmNow && !_confirmFieldsFilled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_detailedWage
+              ? 'Basic Wage and Management Fee % are required to confirm the placement now.'
+              : 'Staff salary and management fee are required to confirm the placement now.'),
+          backgroundColor: RmTheme.crimsonDanger,
+        ),
+      );
       return;
     }
 
@@ -74,8 +96,13 @@ class _RmPlacementCreateScreenState extends ConsumerState<RmPlacementCreateScree
       'staff_id': staff.id,
       // client_id is FinanceCustomer.id, never the client's login user.id.
       'client_id': _client!.id,
-      if (_salaryController.text.trim().isNotEmpty) 'staff_salary': num.tryParse(_salaryController.text.trim()),
-      if (_feeController.text.trim().isNotEmpty) 'management_fee': num.tryParse(_feeController.text.trim()),
+      if (_confirmNow) 'status': 'CONFIRMED',
+      if (_detailedWage && _wageConfig != null)
+        'wage_config': _wageConfig!.toJson()
+      else ...{
+        if (_salaryController.text.trim().isNotEmpty) 'staff_salary': num.tryParse(_salaryController.text.trim()),
+        if (_feeController.text.trim().isNotEmpty) 'management_fee': num.tryParse(_feeController.text.trim()),
+      },
     };
 
     final result = await ref.read(rmRepositoryProvider).createPlacement(body);
@@ -108,7 +135,7 @@ class _RmPlacementCreateScreenState extends ConsumerState<RmPlacementCreateScree
           if (!_stageAllowsPlacement(staff.pipelineStage)) {
             return Padding(
               padding: const EdgeInsets.all(24),
-              child: Text('${staff.fullName} is at ${PipelineStages.label(staff.pipelineStage)} — placement is only available from S4_AGREEMENTS onward.'),
+              child: Text('${staff.fullName} is at ${PipelineStages.label(staff.pipelineStage)} — placement is only available once the staff reaches S5_DEPLOY.'),
             );
           }
           return SingleChildScrollView(
@@ -129,35 +156,79 @@ class _RmPlacementCreateScreenState extends ConsumerState<RmPlacementCreateScree
                   ),
                 ),
                 const SizedBox(height: 20),
-                TextField(
-                  controller: _salaryController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Staff salary (monthly)', border: OutlineInputBorder()),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Trial'), icon: Icon(Icons.hourglass_empty_rounded)),
+                    ButtonSegment(value: true, label: Text('Confirm Now'), icon: Icon(Icons.verified_rounded)),
+                  ],
+                  selected: {_confirmNow},
+                  onSelectionChanged: (selection) => setState(() => _confirmNow = selection.first),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _feeController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Management fee (monthly)', border: OutlineInputBorder()),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Wage entry', style: RmTheme.headline(context).copyWith(fontSize: 15)),
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('Simple')),
+                        ButtonSegment(value: true, label: Text('Detailed')),
+                      ],
+                      selected: {_detailedWage},
+                      onSelectionChanged: (s) => setState(() => _detailedWage = s.first),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text('Trial dates default to today → +14 days if left blank.', style: RmTheme.body(context).copyWith(fontSize: 12)),
+                const SizedBox(height: 16),
+                if (_detailedWage)
+                  RmWageConfigForm(onConfigChanged: (config) => setState(() => _wageConfig = config))
+                else ...[
+                  TextField(
+                    controller: _salaryController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      labelText: _confirmNow ? 'Staff salary (monthly) *' : 'Staff salary (monthly)',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _feeController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      labelText: _confirmNow ? 'Management fee (monthly) *' : 'Management fee (monthly)',
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (!_confirmNow)
+                    Text('Trial dates default to today → +14 days if left blank.', style: RmTheme.body(context).copyWith(fontSize: 12)),
+                ],
                 const SizedBox(height: 24),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: RmTheme.amberWarning.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
-                  child: const Text('This creates a TRIAL placement, not a confirmed one. Confirmation is a separate, explicit step afterward.'),
+                  decoration: BoxDecoration(
+                    color: (_confirmNow ? RmTheme.emeraldGreen : RmTheme.amberWarning).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _confirmNow
+                        ? 'This creates the placement already CONFIRMED — no trial period. Salary and management fee are required.'
+                        : 'This creates a TRIAL placement, not a confirmed one. Confirmation is a separate, explicit step afterward.',
+                  ),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   height: 52,
                   child: FilledButton(
-                    onPressed: _submitting ? null : () => _submit(staff),
-                    style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue),
+                    onPressed: _submitting || (_confirmNow && !_confirmFieldsFilled) ? null : () => _submit(staff),
+                    style: FilledButton.styleFrom(backgroundColor: _confirmNow ? RmTheme.emeraldGreen : RmTheme.electricBlue),
                     child: _submitting
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('Create Placement (TRIAL)'),
+                        : Text(_confirmNow ? 'Create Placement (Confirmed)' : 'Create Placement (TRIAL)'),
                   ),
                 ),
               ],

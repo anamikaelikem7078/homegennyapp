@@ -23,6 +23,7 @@ import '../screens/rm_stage4_a1_screen.dart';
 import '../screens/rm_stage4_a2_screen.dart';
 import '../screens/rm_stage4_a2_client_screen.dart';
 import '../screens/rm_stage4_a3_screen.dart';
+import '../screens/rm_stage5_deploy_hub_screen.dart';
 import '../screens/rm_placement_create_screen.dart';
 import '../screens/rm_placement_detail_screen.dart';
 import '../screens/rm_trials_screen.dart';
@@ -174,7 +175,7 @@ final List<RouteBase> rmRoutes = [
     name: 'rmStage4A1',
     builder: (context, state) {
       final id = state.pathParameters['id']!;
-      final clientId = state.extra as String? ?? '';
+      final clientId = state.extra as String?;
       return RmStage4A1Screen(staffId: id, clientId: clientId);
     },
   ),
@@ -202,6 +203,14 @@ final List<RouteBase> rmRoutes = [
       final id = state.pathParameters['id']!;
       final placementId = state.extra as String? ?? '';
       return RmStage4A3Screen(staffId: id, placementId: placementId);
+    },
+  ),
+  slideRoute(
+    path: '/rm/staff/:id/stage5/hub',
+    name: 'rmStage5Hub',
+    builder: (context, state) {
+      final id = state.pathParameters['id']!;
+      return RmStage5DeployHubScreen(staffId: id);
     },
   ),
   slideRoute(

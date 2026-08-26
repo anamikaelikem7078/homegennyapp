@@ -181,6 +181,139 @@ class PlacementRow {
   bool get isConfirmed => status == 'CONFIRMED';
 }
 
+/// Commercial Calculator-style wage inputs — same shape Finance uses,
+/// sent as `wage_config` on `POST /placements` (and `POST
+/// /placements/calculate-wage` for a live preview). The backend derives
+/// `staff_salary`/`management_fee` from this and ignores any flat values
+/// sent alongside it.
+class WageConfig {
+  const WageConfig({
+    required this.basicWage,
+    this.da = 0,
+    this.hra = 0,
+    this.skilledAllowance = 0,
+    this.workingHours = 8,
+    this.pfApplicable = true,
+    this.employerPfPct = 13,
+    this.employerPfMax = 15000,
+    this.employeePfPct = 12,
+    this.esicApplicable = true,
+    this.employerEsicPct = 3.25,
+    this.employeeEsicPct = 0.75,
+    this.bonusApplicable = true,
+    this.bonusPct = 8.33,
+    this.bonusFrequency = 'monthly',
+    this.leaveDays = 32,
+    this.lwfApplicable = true,
+    this.lwfAmount = 62,
+    this.uniformApplicable = true,
+    this.uniformAllowance = 275,
+    this.relievingApplicable = true,
+    this.relievingPct = 16.67,
+    required this.managementPct,
+    this.professionalTax = 0,
+    this.gstApplicable = true,
+    this.gstType = 'intra',
+    this.gstPct = 18,
+  });
+
+  final num basicWage;
+  final num da;
+  final num hra;
+  final num skilledAllowance;
+  final int workingHours; // 8 | 12
+
+  final bool pfApplicable;
+  final num employerPfPct;
+  final num employerPfMax;
+  final num employeePfPct;
+
+  final bool esicApplicable;
+  final num employerEsicPct;
+  final num employeeEsicPct;
+
+  final bool bonusApplicable;
+  final num bonusPct;
+  final String bonusFrequency; // monthly | annual
+
+  final num leaveDays;
+
+  final bool lwfApplicable;
+  final num lwfAmount;
+
+  final bool uniformApplicable;
+  final num uniformAllowance;
+
+  final bool relievingApplicable;
+  final num relievingPct;
+
+  final num managementPct;
+  final num professionalTax;
+
+  final bool gstApplicable;
+  final String gstType; // intra | inter
+  final num gstPct;
+
+  Map<String, dynamic> toJson() => {
+        'basic_wage': basicWage,
+        'da': da,
+        'hra': hra,
+        'skilled_allowance': skilledAllowance,
+        'working_hours': workingHours,
+        'pf_applicable': pfApplicable,
+        'employer_pf_pct': employerPfPct,
+        'employer_pf_max': employerPfMax,
+        'employee_pf_pct': employeePfPct,
+        'esic_applicable': esicApplicable,
+        'employer_esic_pct': employerEsicPct,
+        'employee_esic_pct': employeeEsicPct,
+        'bonus_applicable': bonusApplicable,
+        'bonus_pct': bonusPct,
+        'bonus_frequency': bonusFrequency,
+        'leave_days': leaveDays,
+        'lwf_applicable': lwfApplicable,
+        'lwf_amount': lwfAmount,
+        'uniform_applicable': uniformApplicable,
+        'uniform_allowance': uniformAllowance,
+        'relieving_applicable': relievingApplicable,
+        'relieving_pct': relievingPct,
+        'management_pct': managementPct,
+        'professional_tax': professionalTax,
+        'gst_applicable': gstApplicable,
+        'gst_type': gstType,
+        'gst_pct': gstPct,
+      };
+}
+
+/// Computed breakdown returned by `POST /placements/calculate-wage` (and
+/// echoed on a placement as `wage_breakup` once created with a
+/// `wage_config`).
+class WageBreakup {
+  const WageBreakup({
+    required this.netSalary,
+    required this.managementFee,
+    this.grossSalary,
+    this.ctc,
+    this.employerPfAmount,
+    this.employeePfAmount,
+    this.employerEsicAmount,
+    this.employeeEsicAmount,
+    this.bonusAmount,
+    this.gstAmount,
+  });
+
+  final num netSalary;
+  final num managementFee;
+  final num? grossSalary;
+  final num? ctc;
+  final num? employerPfAmount;
+  final num? employeePfAmount;
+  final num? employerEsicAmount;
+  final num? employeeEsicAmount;
+  final num? bonusAmount;
+  final num? gstAmount;
+}
+
 /// Row shape from `GET /rm/trials` — a *raw* Prisma `Placement` row
 /// (camelCase), NOT the same as [PlacementRow] from `/placements`. No
 /// staff/client name is embedded — the trials screen cross-references

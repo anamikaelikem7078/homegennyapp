@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,7 @@ import '../../../../../core/router/app_routes.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
 import '../../../../../core/theme/theme_provider.dart';
+import '../../../../../core/utils/validators.dart';
 
 /// Profile tab.
 class ClientProfileTabScreen extends ConsumerWidget {
@@ -345,6 +347,12 @@ class _ClientPersonalDetailsScreenState
   }
 
   Future<void> _save() async {
+    final phoneError = Validators.phone(_phone.text);
+    if (phoneError != null) {
+      context.showDsSnackBar('Enter a valid 10-digit phone number', type: DsSnackBarType.error);
+      return;
+    }
+
     setState(() => _loading = true);
     final result = await ref.read(clientRepositoryProvider).updateProfile({
       'name': _name.text,
@@ -457,7 +465,7 @@ class _ClientPersonalDetailsScreenState
                     SizedBox(height: 20),
 
                     _buildLabel(context.l10n.phoneNumber, context),
-                    _buildTextField(_phone, Icons.phone_outlined, context),
+                    _buildTextField(_phone, Icons.phone_outlined, context, isNumber: true, maxLength: 10),
                     SizedBox(height: 32),
 
                     const Divider(color: Color(0xFFF3F4F6), height: 1),
@@ -597,10 +605,18 @@ class _ClientPersonalDetailsScreenState
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, IconData icon, BuildContext context, {bool isNumber = false}) {
+  Widget _buildTextField(
+    TextEditingController controller,
+    IconData icon,
+    BuildContext context, {
+    bool isNumber = false,
+    int? maxLength,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      maxLength: maxLength,
+      inputFormatters: isNumber ? [FilteringTextInputFormatter.digitsOnly] : null,
       style: GoogleFonts.inter(
         color: Colors.black,
         fontSize: 14,
@@ -618,6 +634,7 @@ class _ClientPersonalDetailsScreenState
           horizontal: 16,
           vertical: 16,
         ),
+        counterText: '',
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: context.theme.dividerColor),

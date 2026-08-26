@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -170,15 +171,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               controller: _phoneController,
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
+              maxLength: 10,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               style: GoogleFonts.inter(
                 fontSize: 16,
                 color: _textColor,
                 fontWeight: FontWeight.w500,
               ),
               decoration: _inputDecoration(
-                hint: '+1 (555) 000-0000',
+                hint: '9876543210',
                 prefixIcon: Icons.phone_android_rounded,
-              ),
+              ).copyWith(counterText: ''),
               validator: (v) => _localizedValidator(Validators.phone(v)),
             ),
           ),

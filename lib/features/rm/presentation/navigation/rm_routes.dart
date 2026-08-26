@@ -33,6 +33,8 @@ abstract final class RmRoutes {
   static String stage4A2Client(String id) => '/rm/staff/$id/stage4/a2-client';
   static String stage4A3(String id) => '/rm/staff/$id/stage4/a3';
 
+  static String stage5Hub(String id) => '/rm/staff/$id/stage5/hub';
+
   static String placementCreate(String staffId) => '/rm/staff/$staffId/placement/create';
   static String placementDetail(String placementId) => '/rm/placements/$placementId';
   static String staffAttendance(String staffId) => '/rm/staff/$staffId/attendance';

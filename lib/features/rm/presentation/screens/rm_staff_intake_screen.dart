@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
@@ -168,7 +169,14 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
     );
   }
 
-  Widget _buildFloatingInput(String label, String hint, {TextEditingController? controller, TextInputType? keyboardType}) {
+  Widget _buildFloatingInput(
+    String label,
+    String hint, {
+    TextEditingController? controller,
+    TextInputType? keyboardType,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -177,6 +185,8 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          maxLength: maxLength,
+          inputFormatters: inputFormatters,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.inter(color: RmTheme.textSecondary.withOpacity(0.5)),
@@ -184,6 +194,7 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: RmTheme.borderSubtle)),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: RmTheme.borderSubtle)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: RmTheme.electricBlue)),
+            counterText: '',
           ),
         ),
       ],
@@ -230,15 +241,30 @@ class _RmStaffIntakeScreenState extends ConsumerState<RmStaffIntakeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildFloatingInput('AADHAAR NUMBER', '999988887777', controller: _aadhaarController, keyboardType: TextInputType.number),
+                  _buildFloatingInput(
+                    'AADHAAR NUMBER',
+                    '999988887777',
+                    controller: _aadhaarController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 12,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
                   const SizedBox(height: 16),
-                  _buildFloatingInput('PHONE NUMBER', '9911100001', controller: _phoneController, keyboardType: TextInputType.phone),
+                  _buildFloatingInput(
+                    'PHONE NUMBER',
+                    '9911100001',
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    maxLength: 10,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
                   const SizedBox(height: 32),
                   _buildButton('Continue', () {
+                    final aadhaarError = Validators.aadhaar(_aadhaarController.text);
                     final phoneError = Validators.phone(_phoneController.text);
-                    if (_aadhaarController.text.trim().isEmpty || phoneError != null) {
+                    if (aadhaarError != null || phoneError != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(phoneError != null ? 'Please enter a valid phone number' : 'Please enter Aadhaar number')),
+                        SnackBar(content: Text(aadhaarError != null ? 'Enter a valid 12-digit Aadhaar number' : 'Enter a valid 10-digit phone number')),
                       );
                       return;
                     }

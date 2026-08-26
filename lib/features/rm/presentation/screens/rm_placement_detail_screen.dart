@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/utils/result.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../../domain/models/rm_models.dart';
+import '../navigation/rm_routes.dart';
 import '../providers/rm_providers.dart';
 
 /// Placement state machine detail view — the single most important business
@@ -14,7 +16,13 @@ import '../providers/rm_providers.dart';
 /// POST /placements/:id/confirm → CONFIRMED → POST /placements/:id/exit →
 /// EXITED`. `Confirm` is only ever shown while `status === 'TRIAL'`, never
 /// inferred from placement creation succeeding (Rule 4). A 400 on confirm
-/// (already confirmed / not TRIAL) surfaces the backend's own message.
+/// (already confirmed / not TRIAL, or A2/A3 not yet sent — `POST
+/// /:id/confirm` now requires an SOW with status SENT/ACKNOWLEDGED and at
+/// least one Indemnity row) surfaces the backend's own message; the A2/A3
+/// case also offers a shortcut into the S5 Deploy hub to send them. This
+/// requirement does not apply to a placement created directly as
+/// `status: "CONFIRMED"` — that fast path is handled entirely in
+/// `rm_placement_create_screen.dart`.
 class RmPlacementDetailScreen extends ConsumerWidget {
   const RmPlacementDetailScreen({
     super.key,
@@ -107,10 +115,19 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
         );
       },
       onError: (f) {
+        final missingA2A3 = f.message.contains('A2') || f.message.contains('A3');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(f.message),
             backgroundColor: RmTheme.crimsonDanger,
+            duration: missingA2A3 ? const Duration(seconds: 6) : const Duration(seconds: 4),
+            action: missingA2A3
+                ? SnackBarAction(
+                    label: 'SEND A2/A3',
+                    textColor: Colors.white,
+                    onPressed: () => context.push(RmRoutes.stage5Hub(widget.staffId)),
+                  )
+                : null,
           ),
         );
         ref.invalidate(staffPlacementProvider(widget.staffId));

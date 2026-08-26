@@ -280,6 +280,7 @@ class StaffProfile {
     required this.pipelineStage,
     this.address,
     this.dateOfBirth,
+    this.staffApplicantId,
   });
 
   final String id;
@@ -290,6 +291,10 @@ class StaffProfile {
   final String series;
   final String pipelineStage;
   final String? address;
+  // The staff_applicants.id row — a different id from `id` (the user account
+  // id) — required by every /video-cert/* call, which keys ownership on it.
+  // Null only when the logged-in account has no linked staff record at all.
+  final String? staffApplicantId;
   final String? dateOfBirth;
 }
 
