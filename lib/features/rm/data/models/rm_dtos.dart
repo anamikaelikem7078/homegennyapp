@@ -160,17 +160,23 @@ abstract final class RmDtoCodec {
   static List<PlacementRow> decodePlacementList(Map<String, dynamic> j) =>
       _list(j['items'], decodePlacementRow);
 
+  // Field names here are wage-calculator.util.ts's actual WageBreakup shape
+  // (raw camelCase, not snake_case — this endpoint doesn't go through the
+  // usual /placements response mapping). Previous guesses ('ctc',
+  // 'employer_pf_amount', 'bonus_amount', 'gst_amount', ...) never matched
+  // anything real, so every field below silently stayed null and the RM's
+  // live-preview card could only ever show netSalary/managementFee.
   static WageBreakup decodeWageBreakup(Map<String, dynamic> j) => WageBreakup(
         netSalary: _n(j, ['net_salary', 'netSalary', 'staff_salary', 'staffSalary']),
         managementFee: _n(j, ['management_fee', 'managementFee']),
-        grossSalary: _nn(j, ['gross_salary', 'grossSalary']),
-        ctc: _nn(j, ['ctc']),
-        employerPfAmount: _nn(j, ['employer_pf_amount', 'employerPfAmount']),
-        employeePfAmount: _nn(j, ['employee_pf_amount', 'employeePfAmount']),
-        employerEsicAmount: _nn(j, ['employer_esic_amount', 'employerEsicAmount']),
-        employeeEsicAmount: _nn(j, ['employee_esic_amount', 'employeeEsicAmount']),
-        bonusAmount: _nn(j, ['bonus_amount', 'bonusAmount']),
-        gstAmount: _nn(j, ['gst_amount', 'gstAmount']),
+        grossSalary: _nn(j, ['grossEarnings', 'gross_earnings']),
+        ctc: _nn(j, ['totalCTC', 'total_ctc']),
+        employerPfAmount: _nn(j, ['epfoEmployer', 'epfo_employer']),
+        employeePfAmount: _nn(j, ['epfoEmployee', 'epfo_employee']),
+        employerEsicAmount: _nn(j, ['esicEmployer', 'esic_employer']),
+        employeeEsicAmount: _nn(j, ['esicEmployee', 'esic_employee']),
+        bonusAmount: _nn(j, ['bonusMonthly', 'bonus_monthly']),
+        gstAmount: _nn(j, ['totalGstAmount', 'total_gst_amount']),
       );
 
   static TrialRow decodeTrialRow(Map<String, dynamic> j) => TrialRow(
