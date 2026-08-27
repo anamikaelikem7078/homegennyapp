@@ -80,7 +80,7 @@ class _RmStage3TrainingScreenState extends ConsumerState<RmStage3TrainingScreen>
                 const SizedBox(height: 16),
 
                 // ── Video Certification Card ──
-                _buildVideoCertCard(staff.id)
+                _buildVideoCertCard(staff.id, staff.series)
                     .animate()
                     .fadeIn(delay: 100.ms, duration: 350.ms)
                     .slideY(begin: 0.04, end: 0, delay: 100.ms, duration: 350.ms),
@@ -216,14 +216,38 @@ class _RmStage3TrainingScreenState extends ConsumerState<RmStage3TrainingScreen>
     );
   }
 
-  Widget _buildVideoCertCard(String staffId) {
+  Widget _buildVideoCertCard(String staffId, String series) {
+    final promptsAsync = ref.watch(rmVideoCertPromptsProvider(series));
+    final itemsAsync = ref.watch(rmVideoCertsProvider(staffId));
+
+    // Complete only once every required prompt has a submitted item that a
+    // trainer has approved — a PENDING/REJECTED or missing item still counts
+    // as incomplete.
+    bool? complete;
+    String subtitle = 'View submitted prompts and trainer review status';
+    final prompts = promptsAsync.valueOrNull;
+    final items = itemsAsync.valueOrNull;
+    if (prompts != null && items != null) {
+      final approvedKeys = items
+          .where((i) => i.reviewStatus == 'APPROVED')
+          .map((i) => i.promptKey)
+          .toSet();
+      complete = prompts.prompts.isNotEmpty &&
+          prompts.prompts.every(approvedKeys.contains);
+      final approvedCount = prompts.prompts.where(approvedKeys.contains).length;
+      subtitle = complete
+          ? 'All $approvedCount/${prompts.prompts.length} prompts trainer-approved'
+          : '$approvedCount/${prompts.prompts.length} prompts trainer-approved';
+    }
+    final color = complete == true ? RmTheme.emeraldGreen : RmTheme.electricBlue;
+
     return Container(
       decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
+        color: complete == true ? RmTheme.emeraldGreen.withValues(alpha: 0.06) : RmTheme.cardSurface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: RmTheme.borderSubtle.withValues(alpha: 0.5),
-          width: 1.5,
+          color: complete == true ? RmTheme.emeraldGreen : RmTheme.borderSubtle.withValues(alpha: 0.5),
+          width: complete == true ? 1.8 : 1.5,
         ),
         boxShadow: const [
           BoxShadow(
@@ -245,12 +269,12 @@ class _RmStage3TrainingScreenState extends ConsumerState<RmStage3TrainingScreen>
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: RmTheme.electricBlue.withValues(alpha: 0.08),
+                    color: color.withValues(alpha: 0.08),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.videocam_outlined,
-                    color: RmTheme.electricBlue,
+                  child: Icon(
+                    complete == true ? Icons.check_circle : Icons.videocam_outlined,
+                    color: color,
                     size: 22,
                   ),
                 ),
@@ -271,10 +295,11 @@ class _RmStage3TrainingScreenState extends ConsumerState<RmStage3TrainingScreen>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'View submitted prompts and trainer review status',
+                        subtitle,
                         style: GoogleFonts.inter(
                           fontSize: 12,
-                          color: RmTheme.textSecondary,
+                          color: complete == true ? RmTheme.emeraldGreen : RmTheme.textSecondary,
+                          fontWeight: complete == true ? FontWeight.w600 : FontWeight.w400,
                         ),
                       ),
                     ],

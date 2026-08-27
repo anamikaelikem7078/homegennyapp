@@ -106,8 +106,23 @@ class AuthInterceptor extends Interceptor {
             ),
           );
 
-          final response = await dio.fetch<dynamic>(options);
-          return handler.resolve(response);
+          try {
+            final response = await dio.fetch<dynamic>(options);
+            return handler.resolve(response);
+          } on DioException catch (retryErr) {
+            if (retryErr.response?.statusCode == 401) {
+              SessionEventBus.instance.notifySessionExpired();
+              return handler.reject(
+                DioException(
+                  requestOptions: retryErr.requestOptions,
+                  response: retryErr.response,
+                  type: DioExceptionType.badResponse,
+                  error: const UnauthorizedException(),
+                ),
+              );
+            }
+            return handler.reject(retryErr);
+          }
         }
       } on TokenRefreshException {
         SessionEventBus.instance.notifySessionExpired();

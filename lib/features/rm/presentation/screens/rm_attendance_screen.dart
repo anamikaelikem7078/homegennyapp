@@ -44,7 +44,14 @@ class _RmAttendanceScreenState extends ConsumerState<RmAttendanceScreen> {
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: _branchId,
-                        items: [for (final b in locations.branches) DropdownMenuItem(value: b.id, child: Text(b.name))],
+                        isExpanded: true,
+                        items: [
+                          for (final b in locations.branches)
+                            DropdownMenuItem(
+                              value: b.id,
+                              child: Text(b.name, overflow: TextOverflow.ellipsis),
+                            ),
+                        ],
                         onChanged: (v) => setState(() => _branchId = v),
                         decoration: const InputDecoration(labelText: 'Branch', border: OutlineInputBorder(), isDense: true),
                       ),

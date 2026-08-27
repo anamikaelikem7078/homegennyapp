@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../design_system/design_system.dart';
+import '../auth/session_event_bus.dart';
+import '../exceptions/failures.dart';
 import '../extensions/context_extensions.dart';
 
 /// DRY wrapper for Riverpod [AsyncValue] with skeleton, error retry, and a11y.
@@ -31,11 +33,16 @@ class AsyncValueWidget<T> extends StatelessWidget {
       loading: () => useSkeleton
           ? DsSkeletonLoader(itemCount: skeletonCount)
           : DsLoadingWidget(message: loadingMessage ?? context.l10n.loading),
-      error: (error, _) => DsErrorState(
-            title: errorTitle ?? context.l10n.errorGeneric,
-            message: error.toString(),
-            onRetry: onRetry,
-          ),
+      error: (error, _) {
+        if (error is AuthFailure) {
+          SessionEventBus.instance.notifySessionExpired();
+        }
+        return DsErrorState(
+          title: errorTitle ?? context.l10n.errorGeneric,
+          message: error.toString(),
+          onRetry: onRetry,
+        );
+      },
       data: builder,
     );
   }
@@ -62,12 +69,17 @@ class AsyncValueSliverWidget<T> extends StatelessWidget {
       loading: () => const SliverFillRemaining(
         child: DsLoadingWidget(),
       ),
-      error: (error, _) => SliverFillRemaining(
-        child: DsErrorState(
-          title: errorTitle ?? context.l10n.errorGeneric,
-          onRetry: onRetry,
-        ),
-      ),
+      error: (error, _) {
+        if (error is AuthFailure) {
+          SessionEventBus.instance.notifySessionExpired();
+        }
+        return SliverFillRemaining(
+          child: DsErrorState(
+            title: errorTitle ?? context.l10n.errorGeneric,
+            onRetry: onRetry,
+          ),
+        );
+      },
       data: (data) => builder(data),
     );
   }

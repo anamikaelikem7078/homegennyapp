@@ -188,6 +188,10 @@ class RmRepositoryImpl implements RmRepository {
       _executor.fetch(remote: () => _remote.getVerificationStatus(staffId));
 
   @override
+  Future<Result<AadhaarResult?>> getAadhaarVerificationResult(String staffId) =>
+      _executor.fetch(remote: () => _remote.getAadhaarVerificationResult(staffId));
+
+  @override
   Future<Result<List<Assessment>>> listAssessments() => _executor.fetch(remote: _remote.listAssessments);
 
   @override

@@ -76,6 +76,7 @@ abstract interface class RmRepository {
   Future<Result<PvCloseResult>> closePv(String staffId, {required String result, String? notes});
   Future<Result<MedicalResult>> submitMedical(String staffId, {required bool passed, String? notes, String? verifiedBy});
   Future<Result<Map<String, String>>> getVerificationStatus(String staffId);
+  Future<Result<AadhaarResult?>> getAadhaarVerificationResult(String staffId);
 
   // Assessments (S2.5)
   Future<Result<List<Assessment>>> listAssessments();

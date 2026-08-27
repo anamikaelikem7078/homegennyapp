@@ -35,6 +35,12 @@ class _RmTrack1AadhaarScreenState extends ConsumerState<RmTrack1AadhaarScreen> {
   String? _referenceId;
   AadhaarResult? _result;
 
+  /// Set once the RM explicitly taps "Re-verify" on an already-cleared
+  /// Aadhaar track — overrides `rmAadhaarVerificationResultProvider`'s
+  /// fetched result so the entry form shows again instead of the
+  /// already-verified summary.
+  bool _reVerifying = false;
+
   @override
   void initState() {
     super.initState();
@@ -98,6 +104,7 @@ class _RmTrack1AadhaarScreenState extends ConsumerState<RmTrack1AadhaarScreen> {
       onSuccess: (data) {
         setState(() => _result = data);
         ref.invalidate(rmVerificationStatusProvider(widget.staffId));
+        ref.invalidate(rmAadhaarVerificationResultProvider(widget.staffId));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(data.verified ? 'Aadhaar verified successfully.' : 'Aadhaar verification did not pass.'),
@@ -121,14 +128,96 @@ class _RmTrack1AadhaarScreenState extends ConsumerState<RmTrack1AadhaarScreen> {
     });
   }
 
+  void _startReVerify() {
+    setState(() {
+      _reVerifying = true;
+      _referenceId = null;
+      _result = null;
+      _aadhaarController.clear();
+      _otpController.clear();
+    });
+  }
+
+  /// Order/case/whitespace-insensitive comparison — UIDAI records and the
+  /// staff's own onboarding entry frequently differ in spacing, casing, or
+  /// name-part order (e.g. "Pratik Sharad Indore" vs "INDORE PRATIK
+  /// SHARAD") without actually being a different person, so this only
+  /// flags genuinely different word sets rather than requiring an exact
+  /// string match.
+  bool _namesRoughlyMatch(String staffName, String aadhaarName) {
+    Set<String> words(String s) =>
+        s.toLowerCase().trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toSet();
+    final a = words(staffName);
+    final b = words(aadhaarName);
+    if (a.isEmpty || b.isEmpty) return true;
+    return a.containsAll(b) || b.containsAll(a);
+  }
+
+  Widget _buildNameMismatchWarning(String staffName, String aadhaarName) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: RmTheme.amberWarning.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: RmTheme.amberWarning.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded, size: 18, color: RmTheme.amberWarning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Name on Aadhaar ("$aadhaarName") doesn\'t match the staff record '
+              '("$staffName"). Please confirm this is the same person before advancing.',
+              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: RmTheme.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 300.ms);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final staffName = ref.watch(staffByIdProvider(widget.staffId)).valueOrNull?.fullName;
+    final existingAsync =
+        _reVerifying ? null : ref.watch(rmAadhaarVerificationResultProvider(widget.staffId));
+
+    // A fresh verify in this session always wins over whatever was already
+    // persisted for this staff.
+    final existingResult = _result == null ? existingAsync?.valueOrNull : null;
+    final alreadyVerified = _result == null && _referenceId == null && existingResult != null;
+    final displayResult = _result ?? existingResult;
+
     return VerificationFormScaffold(
       title: 'Aadhaar eKYC',
       staffId: widget.staffId,
       onBack: () => context.pop(),
       children: [
-        if (_referenceId == null) ...[
+        if (existingAsync != null && existingAsync.isLoading && _referenceId == null) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ] else if (alreadyVerified) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  'Aadhaar eKYC was already completed for this staff member.',
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: RmTheme.textSecondary),
+                ),
+              ),
+              TextButton(
+                onPressed: _startReVerify,
+                child: Text('Re-verify', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: RmTheme.electricBlue)),
+              ),
+            ],
+          ).animate().fadeIn(duration: 300.ms),
+        ] else if (_referenceId == null) ...[
           Form(
             key: _aadhaarFormKey,
             child: Column(
@@ -215,14 +304,16 @@ class _RmTrack1AadhaarScreenState extends ConsumerState<RmTrack1AadhaarScreen> {
         ],
 
         // ── Result Summary Card ──
-        if (_result != null) ...[
+        if (displayResult != null) ...[
           const SizedBox(height: 24),
+          if (staffName != null && !_namesRoughlyMatch(staffName, displayResult.name))
+            _buildNameMismatchWarning(staffName, displayResult.name),
           VerificationResultCard(
-            success: _result!.verified,
+            success: displayResult.verified,
             rows: {
-              'Name': _result!.name,
-              'Aadhaar (last 4)': _result!.nameLast4,
-              'Status': _result!.verified ? 'VERIFIED' : 'NOT VERIFIED',
+              'Name': displayResult.name,
+              'Aadhaar (last 4)': displayResult.nameLast4,
+              'Status': displayResult.verified ? 'VERIFIED' : 'NOT VERIFIED',
             },
           ),
         ],

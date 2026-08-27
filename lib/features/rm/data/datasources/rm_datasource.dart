@@ -292,6 +292,26 @@ class RmRemoteDataSource extends BaseRemoteDataSource {
     return RmDtoCodec.decodeVerificationStatus(json);
   }
 
+  /// Pulls the Aadhaar track's persisted verify-call result (name/last-4/
+  /// verified) back out of the same aggregate status response, if that
+  /// track has already been cleared — lets the Aadhaar eKYC screen show
+  /// what was verified instead of re-prompting for a number/OTP that was
+  /// already submitted.
+  Future<AadhaarResult?> getAadhaarVerificationResult(String staffId) async {
+    final json = await getJson(ApiConstants.verificationStatus(staffId));
+    final tracks = json['tracks'];
+    if (tracks is! List) return null;
+    for (final entry in tracks) {
+      if (entry is! Map<String, dynamic>) continue;
+      final track = entry['track'] ?? entry['track_type'];
+      if (track != 'aadhaar' && track != 'AADHAAR_EKYC') continue;
+      final result = entry['result'];
+      if (result is Map<String, dynamic>) return RmDtoCodec.decodeAadhaar(result);
+      return null;
+    }
+    return null;
+  }
+
   // ── Assessments (S2.5) ──
 
   Future<List<Assessment>> listAssessments() async {

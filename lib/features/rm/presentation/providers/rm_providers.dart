@@ -15,7 +15,7 @@ export '../../../../core/di/injection.dart' show rmRepositoryProvider;
 
 final rmDashboardProvider = FutureProvider<RmDashboard>((ref) async {
   final result = await ref.watch(rmRepositoryProvider).getDashboard();
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 /// Kanban params — `null`/empty fields mean "no filter".
@@ -37,7 +37,7 @@ final rmKanbanProvider = FutureProvider.family<KanbanResult, KanbanParams>((ref,
   final result = await ref
       .watch(rmRepositoryProvider)
       .getKanban(search: params.search, series: params.series, limit: params.limit);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 /// No `GET /rm/staff/:id` exists on the backend — staff detail is always
@@ -50,37 +50,37 @@ final staffByIdProvider = FutureProvider.family<StaffRow?, String>((ref, staffId
 
 final rmTrialsProvider = FutureProvider<List<TrialRow>>((ref) async {
   final result = await ref.watch(rmRepositoryProvider).getTrials();
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final rmDeferredProvider = FutureProvider<List<DeferredRow>>((ref) async {
   final result = await ref.watch(rmRepositoryProvider).getDeferred();
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final rmTerminalProvider = FutureProvider<List<StaffRow>>((ref) async {
   final result = await ref.watch(rmRepositoryProvider).getTerminal();
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final rmIncidentsProvider = FutureProvider.family<List<IncidentRow>, String?>((ref, status) async {
   final result = await ref.watch(rmRepositoryProvider).getIncidents(status: status);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final rmShiftsProvider = FutureProvider.family<List<ShiftLogRow>, String?>((ref, status) async {
   final result = await ref.watch(rmRepositoryProvider).getShifts(status: status);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final rmUpgradesProvider = FutureProvider<List<UpgradeRequestRow>>((ref) async {
   final result = await ref.watch(rmRepositoryProvider).getUpgrades();
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final rmLocationsProvider = FutureProvider<LocationsData>((ref) async {
   final result = await ref.watch(rmRepositoryProvider).getLocations();
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 class AttendanceParams {
@@ -101,7 +101,7 @@ final rmAttendanceProvider = FutureProvider.family<AttendanceMonthResult, Attend
   final result = await ref
       .watch(rmRepositoryProvider)
       .getAttendance(branchId: params.branchId, month: params.month, year: params.year);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 class StaffPeriodParams {
@@ -121,12 +121,12 @@ class StaffPeriodParams {
 final rmInvoicePreviewProvider = FutureProvider.family<InvoicePreview, StaffPeriodParams>((ref, params) async {
   final result =
       await ref.watch(rmRepositoryProvider).getInvoicePreview(params.staffId, month: params.month, year: params.year);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final financeCustomersProvider = FutureProvider.family<List<FinanceCustomer>, String?>((ref, search) async {
   final result = await ref.watch(rmRepositoryProvider).getFinanceCustomers(search: search);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 class PlacementListParams {
@@ -144,7 +144,7 @@ class PlacementListParams {
 
 final rmPlacementsProvider = FutureProvider.family<List<PlacementRow>, PlacementListParams>((ref, params) async {
   final result = await ref.watch(rmRepositoryProvider).listPlacements(staffId: params.staffId, clientId: params.clientId);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 /// A staff member's most recent placement, or null if they have none yet.
@@ -156,7 +156,7 @@ final staffPlacementProvider = FutureProvider.family<PlacementRow?, String>((ref
 
 final rmAssessmentsProvider = FutureProvider<List<Assessment>>((ref) async {
   final result = await ref.watch(rmRepositoryProvider).listAssessments();
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 /// A staff member's assessments, most recent first.
@@ -187,27 +187,27 @@ final agreementClientProvider = StateProvider.family<FinanceCustomer?, String>((
 
 final rmAgreementsProvider = FutureProvider.family<List<Agreement>, AgreementListParams>((ref, params) async {
   final result = await ref.watch(rmRepositoryProvider).listAgreements(staffId: params.staffId, clientId: params.clientId);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final rmSowListProvider = FutureProvider.family<List<ScopeOfWork>, String>((ref, placementId) async {
   final result = await ref.watch(rmRepositoryProvider).listSow(placementId);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final rmIndemnityListProvider = FutureProvider.family<List<ClientIndemnity>, String>((ref, placementId) async {
   final result = await ref.watch(rmRepositoryProvider).listIndemnity(placementId);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final rmVideoCertPromptsProvider = FutureProvider.family<VideoCertPrompts, String>((ref, series) async {
   final result = await ref.watch(rmRepositoryProvider).getVideoCertPrompts(series);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 final rmVideoCertsProvider = FutureProvider.family<List<VideoCertItem>, String>((ref, staffId) async {
   final result = await ref.watch(rmRepositoryProvider).listVideoCerts(staffId);
-  return result.fold(onSuccess: (d) => d, onError: (f) => throw Exception(f.message));
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
 /// Session-local (not persisted) verification-track "attempted" flags —
@@ -229,4 +229,13 @@ final intakeAadhaarProvider = StateProvider.family<String?, String>((ref, staffI
 final rmVerificationStatusProvider = FutureProvider.family<Map<String, String>, String>((ref, staffId) async {
   final result = await ref.watch(rmRepositoryProvider).getVerificationStatus(staffId);
   return result.fold(onSuccess: (d) => d, onError: (_) => const {});
+});
+
+/// The Aadhaar track's already-persisted result, if S2's Aadhaar eKYC was
+/// previously cleared for this staff — `null` means "not verified yet",
+/// distinct from a fetch error, so the screen can tell "show the entry
+/// form" apart from "still loading".
+final rmAadhaarVerificationResultProvider = FutureProvider.family<AadhaarResult?, String>((ref, staffId) async {
+  final result = await ref.watch(rmRepositoryProvider).getAadhaarVerificationResult(staffId);
+  return result.fold(onSuccess: (d) => d, onError: (_) => null);
 });
