@@ -63,7 +63,13 @@ abstract interface class RmRepository {
   Future<Result<WageBreakup>> calculateWage(Map<String, dynamic> wageConfig);
 
   // Verification (S2)
-  Future<Result<AadhaarResult>> verifyAadhaar({required String aadhaarNumber, required String otp, String? staffId});
+  Future<Result<String>> generateAadhaarOtp({required String aadhaarNumber});
+  Future<Result<AadhaarResult>> verifyAadhaarOtp({
+    required String referenceId,
+    required String otp,
+    required String aadhaarNumber,
+    String? staffId,
+  });
   Future<Result<DlResult>> verifyDl({required String dlNumber, required String dob, String? staffId});
   Future<Result<EchallanResult>> verifyEchallan(String dlNumber, {String? staffId});
   Future<Result<PvResult>> submitPv(String staffId, {String? notes});

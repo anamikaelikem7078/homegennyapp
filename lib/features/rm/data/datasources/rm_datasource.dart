@@ -217,10 +217,26 @@ class RmRemoteDataSource extends BaseRemoteDataSource {
 
   // ── Verification (S2) ──
 
-  Future<AadhaarResult> verifyAadhaar({required String aadhaarNumber, required String otp, String? staffId}) async {
-    final json = await postJson(ApiConstants.verificationAadhaar, data: {
+  /// Step 1/2 — sends a real UIDAI OTP to the Aadhaar-linked mobile via
+  /// Sandbox KYC, returns a reference_id to pass to verifyAadhaarOtp below.
+  Future<String> generateAadhaarOtp({required String aadhaarNumber}) async {
+    final json = await postJson(ApiConstants.verificationAadhaarGenerateOtp, data: {
       'aadhaar_number': aadhaarNumber,
+    });
+    return (json['reference_id'] ?? json['referenceId'])?.toString() ?? '';
+  }
+
+  /// Step 2/2 — verify the OTP the staff received against the reference_id.
+  Future<AadhaarResult> verifyAadhaarOtp({
+    required String referenceId,
+    required String otp,
+    required String aadhaarNumber,
+    String? staffId,
+  }) async {
+    final json = await postJson(ApiConstants.verificationAadhaarVerifyOtp, data: {
+      'reference_id': referenceId,
       'otp': otp,
+      'aadhaar_number': aadhaarNumber,
       if (staffId != null) 'staff_id': staffId,
     });
     return RmDtoCodec.decodeAadhaar(json);

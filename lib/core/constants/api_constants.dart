@@ -66,7 +66,8 @@ abstract final class ApiConstants {
   static const String placementsCalculateWage = '/placements/calculate-wage';
 
   // Verification (S2)
-  static const String verificationAadhaar = '/verification/aadhaar';
+  static const String verificationAadhaarGenerateOtp = '/verification/aadhaar/generate-otp';
+  static const String verificationAadhaarVerifyOtp = '/verification/aadhaar/verify-otp';
   static const String verificationDl = '/verification/dl';
   static String verificationEchallan(String dlNumber) => '/verification/echallan/$dlNumber';
   static String verificationPvSubmit(String staffId) => '/verification/pv/submit/$staffId';

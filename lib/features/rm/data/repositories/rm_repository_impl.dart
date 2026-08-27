@@ -144,8 +144,24 @@ class RmRepositoryImpl implements RmRepository {
       _executor.mutate(remote: () => _remote.calculateWage(wageConfig));
 
   @override
-  Future<Result<AadhaarResult>> verifyAadhaar({required String aadhaarNumber, required String otp, String? staffId}) =>
-      _executor.mutate(remote: () => _remote.verifyAadhaar(aadhaarNumber: aadhaarNumber, otp: otp, staffId: staffId));
+  Future<Result<String>> generateAadhaarOtp({required String aadhaarNumber}) =>
+      _executor.mutate(remote: () => _remote.generateAadhaarOtp(aadhaarNumber: aadhaarNumber));
+
+  @override
+  Future<Result<AadhaarResult>> verifyAadhaarOtp({
+    required String referenceId,
+    required String otp,
+    required String aadhaarNumber,
+    String? staffId,
+  }) =>
+      _executor.mutate(
+        remote: () => _remote.verifyAadhaarOtp(
+          referenceId: referenceId,
+          otp: otp,
+          aadhaarNumber: aadhaarNumber,
+          staffId: staffId,
+        ),
+      );
 
   @override
   Future<Result<DlResult>> verifyDl({required String dlNumber, required String dob, String? staffId}) =>
