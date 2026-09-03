@@ -1,5 +1,6 @@
 import '../../../../core/di/injection.dart';
 import '../../../../core/utils/result.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/staff_models.dart';
@@ -102,6 +103,15 @@ final staffVideoCertProvider =
     onError: (f) => throw Exception(f.message),
   );
 });
+
+/// Videos recorded on-device (keyed by prompt id) that have not yet finished
+/// uploading. The server only ever reports `uploaded`/`approved`/`rejected`
+/// once an upload completes, so without this the prompt list has no way to
+/// show that a recording already exists locally and is just waiting on the
+/// upload step — the record action would look identical to a prompt that was
+/// never touched.
+final staffVideoCertLocalRecordingsProvider =
+    StateProvider<Map<String, XFile>>((ref) => {});
 
 final staffAgreementProvider = FutureProvider<StaffAgreement>((ref) async {
   final result = await ref.watch(staffRepositoryProvider).getAgreement();

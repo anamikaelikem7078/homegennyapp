@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../../core/utils/date_formatter.dart';
+import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
@@ -15,6 +16,12 @@ class StaffAttendanceHubScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final today = ref.watch(staffTodayAttendanceProvider);
+    final deployment = ref.watch(staffDeploymentProvider);
+    // Attendance can only be marked once the staff member's placement with a
+    // client has actually been confirmed — before that there's no work site
+    // to check in against. Treat a still-loading/errored deployment as "not
+    // confirmed yet" rather than letting the toggle through optimistically.
+    final placementConfirmed = deployment.valueOrNull?.hasActivePlacement ?? false;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
@@ -61,9 +68,15 @@ class StaffAttendanceHubScreen extends ConsumerWidget {
               return _TactileAttendanceToggle(
                 userName: userName,
                 record: record,
+                placementConfirmed: placementConfirmed,
                 onTrigger: () {
                   if (record != null && record.checkIn != null) {
                     context.push(StaffRoutes.checkOut);
+                  } else if (!placementConfirmed) {
+                    context.showDsSnackBar(
+                      'Attendance unlocks once your placement with a client is confirmed.',
+                      type: DsSnackBarType.warning,
+                    );
                   } else {
                     context.push(StaffRoutes.checkIn);
                   }
@@ -263,11 +276,13 @@ class _TactileAttendanceToggle extends StatefulWidget {
   const _TactileAttendanceToggle({
     required this.userName,
     required this.record,
+    required this.placementConfirmed,
     required this.onTrigger,
   });
 
   final String userName;
   final AttendanceRecord? record;
+  final bool placementConfirmed;
   final VoidCallback onTrigger;
 
   @override
@@ -313,6 +328,14 @@ class _TactileAttendanceToggleState extends State<_TactileAttendanceToggle> {
     } else if (isCheckedOut) {
       statusText = 'Shift Completed';
       actionPrompt = 'Work Completed';
+      statusColor = const Color(0xFF64748B);
+    }
+
+    final isLocked = !isCheckedIn && !isCheckedOut && !widget.placementConfirmed;
+    if (isLocked) {
+      statusText = 'Placement Pending';
+      actionPrompt = 'Attendance unlocks once placement is confirmed';
+      actionIcon = Icons.lock_outline_rounded;
       statusColor = const Color(0xFF64748B);
     }
 
@@ -506,38 +529,50 @@ class _TactileAttendanceToggleState extends State<_TactileAttendanceToggle> {
                           ),
                         ),
                       ),
-                      // The slide target area
+                      // The slide target area — locked (placement not yet
+                      // confirmed) disables the drag entirely and a tap just
+                      // surfaces why via widget.onTrigger's snackbar.
                       GestureDetector(
-                        onHorizontalDragUpdate: (details) {
-                          if (_isTriggered) return;
+                        onTap: isLocked ? widget.onTrigger : null,
+                        onHorizontalDragUpdate: isLocked
+                            ? null
+                            : (details) {
+                                if (_isTriggered) return;
 
-                          // Calculate delta percentage
-                          final delta = details.primaryDelta! / maxDragWidth;
-                          setState(() {
-                            _dragAlignment +=
-                                delta *
-                                2.0; // alignment ranges from -1.0 to 1.0
-                            if (_dragAlignment < -1.0) _dragAlignment = -1.0;
-                            if (_dragAlignment > 1.0) _dragAlignment = 1.0;
-                          });
-                        },
-                        onHorizontalDragEnd: (details) {
-                          if (_isTriggered) return;
+                                // Calculate delta percentage
+                                final delta =
+                                    details.primaryDelta! / maxDragWidth;
+                                setState(() {
+                                  _dragAlignment +=
+                                      delta *
+                                      2.0; // alignment ranges from -1.0 to 1.0
+                                  if (_dragAlignment < -1.0) {
+                                    _dragAlignment = -1.0;
+                                  }
+                                  if (_dragAlignment > 1.0) {
+                                    _dragAlignment = 1.0;
+                                  }
+                                });
+                              },
+                        onHorizontalDragEnd: isLocked
+                            ? null
+                            : (details) {
+                                if (_isTriggered) return;
 
-                          if (_dragAlignment > 0.8) {
-                            // Successfully completed slide confirm
-                            setState(() {
-                              _dragAlignment = 1.0;
-                              _isTriggered = true;
-                            });
-                            widget.onTrigger();
-                          } else {
-                            // Snap back
-                            setState(() {
-                              _dragAlignment = -1.0;
-                            });
-                          }
-                        },
+                                if (_dragAlignment > 0.8) {
+                                  // Successfully completed slide confirm
+                                  setState(() {
+                                    _dragAlignment = 1.0;
+                                    _isTriggered = true;
+                                  });
+                                  widget.onTrigger();
+                                } else {
+                                  // Snap back
+                                  setState(() {
+                                    _dragAlignment = -1.0;
+                                  });
+                                }
+                              },
                         child: Align(
                           alignment: Alignment(_dragAlignment, 0.0),
                           child: Container(
@@ -546,10 +581,16 @@ class _TactileAttendanceToggleState extends State<_TactileAttendanceToggle> {
                             margin: const EdgeInsets.symmetric(horizontal: 3),
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: primaryColor,
+                              color: isLocked
+                                  ? const Color(0xFF94A3B8)
+                                  : primaryColor,
                               boxShadow: [
                                 BoxShadow(
-                                  color: primaryColor.withOpacity(0.3),
+                                  color:
+                                      (isLocked
+                                              ? const Color(0xFF94A3B8)
+                                              : primaryColor)
+                                          .withOpacity(0.3),
                                   blurRadius: 8,
                                   offset: const Offset(0, 4),
                                 ),

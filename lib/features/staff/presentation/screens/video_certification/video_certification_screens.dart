@@ -159,13 +159,35 @@ class StaffVideoCertificationScreen extends ConsumerWidget {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       final list = prompts.valueOrNull;
-                      if (list != null && list.isNotEmpty) {
-                        final nextPrompt = list.firstWhere(
-                          (p) =>
-                              p.status != VideoCertStatus.approved &&
-                              p.status != VideoCertStatus.uploaded,
-                          orElse: () => list.first,
+                      if (list == null || list.isEmpty) return;
+                      // Only a prompt that hasn't been uploaded/approved yet
+                      // is eligible to (re-)record — if everything left is
+                      // already uploaded/approved there is nothing to do, so
+                      // don't fall back to re-recording an already-submitted
+                      // prompt.
+                      final nextPrompt = list
+                          .where(
+                            (p) =>
+                                p.status != VideoCertStatus.approved &&
+                                p.status != VideoCertStatus.uploaded,
+                          )
+                          .firstOrNull;
+                      if (nextPrompt == null) {
+                        context.showDsSnackBar(
+                          'All videos are already recorded and under review',
+                          type: DsSnackBarType.warning,
                         );
+                        return;
+                      }
+                      final localFile = ref.read(
+                        staffVideoCertLocalRecordingsProvider,
+                      )[nextPrompt.id];
+                      if (localFile != null) {
+                        context.push(
+                          '${StaffRoutes.videoCertPreview}?promptId=${nextPrompt.id}',
+                          extra: localFile,
+                        );
+                      } else {
                         context.push(
                           '${StaffRoutes.videoCertRecord}?promptId=${nextPrompt.id}&title=${Uri.encodeComponent(nextPrompt.title)}',
                         );
@@ -199,12 +221,12 @@ class StaffVideoCertificationScreen extends ConsumerWidget {
   }
 }
 
-class _PromptTile extends StatelessWidget {
+class _PromptTile extends ConsumerWidget {
   const _PromptTile({required this.prompt});
   final VideoCertPrompt prompt;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     IconData icon;
     Color iconColor;
     Color iconBgColor;
@@ -275,14 +297,14 @@ class _PromptTile extends StatelessWidget {
           ),
           if (prompt.status != VideoCertStatus.approved) ...[
             const SizedBox(height: 24),
-            _buildAction(context),
+            _buildAction(context, ref),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildAction(BuildContext context) {
+  Widget _buildAction(BuildContext context, WidgetRef ref) {
     // `uploaded` means a video was already submitted and is awaiting
     // review — surface that instead of a re-upload action so staff can't
     // fire off another submission while one is already pending.
@@ -302,6 +324,39 @@ class _PromptTile extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             const Icon(Icons.chevron_right, color: Color(0xFF64748B), size: 16),
+          ],
+        ),
+      );
+    }
+
+    // A recording already sits on-device for this prompt (recorded but not
+    // yet uploaded) — hide the record action and surface the pending upload
+    // instead, so staff can tell at a glance which prompts still need a
+    // recording versus which just need the upload finished.
+    final localFile = ref.watch(staffVideoCertLocalRecordingsProvider)[prompt.id];
+    if (localFile != null) {
+      return GestureDetector(
+        onTap: () => context.push(
+          '${StaffRoutes.videoCertPreview}?promptId=${prompt.id}',
+          extra: localFile,
+        ),
+        child: Row(
+          children: [
+            Text(
+              'RECORDED · COMPLETE UPLOAD',
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF16A34A),
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.cloud_upload_outlined,
+              color: Color(0xFF16A34A),
+              size: 16,
+            ),
           ],
         ),
       );
@@ -410,30 +465,67 @@ class _PromptTile extends StatelessWidget {
 }
 
 /// Record video screen.
-class StaffRecordVideoScreen extends StatefulWidget {
+class StaffRecordVideoScreen extends ConsumerStatefulWidget {
   const StaffRecordVideoScreen({super.key, this.promptId, this.title});
 
   final String? promptId;
   final String? title;
 
   @override
-  State<StaffRecordVideoScreen> createState() => _StaffRecordVideoScreenState();
+  ConsumerState<StaffRecordVideoScreen> createState() =>
+      _StaffRecordVideoScreenState();
 }
 
-class _StaffRecordVideoScreenState extends State<StaffRecordVideoScreen> {
+class _StaffRecordVideoScreenState
+    extends ConsumerState<StaffRecordVideoScreen> {
   List<CameraDescription> _cameras = [];
   CameraController? _controller;
   int _cameraIndex = 0;
   bool _initializing = true;
   String? _error;
   bool _isRecording = false;
+  bool _isTogglingRecording = false;
   Duration _elapsed = Duration.zero;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
+    if (_isPromptAlreadyHandled()) {
+      // Reached this route for a prompt that's already been recorded
+      // (locally, pending upload) or already submitted/approved — bounce
+      // back instead of letting the camera open and allow a duplicate
+      // recording/upload for the same prompt.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.showDsSnackBar(
+          'This video is already recorded. Complete the upload or check its status instead.',
+          type: DsSnackBarType.warning,
+        );
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(StaffRoutes.videoCertification);
+        }
+      });
+      return;
+    }
     _initCamera();
+  }
+
+  bool _isPromptAlreadyHandled() {
+    final promptId = widget.promptId;
+    if (promptId == null) return false;
+    final prompts = ref.read(staffVideoCertProvider).valueOrNull;
+    final prompt = prompts?.where((p) => p.id == promptId).firstOrNull;
+    final alreadySubmitted =
+        prompt != null &&
+        (prompt.status == VideoCertStatus.uploaded ||
+            prompt.status == VideoCertStatus.approved);
+    final alreadyRecordedLocally = ref
+        .read(staffVideoCertLocalRecordingsProvider)
+        .containsKey(promptId);
+    return alreadySubmitted || alreadyRecordedLocally;
   }
 
   @override
@@ -514,47 +606,62 @@ class _StaffRecordVideoScreenState extends State<StaffRecordVideoScreen> {
   }
 
   Future<void> _toggleRecording() async {
+    // Guards against a rapid double-tap firing two overlapping start/stop
+    // calls on the same controller — which could otherwise stop the
+    // recording twice and push two preview/upload screens for one video.
+    if (_isTogglingRecording) return;
     final controller = _controller;
     if (controller == null || !controller.value.isInitialized) return;
 
-    if (_isRecording) {
+    _isTogglingRecording = true;
+    try {
+      if (_isRecording) {
+        try {
+          final file = await controller.stopVideoRecording();
+          _timer?.cancel();
+          setState(() {
+            _isRecording = false;
+            _elapsed = Duration.zero;
+          });
+          if (!mounted) return;
+          final promptId = widget.promptId;
+          if (promptId != null) {
+            ref.read(staffVideoCertLocalRecordingsProvider.notifier).update(
+              (state) => {...state, promptId: file},
+            );
+          }
+          context.push(
+            '${StaffRoutes.videoCertPreview}?promptId=${widget.promptId}',
+            extra: file,
+          );
+        } on CameraException catch (e) {
+          context.showDsSnackBar(
+            e.description ?? 'Failed to stop recording',
+            type: DsSnackBarType.error,
+          );
+        }
+        return;
+      }
+
       try {
-        final file = await controller.stopVideoRecording();
-        _timer?.cancel();
+        await controller.startVideoRecording();
         setState(() {
-          _isRecording = false;
+          _isRecording = true;
           _elapsed = Duration.zero;
         });
-        if (!mounted) return;
-        context.push(
-          '${StaffRoutes.videoCertPreview}?promptId=${widget.promptId}',
-          extra: file,
-        );
+        _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+          if (!mounted) return;
+          setState(() => _elapsed += const Duration(seconds: 1));
+        });
       } on CameraException catch (e) {
+        if (!mounted) return;
         context.showDsSnackBar(
-          e.description ?? 'Failed to stop recording',
+          e.description ?? 'Failed to start recording',
           type: DsSnackBarType.error,
         );
       }
-      return;
-    }
-
-    try {
-      await controller.startVideoRecording();
-      setState(() {
-        _isRecording = true;
-        _elapsed = Duration.zero;
-      });
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (!mounted) return;
-        setState(() => _elapsed += const Duration(seconds: 1));
-      });
-    } on CameraException catch (e) {
-      if (!mounted) return;
-      context.showDsSnackBar(
-        e.description ?? 'Failed to start recording',
-        type: DsSnackBarType.error,
-      );
+    } finally {
+      _isTogglingRecording = false;
     }
   }
 
@@ -1248,6 +1355,9 @@ class _StaffVideoUploadScreenState
     result.fold(
       onSuccess: (_) {
         ref.invalidate(staffVideoCertProvider);
+        ref.read(staffVideoCertLocalRecordingsProvider.notifier).update(
+          (state) => {...state}..remove(widget.promptId),
+        );
         context.showDsSnackBar('Video uploaded', type: DsSnackBarType.success);
         context.push(StaffRoutes.videoCertStatus(widget.promptId!));
       },

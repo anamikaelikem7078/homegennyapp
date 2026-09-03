@@ -40,6 +40,16 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
   }
 
   Future<void> _checkIn() async {
+    final placementConfirmed =
+        ref.read(staffDeploymentProvider).valueOrNull?.hasActivePlacement ??
+        false;
+    if (!placementConfirmed) {
+      context.showDsSnackBar(
+        'Attendance unlocks once your placement is confirmed',
+        type: DsSnackBarType.warning,
+      );
+      return;
+    }
     if (_selfie == null) {
       context.showDsSnackBar(
         'Please capture a selfie before checking in',
@@ -80,6 +90,53 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final deployment = ref.watch(staffDeploymentProvider);
+    final placementConfirmed = deployment.valueOrNull?.hasActivePlacement ?? false;
+
+    // Defends the route itself, not just the hub screen's toggle — a staff
+    // member without a confirmed placement has no work site to check in
+    // against, so block entry here too regardless of how this screen was
+    // reached.
+    if (!deployment.isLoading && !placementConfirmed) {
+      return StaffPageScaffold(
+        title: 'Check In',
+        subtitle: 'Verify your location and identity',
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 48,
+                  color: AppColors.primary,
+                ),
+                SizedBox(height: AppSpacing.md),
+                Text(
+                  'Placement not confirmed yet',
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Attendance can only be marked once you have been deployed to a client. Check your deployment status for updates.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: AppSpacing.lg),
+                DsGradientButton(
+                  label: 'View Deployment Status',
+                  icon: Icons.badge_outlined,
+                  onPressed: () => context.go(StaffRoutes.deployment),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return StaffPageScaffold(
       title: 'Check In',
       subtitle: 'Verify your location and identity',
