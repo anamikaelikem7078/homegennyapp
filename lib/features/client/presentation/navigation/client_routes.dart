@@ -33,7 +33,6 @@ abstract final class ClientRoutes {
 
   // Complaint
   static const String complaintRaise = '/client/complaint/raise';
-  static const String complaintUpload = '/client/complaint/upload';
   static const String complaintHistory = '/client/complaint/history';
 
   // Replacement

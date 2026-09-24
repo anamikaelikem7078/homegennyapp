@@ -195,10 +195,6 @@ List<RouteBase> get clientRoutes => [
         builder: (_, __) => const ClientRaiseComplaintScreen(),
       ),
       GoRoute(
-        path: ClientRoutes.complaintUpload,
-        builder: (_, __) => const ClientComplaintUploadScreen(),
-      ),
-      GoRoute(
         path: ClientRoutes.complaintHistory,
         builder: (_, __) => const ClientComplaintHistoryScreen(),
       ),

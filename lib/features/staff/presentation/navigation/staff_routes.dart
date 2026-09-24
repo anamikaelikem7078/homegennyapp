@@ -54,7 +54,9 @@ abstract final class StaffRoutes {
 
   // Salary
   static const String salary = '/staff/salary';
-  static String payslip(String id) => '/staff/salary/payslip/$id';
+  // Payslip refs look like "HR_PAYROLL:<uuid>" — percent-encoded since the
+  // colon would otherwise sit unescaped in a path segment.
+  static String payslip(String ref) => '/staff/salary/payslip/${Uri.encodeComponent(ref)}';
   static const String salaryHistory = '/staff/salary/history';
   static const String bankDetails = '/staff/salary/bank';
   static const String taxDeclaration = '/staff/salary/tax';

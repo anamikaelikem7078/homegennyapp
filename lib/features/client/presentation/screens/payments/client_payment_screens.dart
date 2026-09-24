@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../../core/utils/currency_formatter.dart';
@@ -11,6 +14,16 @@ import '../../../domain/models/client_models.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
 import '../../widgets/client_scaffold.dart';
+
+/// Saves a downloaded invoice HTML document to a temp file and opens the
+/// share sheet — the invoice number names the file, the invoice's DB id is
+/// what the download call itself used.
+Future<void> _saveAndShareInvoiceHtml(String html, String invoiceNumber) async {
+  final dir = await getTemporaryDirectory();
+  final file = File('${dir.path}/invoice-$invoiceNumber.html');
+  await file.writeAsString(html);
+  await Share.shareXFiles([XFile(file.path)], text: 'Invoice $invoiceNumber');
+}
 
 /// Payments tab.
 class ClientPaymentsTabScreen extends ConsumerStatefulWidget {
@@ -190,18 +203,22 @@ class _ClientPaymentsTabScreenState
                     onTap: () async {
                       final result = await ref
                           .read(clientRepositoryProvider)
-                          .downloadInvoice(inv.id);
+                          .downloadInvoice(inv.invoiceId);
                       if (!context.mounted) return;
-                      result.fold(
-                        onSuccess: (msg) => context.showDsSnackBar(
-                          context.l10n.statementDownloaded,
-                          type: DsSnackBarType.success,
-                        ),
-                        onError: (f) => context.showDsSnackBar(
-                          f.message,
-                          type: DsSnackBarType.error,
-                        ),
-                      );
+                      switch (result) {
+                        case Success(data: final html):
+                          await _saveAndShareInvoiceHtml(html, inv.invoiceNumber);
+                          if (!context.mounted) return;
+                          context.showDsSnackBar(
+                            context.l10n.statementDownloaded,
+                            type: DsSnackBarType.success,
+                          );
+                        case Error(failure: final f):
+                          context.showDsSnackBar(
+                            f.message,
+                            type: DsSnackBarType.error,
+                          );
+                      }
                     },
                   ),
                 ),
@@ -396,16 +413,22 @@ class ClientInvoiceScreen extends ConsumerWidget {
               if (inv == null) return;
               final result = await ref
                   .read(clientRepositoryProvider)
-                  .downloadInvoice(inv.id);
+                  .downloadInvoice(inv.invoiceId);
               if (!context.mounted) return;
-              result.fold(
-                onSuccess: (msg) =>
-                    context.showDsSnackBar(msg, type: DsSnackBarType.success),
-                onError: (f) => context.showDsSnackBar(
-                  f.message,
-                  type: DsSnackBarType.error,
-                ),
-              );
+              switch (result) {
+                case Success(data: final html):
+                  await _saveAndShareInvoiceHtml(html, inv.invoiceNumber);
+                  if (!context.mounted) return;
+                  context.showDsSnackBar(
+                    context.l10n.statementDownloaded,
+                    type: DsSnackBarType.success,
+                  );
+                case Error(failure: final f):
+                  context.showDsSnackBar(
+                    f.message,
+                    type: DsSnackBarType.error,
+                  );
+              }
             },
           ),
         ],
@@ -501,7 +524,7 @@ class ClientInvoiceScreen extends ConsumerWidget {
                   ),
                   SizedBox(height: 24),
                   Text(
-                    inv.id,
+                    inv.invoiceNumber,
                     style: GoogleFonts.libreCaslonText(
                       fontSize: 32,
                       color: context.colors.onSurface,
@@ -538,16 +561,30 @@ class ClientInvoiceScreen extends ConsumerWidget {
                   ),
                   SizedBox(height: 40),
 
-                  // Fees breakdown
-                  for (final item in inv.items) ...[
-                    _buildFeeRow(
-                      context,
-                      item.description,
-                      '',
-                      CurrencyFormatter.inr(item.amount),
-                    ),
-                    SizedBox(height: 24),
-                  ],
+                  // Service lines + GST breakdown from GET
+                  // /client/invoices/:id, falling back to the three numeric
+                  // components from the list endpoint while detail loads.
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final detail = ref.watch(clientInvoiceDetailProvider(inv.invoiceId));
+                      return detail.maybeWhen(
+                        data: (d) => _buildInvoiceDetailBreakdown(context, d),
+                        orElse: () => Column(
+                          children: [
+                            for (final item in inv.items) ...[
+                              _buildFeeRow(
+                                context,
+                                item.description,
+                                '',
+                                CurrencyFormatter.inr(item.amount),
+                              ),
+                              SizedBox(height: 24),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
 
                   // Divider with dots
                   Row(
@@ -614,7 +651,7 @@ class ClientInvoiceScreen extends ConsumerWidget {
                           final inv = await firstInvoice();
                           if (inv == null) return;
                           Share.share(
-                            'Invoice: ${inv.id}\nAmount: ${CurrencyFormatter.inr(inv.totalAmount)}\nDue Date: ${inv.dueDate}',
+                            'Invoice: ${inv.invoiceNumber}\nAmount: ${CurrencyFormatter.inr(inv.totalAmount)}\nDue Date: ${inv.dueDate}',
                           );
                         },
                       ),
@@ -628,18 +665,22 @@ class ClientInvoiceScreen extends ConsumerWidget {
                           if (inv == null) return;
                           final result = await ref
                               .read(clientRepositoryProvider)
-                              .downloadInvoice(inv.id);
+                              .downloadInvoice(inv.invoiceId);
                           if (!context.mounted) return;
-                          result.fold(
-                            onSuccess: (msg) => context.showDsSnackBar(
-                              msg,
-                              type: DsSnackBarType.success,
-                            ),
-                            onError: (f) => context.showDsSnackBar(
-                              f.message,
-                              type: DsSnackBarType.error,
-                            ),
-                          );
+                          switch (result) {
+                            case Success(data: final html):
+                              await _saveAndShareInvoiceHtml(html, inv.invoiceNumber);
+                              if (!context.mounted) return;
+                              context.showDsSnackBar(
+                                context.l10n.statementDownloaded,
+                                type: DsSnackBarType.success,
+                              );
+                            case Error(failure: final f):
+                              context.showDsSnackBar(
+                                f.message,
+                                type: DsSnackBarType.error,
+                              );
+                          }
                         },
                       ),
                       SizedBox(width: 32),
@@ -675,6 +716,56 @@ class ClientInvoiceScreen extends ConsumerWidget {
     );
   }
 
+  /// Renders a [ClientInvoiceDetail]: one row per service line, then a
+  /// totals block. CGST/SGST and IGST are mutually exclusive — a same-state
+  /// client gets CGST+SGST, an out-of-state one gets IGST — so each row is
+  /// only shown when its amount is non-zero; for a Bill of Supply all three
+  /// are zero and the whole GST block naturally disappears.
+  Widget _buildInvoiceDetailBreakdown(BuildContext context, ClientInvoiceDetail d) {
+    final isTaxInvoice = d.documentType == 'TAX_INVOICE';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          isTaxInvoice ? 'Tax Invoice' : 'Bill of Supply',
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+            color: context.colors.onSurfaceVariant,
+          ),
+        ),
+        SizedBox(height: 16),
+        for (final line in d.serviceLines) ...[
+          _buildFeeRow(
+            context,
+            line.description,
+            '',
+            CurrencyFormatter.inr(line.amount),
+          ),
+          SizedBox(height: 24),
+        ],
+        const Divider(color: Color(0xFFF3F4F6), height: 1),
+        SizedBox(height: 24),
+        _buildFeeRow(context, 'Amount', '', CurrencyFormatter.inr(d.taxableValue)),
+        if (d.cgst > 0) ...[
+          SizedBox(height: 16),
+          _buildFeeRow(context, '9% CGST', '', CurrencyFormatter.inr(d.cgst)),
+        ],
+        if (d.sgst > 0) ...[
+          SizedBox(height: 16),
+          _buildFeeRow(context, '9% SGST', '', CurrencyFormatter.inr(d.sgst)),
+        ],
+        if (d.igst > 0) ...[
+          SizedBox(height: 16),
+          _buildFeeRow(context, '18% IGST', '', CurrencyFormatter.inr(d.igst)),
+        ],
+        SizedBox(height: 16),
+        _buildFeeRow(context, 'Total', '', CurrencyFormatter.inr(d.totalAmount)),
+      ],
+    );
+  }
+
   Widget _buildFeeRow(
     BuildContext context,
     String title,
@@ -683,30 +774,34 @@ class ClientInvoiceScreen extends ConsumerWidget {
   ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: context.colors.onSurface,
-              ),
-            ),
-            if (subtitle.isNotEmpty) ...[
-              SizedBox(height: 2),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                subtitle,
+                title,
                 style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: context.colors.onSurfaceVariant,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.onSurface,
                 ),
               ),
+              if (subtitle.isNotEmpty) ...[
+                SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: context.colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
+        SizedBox(width: 12),
         Text(
           amount,
           style: GoogleFonts.inter(
@@ -1008,14 +1103,18 @@ class _ClientDownloadInvoiceScreenState
         .downloadInvoice(widget.invoiceId);
     if (!mounted) return;
     setState(() => _loading = false);
-    result.fold(
-      onSuccess: (msg) {
-        context.showDsSnackBar(msg, type: DsSnackBarType.success);
+    switch (result) {
+      case Success(data: final html):
+        await _saveAndShareInvoiceHtml(html, widget.invoiceId);
+        if (!mounted) return;
+        context.showDsSnackBar(
+          context.l10n.statementDownloaded,
+          type: DsSnackBarType.success,
+        );
         context.pop();
-      },
-      onError: (f) =>
-          context.showDsSnackBar(f.message, type: DsSnackBarType.error),
-    );
+      case Error(failure: final f):
+        context.showDsSnackBar(f.message, type: DsSnackBarType.error);
+    }
   }
 
   @override
@@ -1210,7 +1309,7 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () => context.push(Uri(path: ClientRoutes.paymentGateway, queryParameters: {'invoiceId': inv.id, 'amount': inv.totalAmount.toString()}).toString()),
+                  onPressed: () => context.push(Uri(path: ClientRoutes.paymentGateway, queryParameters: {'invoiceId': inv.invoiceId, 'amount': inv.totalAmount.toString()}).toString()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1A56FF),
                     foregroundColor: Colors.white,

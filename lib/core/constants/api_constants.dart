@@ -2,7 +2,7 @@
 abstract final class ApiConstants {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://homegennyserver-po5u.onrender.com/api/v1',
+    defaultValue: 'https://homegenny.com/api/v1',
   );
 
   // Auth
@@ -37,6 +37,9 @@ abstract final class ApiConstants {
   static const String staffAttendanceCheckOut = '/staff/attendance/check-out';
   static const String staffAttendanceHistory = '/staff/attendance/history';
   static const String staffSalary = '/staff/salary';
+  static const String staffPayslips = '/staff/payslips';
+  static const String staffPayslipPdf = '/staff/payslips/pdf';
+  static const String staffBankAccount = '/staff/bank-account';
   static const String staffNotifications = '/staff/notifications';
 
   // RM — verified against live Swagger JSON (/api/docs-json), not just
@@ -115,9 +118,13 @@ abstract final class ApiConstants {
   static const String clientAttendanceRaiseIssue = '/client/attendance/raise-issue';
   static const String clientInvoice = '/client/payments/invoice';
   static const String clientInvoices = '/client/invoices';
+  static String clientInvoiceDetail(String id) => '/client/invoices/$id';
+  static String clientInvoiceDownload(String invoiceId) => '/client/invoices/download?id=$invoiceId';
   static const String clientPaymentHistory = '/client/payments/history';
+  // Same path serves GET (list the client's complaints) and POST (file one).
   static const String clientComplaints = '/client/complaints';
-  static const String clientReplacement = '/client/replacement';
+  // Same path serves GET (list past requests) and POST (file a new one).
+  static const String clientReplacements = '/client/replacements';
   static const String clientNotifications = '/client/notifications';
   static const String clientProfile = '/client/profile';
 

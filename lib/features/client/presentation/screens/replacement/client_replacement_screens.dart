@@ -24,6 +24,11 @@ class _ClientReplacementRequestScreenState
   bool _loading = false;
   String _urgency = 'STANDARD';
   String? _pickedFileName;
+  // Placement to replace — required once the client has more than one staff
+  // member placed; the backend 400s with "send placement_id to say which
+  // one" if it's ambiguous. `staffId` from GET /client/assigned-staff is the
+  // only per-placement identifier that model exposes, so it's reused here.
+  String? _selectedPlacementId;
 
   Future<void> _pickDocument() async {
     final result = await FilePicker.platform.pickFiles(
@@ -48,16 +53,32 @@ class _ClientReplacementRequestScreenState
       context.showDsSnackBar('Please provide a reason', type: DsSnackBarType.warning);
       return;
     }
+    final assignedStaff = await ref.read(clientAssignedStaffProvider.future);
+    if (!mounted) return;
+    if (assignedStaff.length > 1 && _selectedPlacementId == null) {
+      context.showDsSnackBar(
+        'You have more than one staff member placed — please pick who this is for',
+        type: DsSnackBarType.warning,
+      );
+      return;
+    }
+    final placementId = _selectedPlacementId ??
+        (assignedStaff.length == 1 ? assignedStaff.first.staffId : null);
     setState(() => _loading = true);
-    final result = await ref.read(clientRepositoryProvider).requestReplacement(_reason.text);
+    final result = await ref.read(clientRepositoryProvider).requestReplacement(
+          reason: _reason.text,
+          placementId: placementId,
+        );
     if (!mounted) return;
     setState(() => _loading = false);
     result.fold(
-      onSuccess: (_) {
-        ref.invalidate(clientReplacementProvider);
-        context.showDsSnackBar('Replacement requested', type: DsSnackBarType.success);
+      onSuccess: (r) {
+        ref.invalidate(clientReplacementsProvider);
+        context.showDsSnackBar(r.message, type: DsSnackBarType.success);
         context.go(ClientRoutes.replacementStatus);
       },
+      // A 400 asking to disambiguate the placement (or any other server
+      // error) is surfaced verbatim rather than guessed at client-side.
       onError: (f) => context.showDsSnackBar(f.message, type: DsSnackBarType.error),
     );
   }
@@ -155,6 +176,64 @@ class _ClientReplacementRequestScreenState
                     ),
                   ),
                   SizedBox(height: 48),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final assignedStaff = ref.watch(clientAssignedStaffProvider);
+                      return assignedStaff.when(
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
+                        data: (staff) {
+                          if (staff.length <= 1) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 32),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'WHICH STAFF MEMBER?',
+                                  style: GoogleFonts.manrope(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.2,
+                                    color: const Color(0xFF735A3A),
+                                  ),
+                                ),
+                                SizedBox(height: 12),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF2F4F7),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  child: DropdownButtonHideUnderline(
+                                    child: DropdownButton<String>(
+                                      isExpanded: true,
+                                      hint: Text(
+                                        'Select a staff member',
+                                        style: GoogleFonts.manrope(fontSize: 14),
+                                      ),
+                                      value: _selectedPlacementId,
+                                      items: [
+                                        for (final s in staff)
+                                          DropdownMenuItem(
+                                            value: s.staffId,
+                                            child: Text(
+                                              s.fullName ?? s.staffCode ?? s.staffId,
+                                              style: GoogleFonts.manrope(fontSize: 14),
+                                            ),
+                                          ),
+                                      ],
+                                      onChanged: (v) => setState(() => _selectedPlacementId = v),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
                   Text(
                     'DESCRIBE THE ISSUE',
                     style: GoogleFonts.manrope(
@@ -376,7 +455,7 @@ class ClientReplacementStatusScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final replacement = ref.watch(clientReplacementProvider);
+    final replacements = ref.watch(clientReplacementsProvider);
 
     return Scaffold(
       backgroundColor: context.theme.scaffoldBackgroundColor,
@@ -407,7 +486,7 @@ class ClientReplacementStatusScreen extends ConsumerWidget {
           ),
         ),
       ),
-      body: replacement.when(
+      body: replacements.when(
         loading: () => Center(child: CircularProgressIndicator(color: Color(0xFF2563EB))),
         error: (_, __) => Center(
           child: Text(
@@ -415,8 +494,8 @@ class ClientReplacementStatusScreen extends ConsumerWidget {
             style: GoogleFonts.manrope(color: Colors.red),
           ),
         ),
-        data: (request) {
-          if (request == null) {
+        data: (requests) {
+          if (requests.isEmpty) {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -484,147 +563,166 @@ class ClientReplacementStatusScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: context.theme.cardColor,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: context.theme.dividerColor),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
+              for (final request in requests) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 24),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: context.theme.cardColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: context.theme.dividerColor),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'STATUS',
+                            style: GoogleFonts.manrope(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                              color: const Color(0xFF735A3A),
+                            ),
+                          ),
+                          DsStatusChip(
+                            label: clientReplacementStatusLabel(request.status),
+                            type: clientReplacementStatusType(request.status),
+                          ),
+                        ],
+                      ),
+                      if (request.currentStaffName.isNotEmpty) ...[
+                        SizedBox(height: 24),
                         Text(
-                          'STATUS',
+                          'Current Staff',
                           style: GoogleFonts.manrope(
                             fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
                             color: const Color(0xFF735A3A),
                           ),
                         ),
-                        DsStatusChip(
-                          label: clientReplacementStatusLabel(request.status),
-                          type: clientReplacementStatusType(request.status),
+                        SizedBox(height: 4),
+                        Text(
+                          request.currentStaffName,
+                          style: GoogleFonts.libreCaslonText(
+                            fontSize: 18,
+                            color: const Color(0xFF000101),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
-                    ),
-                    SizedBox(height: 24),
-                    Text(
-                      'Current Staff',
-                      style: GoogleFonts.manrope(
-                        fontSize: 12,
-                        color: const Color(0xFF735A3A),
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      request.currentStaffName,
-                      style: GoogleFonts.libreCaslonText(
-                        fontSize: 18,
-                        color: const Color(0xFF000101),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      'Requested On',
-                      style: GoogleFonts.manrope(
-                        fontSize: 12,
-                        color: const Color(0xFF735A3A),
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      request.requestedAt,
-                      style: GoogleFonts.manrope(
-                        fontSize: 16,
-                        color: const Color(0xFF000101),
-                      ),
-                    ),
-                    if (request.newStaffName != null) ...[
-                      SizedBox(height: 16),
-                      Text(
-                        'New Staff',
-                        style: GoogleFonts.manrope(
-                          fontSize: 12,
-                          color: const Color(0xFF735A3A),
+                      if (request.requestedAt.isNotEmpty) ...[
+                        SizedBox(height: 16),
+                        Text(
+                          'Requested On',
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            color: const Color(0xFF735A3A),
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        request.newStaffName!,
-                        style: GoogleFonts.libreCaslonText(
-                          fontSize: 18,
-                          color: const Color(0xFF000101),
-                          fontWeight: FontWeight.w600,
+                        SizedBox(height: 4),
+                        Text(
+                          request.requestedAt,
+                          style: GoogleFonts.manrope(
+                            fontSize: 16,
+                            color: const Color(0xFF000101),
+                          ),
                         ),
-                      ),
+                      ],
+                      if (request.newStaffName != null) ...[
+                        SizedBox(height: 16),
+                        Text(
+                          'New Staff',
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            color: const Color(0xFF735A3A),
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          request.newStaffName!,
+                          style: GoogleFonts.libreCaslonText(
+                            fontSize: 18,
+                            color: const Color(0xFF000101),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      if (request.estimatedDate != null) ...[
+                        SizedBox(height: 16),
+                        Text(
+                          'Estimated Date',
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            color: const Color(0xFF735A3A),
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          request.estimatedDate!,
+                          style: GoogleFonts.manrope(
+                            fontSize: 16,
+                            color: const Color(0xFF000101),
+                          ),
+                        ),
+                      ],
+                      if (request.reason.isNotEmpty) ...[
+                        SizedBox(height: 16),
+                        Text(
+                          'Reason',
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            color: const Color(0xFF735A3A),
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          request.reason,
+                          style: GoogleFonts.manrope(
+                            fontSize: 16,
+                            color: const Color(0xFF000101),
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                      if (request.remarks != null) ...[
+                        SizedBox(height: 16),
+                        Text(
+                          'Remarks',
+                          style: GoogleFonts.manrope(
+                            fontSize: 12,
+                            color: const Color(0xFF735A3A),
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          request.remarks!,
+                          style: GoogleFonts.manrope(
+                            fontSize: 16,
+                            color: const Color(0xFF000101),
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
                     ],
-                    if (request.estimatedDate != null) ...[
-                      SizedBox(height: 16),
-                      Text(
-                        'Estimated Date',
-                        style: GoogleFonts.manrope(
-                          fontSize: 12,
-                          color: const Color(0xFF735A3A),
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        request.estimatedDate!,
-                        style: GoogleFonts.manrope(
-                          fontSize: 16,
-                          color: const Color(0xFF000101),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              SizedBox(height: 24),
-              Text(
-                'REASON',
-                style: GoogleFonts.manrope(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                  color: const Color(0xFF735A3A),
-                ),
-              ),
-              SizedBox(height: 12),
-              Text(
-                request.reason,
-                style: GoogleFonts.manrope(
-                  fontSize: 16,
-                  color: const Color(0xFF000101),
-                  height: 1.5,
-                ),
-              ),
-              if (request.remarks != null) ...[
-                SizedBox(height: 24),
-                Text(
-                  'REMARKS',
-                  style: GoogleFonts.manrope(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                    color: const Color(0xFF735A3A),
-                  ),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  request.remarks!,
-                  style: GoogleFonts.manrope(
-                    fontSize: 16,
-                    color: const Color(0xFF000101),
-                    height: 1.5,
                   ),
                 ),
               ],
+              Center(
+                child: TextButton(
+                  onPressed: () => context.push(ClientRoutes.replacementRequest),
+                  child: Text(
+                    'FILE ANOTHER REQUEST',
+                    style: GoogleFonts.manrope(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                      color: const Color(0xFF2563EB),
+                    ),
+                  ),
+                ),
+              ),
             ],
           );
         },

@@ -12,7 +12,7 @@ abstract interface class StaffRepository {
   Future<Result<void>> updateProfile({String? address, String? email});
   Future<Result<List<StaffDocument>>> getDocuments();
   Future<Result<StaffDocument>> getDocument(String id);
-  Future<Result<void>> uploadDocument(String name, String type, String filePath);
+  Future<Result<void>> uploadDocument(String name, String type, PlatformFile file);
   Future<Result<void>> reuploadDocument(String id, String name);
   Future<Result<List<TrainingCategory>>> getTrainingCategories();
   Future<Result<List<TrainingCourse>>> getTrainingCourses({String? categoryId});
@@ -35,8 +35,15 @@ abstract interface class StaffRepository {
   Future<Result<MonthlyAttendance>> getMonthlyAttendance(String month);
   Future<Result<SalarySummary>> getSalarySummary();
   Future<Result<List<Payslip>>> getPayslipHistory();
-  Future<Result<Payslip>> getPayslip(String id);
+  Future<Result<Payslip>> getPayslip(String ref);
+  Future<Result<List<int>>> downloadPayslipPdf(String ref);
   Future<Result<BankDetails>> getBankDetails();
+  Future<Result<BankDetails>> updateBankDetails({
+    required String accountHolderName,
+    required String accountNumber,
+    required String ifsc,
+    String? bankName,
+  });
   Future<Result<List<StaffNotification>>> getNotifications();
   Future<Result<void>> markNotificationRead(String id);
   Future<Result<void>> updatePassword(String current, String newPassword);

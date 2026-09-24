@@ -257,7 +257,7 @@ List<RouteBase> get staffRoutes => [
           GoRoute(
             path: 'payslip/:id',
             builder: (context, state) => StaffPayslipScreen(
-              payslipId: state.pathParameters['id']!,
+              payslipId: Uri.decodeComponent(state.pathParameters['id']!),
             ),
           ),
           GoRoute(

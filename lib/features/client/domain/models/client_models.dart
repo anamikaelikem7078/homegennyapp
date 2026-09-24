@@ -160,12 +160,19 @@ class ClientTodayAttendance {
 }
 
 /// Invoice — matches `GET /client/invoices` `invoices[]` item shape exactly.
-/// `id` is actually the invoice number string (not a DB uuid). There is no
-/// nested line-items array from the backend; [items] is derived client-side
-/// from the three numeric components for display purposes.
+/// `id`/`invoiceNumber` is the human-readable invoice number (contains
+/// slashes, e.g. "HPL-01/202609/0002") — display only, never pass it as a
+/// URL path segment (404s). `invoiceId` is the UUID — always use it for
+/// GET /client/invoices/:invoiceId and GET /client/invoices/download?id=.
+/// There is no nested line-items array from the list endpoint; [items] is
+/// derived client-side from the three numeric components for the summary
+/// card — the detail endpoint returns real line items instead (see
+/// [ClientInvoiceDetail]).
 class ClientInvoice {
   const ClientInvoice({
     required this.id,
+    required this.invoiceId,
+    required this.invoiceNumber,
     required this.billingMonth,
     required this.salaryComponent,
     required this.managementFee,
@@ -176,6 +183,8 @@ class ClientInvoice {
   });
 
   final String id;
+  final String invoiceId;
+  final String invoiceNumber;
   final String billingMonth;
   final double salaryComponent;
   final double managementFee;
@@ -201,6 +210,73 @@ class ClientInvoiceItem {
   final double amount;
 }
 
+/// Invoice detail — matches GET /client/invoices/:invoiceId (UUID or
+/// invoiceNumber in the path). [id] is the human-readable invoice number,
+/// for display only. GST is computed on [taxableValue] as a whole rather
+/// than on a management-fee component; PF/ESIC/salary/management-fee are
+/// never broken out to the client. [cgst]/[sgst] and [igst] are mutually
+/// exclusive — CGST+SGST for a same-state client, IGST for an out-of-state
+/// one — so render only the ones that are non-zero. For
+/// `documentType == 'BILL_OF_SUPPLY'` all three are always zero and the
+/// whole GST block should be hidden.
+class ClientInvoiceDetail {
+  const ClientInvoiceDetail({
+    required this.id,
+    required this.documentType,
+    required this.billingMonth,
+    required this.periodFrom,
+    required this.periodTo,
+    required this.status,
+    required this.dueDate,
+    required this.placeOfSupply,
+    required this.sacCode,
+    required this.staffCount,
+    required this.serviceLines,
+    required this.taxableValue,
+    required this.cgst,
+    required this.sgst,
+    required this.igst,
+    required this.gstAmount,
+    required this.totalAmount,
+    required this.amountPaid,
+    required this.amountDue,
+  });
+
+  final String id;
+  final String documentType;
+  final String billingMonth;
+  final String periodFrom;
+  final String periodTo;
+  final String status;
+  final String dueDate;
+  final String placeOfSupply;
+  final String sacCode;
+  final int staffCount;
+  final List<ClientInvoiceServiceLine> serviceLines;
+  final double taxableValue;
+  final double cgst;
+  final double sgst;
+  final double igst;
+  final double gstAmount;
+  final double totalAmount;
+  final double amountPaid;
+  final double amountDue;
+}
+
+/// One row of [ClientInvoiceDetail.serviceLines] — one per staff-type billed
+/// on the invoice.
+class ClientInvoiceServiceLine {
+  const ClientInvoiceServiceLine({
+    required this.strength,
+    required this.description,
+    required this.amount,
+  });
+
+  final int strength;
+  final String description;
+  final double amount;
+}
+
 /// Payment history entry (dummy-only — no backing endpoint exists yet).
 class ClientPaymentHistory {
   const ClientPaymentHistory({
@@ -220,8 +296,9 @@ class ClientPaymentHistory {
   final String invoiceNumber;
 }
 
-/// Complaint entry (dummy-only — GET /client/complaints does not exist on
-/// the backend; only POST does).
+/// Complaint entry — one row from GET /client/complaints (newest first).
+/// `id` is the incident's `ticketNumber` and `subject` is its `title`;
+/// see `ClientDtoCodec.decodeComplaint` for the full field mapping.
 class ClientComplaint {
   const ClientComplaint({
     required this.id,
@@ -244,8 +321,8 @@ class ClientComplaint {
   final String? resolution;
 }
 
-/// Replacement request (dummy-only — POST /client/replacements is a
-/// documented backend placeholder with no persisted schema yet).
+/// Replacement request — one row from GET /client/replacements (the
+/// client's past requests, newest first).
 class ClientReplacementRequest {
   const ClientReplacementRequest({
     required this.id,
@@ -266,6 +343,20 @@ class ClientReplacementRequest {
   final String? newStaffName;
   final String? estimatedDate;
   final String? remarks;
+}
+
+/// Response of POST /client/replacements — matches the 201 body exactly:
+/// `{"requestId": "uuid", "status": "UNDER_RM_REVIEW", "message": "..."}`.
+class ReplacementRequestResult {
+  const ReplacementRequestResult({
+    required this.requestId,
+    required this.status,
+    required this.message,
+  });
+
+  final String requestId;
+  final String status;
+  final String message;
 }
 
 /// Client notification (dummy-only — not in the documented Client API list).

@@ -61,6 +61,52 @@ abstract class BaseRemoteDataSource {
     return _extractData(response);
   }
 
+  /// Fetches a non-JSON text body (e.g. a server-rendered HTML document).
+  Future<String> getText(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final response = await _dio.get<String>(
+      path,
+      queryParameters: queryParameters,
+      options: Options(responseType: ResponseType.plain),
+    );
+    final status = response.statusCode ?? 0;
+    final body = response.data;
+    if (status < 200 || status >= 300 || body == null) {
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: response,
+        type: DioExceptionType.badResponse,
+        message: 'Request failed with status $status',
+      );
+    }
+    return body;
+  }
+
+  /// Fetches a binary body (e.g. a rendered PDF) as raw bytes.
+  Future<List<int>> getBytes(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final response = await _dio.get<List<int>>(
+      path,
+      queryParameters: queryParameters,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    final status = response.statusCode ?? 0;
+    final body = response.data;
+    if (status < 200 || status >= 300 || body == null) {
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: response,
+        type: DioExceptionType.badResponse,
+        message: 'Request failed with status $status',
+      );
+    }
+    return body;
+  }
+
   Future<Map<String, dynamic>> uploadMultipart(
     String path, {
     required FormData formData,

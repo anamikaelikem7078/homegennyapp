@@ -1,12 +1,8 @@
-import 'dart:io';
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../domain/models/client_models.dart';
 
@@ -26,9 +22,8 @@ class ClientRaiseComplaintScreen extends ConsumerStatefulWidget {
 
 class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplaintScreen> {
   final _description = TextEditingController();
-  List<String> _imagePaths = [];
   bool _loading = false;
-  
+
   String _urgency = 'STANDARD';
 
   @override
@@ -46,7 +41,6 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
     final result = await ref.read(clientRepositoryProvider).raiseComplaint(
           subject: 'Support Request - $_urgency',
           description: _description.text,
-          imagePaths: _imagePaths,
         );
     if (!mounted) return;
     setState(() => _loading = false);
@@ -166,50 +160,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
             ],
           ),
           SizedBox(height: 40),
-          
-          GestureDetector(
-            onTap: () async {
-              final paths = await context.push<List<String>>(ClientRoutes.complaintUpload);
-              if (paths != null) setState(() => _imagePaths = paths);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(4),
-                // Emulating a dashed border with a solid one for simplicity in basic flutter
-                border: Border.all(color: context.theme.dividerColor, width: 1.5),
-              ),
-              child: Column(
-                children: [
-                  Icon(Icons.cloud_upload_outlined, color: Color(0xFF1A56FF), size: 32),
-                  SizedBox(height: 12),
-                  Text(
-                    _imagePaths.isEmpty
-                        ? context.l10n.uploadDocuments
-                        : '${_imagePaths.length} image(s) attached',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: const Color(0xFF1A56FF),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    context.l10n.uploadDocsHint,
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: context.colors.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 40),
-          
+
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -312,78 +263,6 @@ class _UrgencyButton extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Upload images for complaint.
-class ClientComplaintUploadScreen extends StatefulWidget {
-  const ClientComplaintUploadScreen({super.key});
-
-  @override
-  State<ClientComplaintUploadScreen> createState() => _ClientComplaintUploadScreenState();
-}
-
-class _ClientComplaintUploadScreenState extends State<ClientComplaintUploadScreen> {
-  final List<String> _imagePaths = [];
-  final _picker = ImagePicker();
-
-  Future<void> _pickImages() async {
-    final picked = await _picker.pickMultiImage();
-    if (picked.isEmpty) return;
-    setState(() => _imagePaths.addAll(picked.map((f) => f.path)));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ClientPageScaffold(
-      title: context.l10n.uploadImagesTitle,
-      body: Column(
-        children: [
-          Expanded(
-            child: GridView.count(
-              crossAxisCount: 3,
-              crossAxisSpacing: AppSpacing.sm,
-              mainAxisSpacing: AppSpacing.sm,
-              children: [
-                ..._imagePaths.map((path) => Container(
-                      decoration: AppDecorations.softCard(context),
-                      clipBehavior: Clip.antiAlias,
-                      // `Image.file` asserts on Flutter Web; the picked
-                      // path there is a `blob:` URL `Image.network` can load.
-                      child: kIsWeb
-                          ? Image.network(path, fit: BoxFit.cover)
-                          : Image.file(File(path), fit: BoxFit.cover),
-                    )),
-                GestureDetector(
-                  onTap: _pickImages,
-                  child: Container(
-                    decoration: AppDecorations.softCard(context),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add_a_photo_outlined, color: AppColors.primary, size: 32),
-                        SizedBox(height: AppSpacing.xs),
-                        Text(context.l10n.addPhoto),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          DsPrimaryButton(
-            label: context.l10n.done,
-            onPressed: () {
-              context.showDsSnackBar(
-                context.l10n.imagesAttached(_imagePaths.length),
-                type: DsSnackBarType.success,
-              );
-              context.pop(_imagePaths);
-            },
-          ),
-        ],
       ),
     );
   }

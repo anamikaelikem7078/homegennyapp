@@ -14,6 +14,7 @@ abstract interface class ClientRepository {
     String? title,
   });
   Future<Result<List<ClientInvoice>>> getInvoices();
+  Future<Result<ClientInvoiceDetail>> getInvoiceDetail(String invoiceId);
   Future<Result<List<ClientPaymentHistory>>> getPaymentHistory();
   Future<Result<String>> downloadInvoice(String invoiceId);
   Future<Result<List<ClientComplaint>>> getComplaints();
@@ -23,8 +24,12 @@ abstract interface class ClientRepository {
     int imageCount,
     List<String>? imagePaths,
   });
-  Future<Result<ClientReplacementRequest?>> getReplacementStatus();
-  Future<Result<void>> requestReplacement(String reason);
+  Future<Result<List<ClientReplacementRequest>>> getReplacements();
+  Future<Result<ReplacementRequestResult>> requestReplacement({
+    required String reason,
+    String? placementId,
+    String? preferredDate,
+  });
   Future<Result<List<ClientNotification>>> getNotifications();
   Future<Result<void>> markNotificationRead(String id);
   Future<Result<void>> makeDemoPayment(String invoiceId, double amount, String method);

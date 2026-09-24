@@ -62,6 +62,8 @@ class ClientStaffTabScreen extends ConsumerWidget {
             );
           }
           final staff = list.first;
+          final profile = ref.watch(clientStaffProfileProvider(staff.staffId));
+          final attendancePercent = profile.valueOrNull?.attendancePercent;
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             children: [
@@ -294,7 +296,7 @@ class ClientStaffTabScreen extends ConsumerWidget {
                         ),
                         const Spacer(),
                         Text(
-                          '98%',
+                          attendancePercent != null ? '${attendancePercent.round()}%' : '—',
                           style: GoogleFonts.inter(
                             fontSize: 13,
                             color: context.colors.onSurface,
@@ -2314,7 +2316,7 @@ class ClientStaffPerformanceScreen extends ConsumerWidget {
                         ),
                         SizedBox(height: 12),
                         Text(
-                          '98%',
+                          s.attendancePercent != null ? '${s.attendancePercent!.round()}%' : '—',
                           style: GoogleFonts.libreCaslonText(
                             fontSize: 24,
                             color: context.colors.onSurface,

@@ -151,7 +151,7 @@ class ClientInvoiceScreen extends ConsumerWidget {
                               Uri(
                                 path: ClientRoutes.paymentGateway,
                                 queryParameters: {
-                                  'invoiceId': invoice.id,
+                                  'invoiceId': invoice.invoiceId,
                                   'amount': invoice.totalAmount.toString(),
                                 },
                               ).toString(),

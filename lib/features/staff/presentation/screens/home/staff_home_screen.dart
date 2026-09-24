@@ -117,22 +117,9 @@ class StaffHomeScreen extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _AttendanceBentoCard(
-                      percentage: 92,
-                      onTap: () => context.go(StaffRoutes.attendance),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _PaymentsBentoCard(
-                      amount: '₹18,500',
-                      onTap: () => context.push(StaffRoutes.salary),
-                    ),
-                  ),
-                ],
+              _AttendanceBentoCard(
+                percentage: 92,
+                onTap: () => context.go(StaffRoutes.attendance),
               ),
               const SizedBox(height: 16),
               _OngoingTrainingWidget(),
@@ -756,102 +743,6 @@ class _AttendanceBentoCard extends StatelessWidget {
   }
 }
 
-class _PaymentsBentoCard extends StatelessWidget {
-  const _PaymentsBentoCard({
-    required this.amount,
-    required this.onTap,
-  });
-
-  final String amount;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A56FF),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF1A56FF).withOpacity(0.2),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'PAYMENTS',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white.withOpacity(0.8),
-                      letterSpacing: 1.5,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.payments_outlined, size: 14, color: Colors.white),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Text(
-              amount,
-              style: GoogleFonts.libreCaslonText(
-                fontSize: 20,
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.timer_outlined, color: Colors.white, size: 12),
-                const SizedBox(width: 4),
-                Text(
-                  '5 days left',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF123BB8), // Darker blue for contrast
-                borderRadius: BorderRadius.circular(4), // Soft-square 4px
-              ),
-              child: Text(
-                'Pay Now',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _OngoingTrainingWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -1243,6 +1134,8 @@ class StaffProfileCompletionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(staffProfileProvider);
     final completionPct = ref.watch(staffDashboardProvider).valueOrNull?.completionPct ?? 0;
+    final documents = ref.watch(staffDocumentsProvider).valueOrNull ?? const [];
+    final pendingDocuments = documents.where((d) => d.status == DocumentApprovalStatus.pending).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFFBF9F8),
@@ -1455,7 +1348,7 @@ class StaffProfileCompletionScreen extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        '1 pending',
+                        pendingDocuments > 0 ? '$pendingDocuments pending' : 'All clear',
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,

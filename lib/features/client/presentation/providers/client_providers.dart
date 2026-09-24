@@ -57,6 +57,15 @@ final clientInvoicesProvider = FutureProvider<List<ClientInvoice>>((ref) async {
   );
 });
 
+final clientInvoiceDetailProvider =
+    FutureProvider.family<ClientInvoiceDetail, String>((ref, invoiceId) async {
+  final result = await ref.watch(clientRepositoryProvider).getInvoiceDetail(invoiceId);
+  return result.fold(
+    onSuccess: (d) => d,
+    onError: (f) => throw Exception(f.message),
+  );
+});
+
 final clientPaymentHistoryProvider =
     FutureProvider<List<ClientPaymentHistory>>((ref) async {
   final result = await ref.watch(clientRepositoryProvider).getPaymentHistory();
@@ -74,9 +83,9 @@ final clientComplaintsProvider = FutureProvider<List<ClientComplaint>>((ref) asy
   );
 });
 
-final clientReplacementProvider =
-    FutureProvider<ClientReplacementRequest?>((ref) async {
-  final result = await ref.watch(clientRepositoryProvider).getReplacementStatus();
+final clientReplacementsProvider =
+    FutureProvider<List<ClientReplacementRequest>>((ref) async {
+  final result = await ref.watch(clientRepositoryProvider).getReplacements();
   return result.fold(
     onSuccess: (d) => d,
     onError: (f) => throw Exception(f.message),

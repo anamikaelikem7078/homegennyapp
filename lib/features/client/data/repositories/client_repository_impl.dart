@@ -94,8 +94,13 @@ class ClientRepositoryImpl implements ClientRepository {
   );
 
   @override
+  Future<Result<ClientInvoiceDetail>> getInvoiceDetail(String invoiceId) =>
+      _executor.fetch(remote: () => _remote.getInvoiceDetail(invoiceId));
+
+  @override
   Future<Result<List<ClientPaymentHistory>>> getPaymentHistory() =>
       _executor.fetch(
+        remote: _remote.getPaymentHistory,
         local: () async {
           final l = await _local.getPaymentHistory();
           return l.isEmpty ? null : l;
@@ -104,13 +109,15 @@ class ClientRepositoryImpl implements ClientRepository {
       );
 
   @override
-  Future<Result<String>> downloadInvoice(String invoiceId) =>
-      _executor.mutate(dummy: () => _dummy.downloadInvoice(invoiceId));
+  Future<Result<String>> downloadInvoice(String invoiceId) => _executor.mutate(
+    remote: () => _remote.downloadInvoice(invoiceId),
+    dummy: () => _dummy.downloadInvoice(invoiceId),
+  );
 
-  // Note: GET /client/complaints does not exist on the backend — only
-  // POST does (see raiseComplaint below). Stays dummy-only.
   @override
   Future<Result<List<ClientComplaint>>> getComplaints() => _executor.fetch(
+    remote: _remote.getComplaints,
+    cache: _local.cacheComplaints,
     local: () async {
       final l = await _local.getComplaints();
       return l.isEmpty ? null : l;
@@ -140,16 +147,41 @@ class ClientRepositoryImpl implements ClientRepository {
   );
 
   @override
-  Future<Result<ClientReplacementRequest?>> getReplacementStatus() =>
-      _executor.fetch(dummy: _dummy.getReplacementStatus);
+  Future<Result<List<ClientReplacementRequest>>> getReplacements() =>
+      _executor.fetch(
+        remote: _remote.getReplacements,
+        dummy: () async {
+          final status = await _dummy.getReplacementStatus();
+          return status == null ? <ClientReplacementRequest>[] : [status];
+        },
+      );
 
   @override
-  Future<Result<void>> requestReplacement(String reason) =>
-      _executor.mutateVoid(dummy: () => _dummy.requestReplacement(reason));
+  Future<Result<ReplacementRequestResult>> requestReplacement({
+    required String reason,
+    String? placementId,
+    String? preferredDate,
+  }) =>
+      _executor.mutate(
+        remote: () => _remote.postReplacement(
+          reason: reason,
+          placementId: placementId,
+          preferredDate: preferredDate,
+        ),
+        dummy: () async {
+          await _dummy.requestReplacement(reason);
+          return const ReplacementRequestResult(
+            requestId: 'dummy',
+            status: 'UNDER_RM_REVIEW',
+            message: 'Replacement request recorded. Your RM can see it and will be in touch.',
+          );
+        },
+      );
 
   @override
   Future<Result<List<ClientNotification>>> getNotifications() =>
       _executor.fetch(
+        remote: _remote.getNotifications,
         local: () async {
           final l = await _local.getNotifications();
           return l.isEmpty ? null : l;

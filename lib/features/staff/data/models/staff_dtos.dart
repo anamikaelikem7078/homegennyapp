@@ -1,3 +1,4 @@
+import '../../../../core/utils/currency_formatter.dart';
 import '../../domain/models/staff_models.dart';
 
 /// Staff module DTOs with JSON serialization and domain mapping.
@@ -196,6 +197,143 @@ abstract final class StaffDtoCodec {
         reviewStatus: json['reviewStatus'] as String? ?? 'PENDING',
         attemptNumber: json['attemptNumber'] as int? ?? 1,
       );
+
+  static const _monthNames = [
+    '', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  static String _periodLabel(int? month, int? year) {
+    if (month == null || year == null || month < 1 || month > 12) return '';
+    return '${_monthNames[month]} $year';
+  }
+
+  static List<SalaryHouse> _decodeHouses(List<dynamic>? json) => (json ?? [])
+      .map((e) => e as Map<String, dynamic>)
+      .map((h) => SalaryHouse(
+            clientName: h['client_name'] as String? ?? h['clientName'] as String? ?? '',
+            placementType: h['placement_type'] as String? ?? h['placementType'] as String? ?? '',
+            worked: h['worked'] as String? ?? '',
+            grossSalary: (h['gross_salary'] as num?)?.toDouble() ??
+                (h['grossSalary'] as num?)?.toDouble() ?? 0,
+          ))
+      .toList();
+
+  /// Decodes one `salary`-shaped object — shared by GET /staff/salary's
+  /// `salary` field and each item of GET /staff/payslips' `items[]`, which
+  /// are identical in shape per the backend audit (snake_case wire fields:
+  /// period_month, period_year, days_worked, gross_salary, esic_employee,
+  /// pf_employee, total_deductions, net_salary, status, houses[]).
+  static ({
+    String month,
+    String ref,
+    String gross,
+    String deductions,
+    String net,
+    String status,
+    List<SalaryHouse> houses,
+    int? presentDays,
+    Map<String, double> deductionBreakdown,
+  }) _decodeSalaryObject(Map<String, dynamic> json) {
+    final month = json['period_month'] as int? ?? json['periodMonth'] as int?;
+    final year = json['period_year'] as int? ?? json['periodYear'] as int?;
+    final esic = (json['esic_employee'] as num?)?.toDouble();
+    final pf = (json['pf_employee'] as num?)?.toDouble();
+    return (
+      month: _periodLabel(month, year),
+      ref: '${month ?? ''}-${year ?? ''}',
+      gross: CurrencyFormatter.inr(((json['gross_salary'] as num?) ?? 0).toDouble()),
+      deductions: CurrencyFormatter.inr(((json['total_deductions'] as num?) ?? 0).toDouble()),
+      net: CurrencyFormatter.inr(((json['net_salary'] as num?) ?? 0).toDouble()),
+      status: json['status'] as String? ?? '',
+      houses: _decodeHouses(json['houses'] as List<dynamic>?),
+      presentDays: json['days_worked'] as int?,
+      deductionBreakdown: {
+        if (esic != null) 'esic': esic,
+        if (pf != null) 'pf': pf,
+      },
+    );
+  }
+
+  // ── Salary summary ── (matches GET /staff/salary exactly — `{"salary":
+  // {...}}` normally, or `{"salary": null, "message": "..."}` as a normal
+  // 200 before any payroll has run for this staff member)
+  static SalarySummary decodeSalarySummary(Map<String, dynamic> json) {
+    final salary = json['salary'] as Map<String, dynamic>?;
+    if (salary == null) {
+      return SalarySummary(
+        hasPayslips: false,
+        month: '',
+        gross: '',
+        deductions: '',
+        net: '',
+        status: '',
+        emptyMessage: json['message'] as String? ?? 'No payroll has been run for you yet.',
+      );
+    }
+    final s = _decodeSalaryObject(salary);
+    return SalarySummary(
+      hasPayslips: true,
+      month: s.month,
+      gross: s.gross,
+      deductions: s.deductions,
+      net: s.net,
+      status: s.status,
+      houses: s.houses,
+      ref: s.ref,
+    );
+  }
+
+  // ── Payslip ── (matches one item of GET /staff/payslips `items[]` —
+  // same shape as the GET /staff/salary `salary` object)
+  static Payslip decodePayslip(Map<String, dynamic> json) {
+    final s = _decodeSalaryObject(json);
+    return Payslip(
+      ref: s.ref,
+      month: s.month,
+      amount: s.net,
+      grossAmount: s.gross,
+      deductionsAmount: s.deductions,
+      deductionBreakdown: s.deductionBreakdown,
+      status: s.status,
+      houses: s.houses,
+      presentDays: s.presentDays,
+    );
+  }
+
+  // ── Agreement status ── (GET /staff/agreement — read-only status; the
+  // exact field set isn't documented beyond "status", so this decode is
+  // tolerant and keeps the existing title/content placeholders when the
+  // backend doesn't return document text on this read endpoint)
+  static StaffAgreement decodeAgreement(Map<String, dynamic> json) {
+    final statusStr = (json['status'] as String? ?? 'pending').toLowerCase();
+    final status = AgreementStatus.values.firstWhere(
+      (s) => s.name == statusStr,
+      orElse: () => AgreementStatus.pending,
+    );
+    return StaffAgreement(
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? 'Employment Agreement',
+      content: json['content'] as String? ?? '',
+      status: status,
+      signedAt: json['signedAt'] as String? ?? json['signed_at'] as String?,
+    );
+  }
+
+  // ── Bank account ── (matches GET /staff/bank-account's `bankAccount`
+  // object exactly)
+  static BankDetails decodeBankDetails(Map<String, dynamic> json) {
+    final b = json['bankAccount'] as Map<String, dynamic>? ?? json;
+    return BankDetails(
+      accountHolderName: b['accountHolderName'] as String? ?? '',
+      accountNumberMasked: b['accountNumberMasked'] as String? ?? '',
+      last4: b['last4'] as String? ?? '',
+      ifsc: b['ifsc'] as String? ?? '',
+      bankName: b['bankName'] as String? ?? '',
+      verified: b['verified'] as bool? ?? false,
+      verifiedAt: b['verifiedAt'] as String?,
+    );
+  }
 }
 
 /// Server-issued destination for a single video upload — matches

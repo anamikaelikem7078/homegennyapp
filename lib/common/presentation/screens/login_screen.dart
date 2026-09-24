@@ -244,7 +244,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   },
                 ),
               ),
-              validator: (v) => _localizedValidator(Validators.password(v)),
             ),
           ),
           SizedBox(height: 32),

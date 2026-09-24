@@ -200,51 +200,107 @@ class MonthlyAttendance {
   final int leave;
 }
 
-/// Salary summary model.
+/// One placement a salary/payslip period was earned from — matches an entry
+/// of the `houses` array embedded in GET /staff/salary and
+/// GET /staff/payslips items exactly.
+class SalaryHouse {
+  const SalaryHouse({
+    required this.clientName,
+    required this.placementType,
+    required this.worked,
+    required this.grossSalary,
+  });
+
+  final String clientName;
+  final String placementType;
+  final String worked;
+  final double grossSalary;
+}
+
+/// Salary summary model — matches GET /staff/salary exactly (the `salary`
+/// object, or `null` with a `message` when no payroll run has produced a
+/// payslip for this staff member yet). [hasPayslips] is false in that case.
 class SalarySummary {
   const SalarySummary({
+    required this.hasPayslips,
     required this.month,
     required this.gross,
     required this.deductions,
     required this.net,
     required this.status,
+    this.houses = const [],
+    this.ref,
+    this.emptyMessage,
   });
 
+  final bool hasPayslips;
   final String month;
   final String gross;
   final String deductions;
   final String net;
   final String status;
+  final List<SalaryHouse> houses;
+  /// "$periodMonth-$periodYear" — identifies this period for
+  /// GET /staff/payslips/pdf, which takes month/year query params rather
+  /// than a per-payslip id.
+  final String? ref;
+  /// Set (with [hasPayslips] false) when the server returns
+  /// `{"salary": null, "message": "..."}` — a normal 200, not an error.
+  final String? emptyMessage;
 }
 
-/// Payslip model.
+/// Payslip model — one row from GET /staff/payslips (one per month, newest
+/// first), shaped exactly like the GET /staff/salary `salary` object. [ref]
+/// is a synthetic "$month-$year" key — what GET /staff/payslips/pdf expects
+/// as query params.
 class Payslip {
   const Payslip({
-    required this.id,
+    required this.ref,
     required this.month,
     required this.amount,
-    required this.paidOn,
+    required this.grossAmount,
+    required this.deductionsAmount,
+    required this.deductionBreakdown,
+    required this.status,
+    this.houses = const [],
+    this.presentDays,
   });
 
-  final String id;
+  final String ref;
   final String month;
+  /// Net pay, formatted.
   final String amount;
-  final String paidOn;
+  final String grossAmount;
+  final String deductionsAmount;
+  /// Raw deduction line items (e.g. {"esic": 2.96, "pf": 47.38}) for the
+  /// detail screen — keys are backend field names, title-cased for display.
+  final Map<String, double> deductionBreakdown;
+  final String status;
+  final List<SalaryHouse> houses;
+  final int? presentDays;
 }
 
-/// Bank details model.
+/// Bank details model — matches GET /staff/bank-account's `bankAccount`
+/// object exactly. The account number always comes back masked; saving new
+/// details (PUT) always resets [verified] to false server-side.
 class BankDetails {
   const BankDetails({
-    required this.accountHolder,
-    required this.accountNumber,
-    required this.bankName,
+    required this.accountHolderName,
+    required this.accountNumberMasked,
+    required this.last4,
     required this.ifsc,
+    required this.bankName,
+    required this.verified,
+    this.verifiedAt,
   });
 
-  final String accountHolder;
-  final String accountNumber;
-  final String bankName;
+  final String accountHolderName;
+  final String accountNumberMasked;
+  final String last4;
   final String ifsc;
+  final String bankName;
+  final bool verified;
+  final String? verifiedAt;
 }
 
 /// Staff notification model.

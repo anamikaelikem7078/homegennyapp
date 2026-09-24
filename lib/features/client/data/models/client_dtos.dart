@@ -170,6 +170,8 @@ abstract final class ClientDtoCodec {
   // no nested line-items array is returned by the backend)
   static Map<String, dynamic> encodeInvoice(ClientInvoice i) => {
         'id': i.id,
+        'invoiceId': i.invoiceId,
+        'invoiceNumber': i.invoiceNumber,
         'billingMonth': i.billingMonth,
         'salaryComponent': i.salaryComponent,
         'managementFee': i.managementFee,
@@ -181,6 +183,12 @@ abstract final class ClientDtoCodec {
 
   static ClientInvoice decodeInvoice(Map<String, dynamic> json) => ClientInvoice(
         id: json['id'] as String? ?? '',
+        // Falls back to `id` for cached rows written before invoiceId
+        // existed, and for the dummy source which uses one string for both.
+        invoiceId: json['invoiceId'] as String? ?? json['id'] as String? ?? '',
+        // Falls back to `id` for cached rows written before invoiceNumber
+        // existed, and for the dummy source which uses one string for both.
+        invoiceNumber: json['invoiceNumber'] as String? ?? json['id'] as String? ?? '',
         billingMonth: json['billingMonth'] as String? ?? '',
         salaryComponent: (json['salaryComponent'] as num?)?.toDouble() ?? 0,
         managementFee: (json['managementFee'] as num?)?.toDouble() ?? 0,
@@ -190,8 +198,101 @@ abstract final class ClientDtoCodec {
         dueDate: json['dueDate'] as String? ?? '',
       );
 
-  // ── Complaint ── (dummy/local-cache only — GET /client/complaints does
-  // not exist on the backend, only POST does)
+  // ── Invoice detail ── (matches GET /client/invoices/:id exactly — a
+  // `serviceLines[]` array of {strength, description, amount} plus a
+  // taxableValue/cgst/sgst/igst GST breakdown; no PF/ESIC/salary/management
+  // fee components are sent)
+  static ClientInvoiceDetail decodeInvoiceDetail(Map<String, dynamic> json) =>
+      ClientInvoiceDetail(
+        id: json['id'] as String? ?? '',
+        documentType: json['documentType'] as String? ?? '',
+        billingMonth: json['billingMonth'] as String? ?? '',
+        periodFrom: json['periodFrom'] as String? ?? '',
+        periodTo: json['periodTo'] as String? ?? '',
+        status: json['status'] as String? ?? '',
+        dueDate: json['dueDate'] as String? ?? '',
+        placeOfSupply: json['placeOfSupply'] as String? ?? '',
+        sacCode: json['sacCode'] as String? ?? '',
+        staffCount: json['staffCount'] as int? ?? 0,
+        serviceLines: ((json['serviceLines'] as List<dynamic>?) ?? [])
+            .map((e) => e as Map<String, dynamic>)
+            .map((i) => ClientInvoiceServiceLine(
+                  strength: i['strength'] as int? ?? 0,
+                  description: i['description'] as String? ?? '',
+                  amount: (i['amount'] as num?)?.toDouble() ?? 0,
+                ))
+            .toList(),
+        taxableValue: (json['taxableValue'] as num?)?.toDouble() ?? 0,
+        cgst: (json['cgst'] as num?)?.toDouble() ?? 0,
+        sgst: (json['sgst'] as num?)?.toDouble() ?? 0,
+        igst: (json['igst'] as num?)?.toDouble() ?? 0,
+        gstAmount: (json['gstAmount'] as num?)?.toDouble() ?? 0,
+        totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
+        amountPaid: (json['amountPaid'] as num?)?.toDouble() ?? 0,
+        amountDue: (json['amountDue'] as num?)?.toDouble() ?? 0,
+      );
+
+  // ── Payment history ── (real endpoint now; exact field names aren't
+  // spelled out in the backend audit, so this decode tolerates either
+  // camelCase or snake_case and falls back to the dummy-shaped keys)
+  static ClientPaymentHistory decodePaymentHistory(Map<String, dynamic> json) =>
+      ClientPaymentHistory(
+        id: json['id'] as String? ?? '',
+        date: json['date'] as String? ?? json['paidAt'] as String? ?? '',
+        amount: json['amount'] is String
+            ? json['amount'] as String
+            : json['amount'] != null
+                ? (json['amount'] as num).toString()
+                : '',
+        method: json['method'] as String? ?? json['paymentMethod'] as String? ?? '',
+        status: ClientPaymentStatus.values.byNameOrDefault(
+          (json['status'] as String?)?.toLowerCase(),
+          ClientPaymentStatus.paid,
+        ),
+        invoiceNumber: json['invoiceNumber'] as String? ?? json['invoiceId'] as String? ?? '',
+      );
+
+  // ── Replacement request ── (matches one item of GET /client/replacements)
+  static ClientReplacementStatus _decodeReplacementStatus(String? raw) {
+    switch (raw) {
+      case 'UNDER_RM_REVIEW':
+      case 'IN_REVIEW':
+        return ClientReplacementStatus.inReview;
+      case 'APPROVED':
+        return ClientReplacementStatus.approved;
+      case 'REJECTED':
+        return ClientReplacementStatus.rejected;
+      case 'COMPLETED':
+        return ClientReplacementStatus.completed;
+      default:
+        return ClientReplacementStatus.pending;
+    }
+  }
+
+  static ClientReplacementRequest decodeReplacementRequest(Map<String, dynamic> json) =>
+      ClientReplacementRequest(
+        id: json['id'] as String? ?? json['requestId'] as String? ?? '',
+        currentStaffName: json['currentStaffName'] as String? ?? json['staffName'] as String? ?? '',
+        reason: json['reason'] as String? ?? '',
+        status: _decodeReplacementStatus(json['status'] as String?),
+        requestedAt: json['createdAt'] as String? ?? json['requestedAt'] as String? ?? '',
+        newStaffName: json['newStaffName'] as String?,
+        estimatedDate: json['estimatedDate'] as String?,
+        remarks: json['remarks'] as String?,
+      );
+
+  // ── Replacement result ── (matches 201 body of POST /client/replacements)
+  static ReplacementRequestResult decodeReplacementResult(Map<String, dynamic> json) =>
+      ReplacementRequestResult(
+        requestId: json['requestId'] as String? ?? '',
+        status: json['status'] as String? ?? '',
+        message: json['message'] as String? ?? '',
+      );
+
+  // ── Complaint ── GET /client/complaints returns `ticketNumber`, `title`,
+  // `raisedAt` and an UPPER_CASE `status` (OPEN/INVESTIGATING/ESCALATED/
+  // RESOLVED/CLOSED); the cache round-trip below uses the snake_case shape
+  // instead, so both are accepted on decode.
   static Map<String, dynamic> encodeComplaint(ClientComplaint c) => {
         'id': c.id,
         'subject': c.subject,
@@ -204,17 +305,54 @@ abstract final class ClientDtoCodec {
       };
 
   static ClientComplaint decodeComplaint(Map<String, dynamic> json) => ClientComplaint(
-        id: json['id'] as String,
-        subject: json['subject'] as String? ?? '',
+        id: (json['ticketNumber'] ?? json['id']) as String? ?? '',
+        subject: (json['title'] ?? json['subject']) as String? ?? '',
         description: json['description'] as String? ?? '',
-        status: ClientComplaintStatus.values.byNameOrDefault(
-          json['status'] as String?,
-          ClientComplaintStatus.open,
-        ),
-        createdAt: json['created_at'] as String? ?? '',
-        updatedAt: json['updated_at'] as String? ?? '',
+        status: _decodeComplaintStatus(json['status'] as String?),
+        createdAt: (json['raisedAt'] ?? json['created_at']) as String? ?? '',
+        updatedAt: (json['resolvedAt'] ?? json['updated_at']) as String? ?? '',
         imageCount: json['image_count'] as int? ?? 0,
         resolution: json['resolution'] as String?,
+      );
+
+  // Server statuses are OPEN/INVESTIGATING/ESCALATED/RESOLVED/CLOSED; the
+  // app's ClientComplaintStatus has no separate "escalated" state, so it
+  // folds into inProgress like INVESTIGATING does.
+  static ClientComplaintStatus _decodeComplaintStatus(String? status) {
+    switch (status) {
+      case 'OPEN':
+        return ClientComplaintStatus.open;
+      case 'INVESTIGATING':
+      case 'ESCALATED':
+        return ClientComplaintStatus.inProgress;
+      case 'RESOLVED':
+        return ClientComplaintStatus.resolved;
+      case 'CLOSED':
+        return ClientComplaintStatus.closed;
+      default:
+        return ClientComplaintStatus.values.byNameOrDefault(
+          status,
+          ClientComplaintStatus.open,
+        );
+    }
+  }
+
+  // ── Notification ── (matches GET /client/notifications item shape,
+  // scoped to the caller — same tolerant camelCase/snake_case shape as the
+  // staff notification decode)
+  static Map<String, dynamic> encodeNotification(ClientNotification n) => {
+        'id': n.id, 'title': n.title, 'message': n.message,
+        'time': n.time, 'is_read': n.isRead, 'type': n.type,
+      };
+
+  static ClientNotification decodeNotification(Map<String, dynamic> json) =>
+      ClientNotification(
+        id: json['id'] as String? ?? '',
+        title: json['title'] as String? ?? '',
+        message: json['message'] as String? ?? '',
+        time: json['time'] as String? ?? '',
+        isRead: json['is_read'] as bool? ?? json['isRead'] as bool? ?? false,
+        type: json['type'] as String? ?? '',
       );
 
   static List<Map<String, dynamic>> encodeList<T>(

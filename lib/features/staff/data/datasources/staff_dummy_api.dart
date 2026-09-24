@@ -1,3 +1,5 @@
+import 'package:file_picker/file_picker.dart';
+
 import '../../domain/models/staff_models.dart';
 
 /// Dummy API with simulated network delay for Staff module.
@@ -134,7 +136,7 @@ class StaffDummyApi {
     return _documents.firstWhere((d) => d.id == id);
   }
 
-  Future<void> uploadDocument(String name, String type, String filePath) => _simulate(null);
+  Future<void> uploadDocument(String name, String type, PlatformFile file) => _simulate(null);
 
   Future<void> reuploadDocument(String id, String name) => _simulate(null);
 
@@ -339,46 +341,63 @@ class StaffDummyApi {
     ),
   ];
 
+  String get _todayKey => DateTime.now().toIso8601String().substring(0, 10);
+
   Future<AttendanceRecord?> getTodayAttendance() async {
     await Future<void>.delayed(_delay);
-    return _attendanceRecords.first;
+    // A record only counts as "today's" if its date actually matches — once
+    // the date rolls over, a completed previous shift must not keep blocking
+    // the check-in toggle for the new day.
+    if (_attendanceRecords.isNotEmpty &&
+        _attendanceRecords.first.date == _todayKey) {
+      return _attendanceRecords.first;
+    }
+    return null;
   }
 
   Future<CheckInResult> checkIn({double? latitude, double? longitude}) async {
     await Future<void>.delayed(_delay);
-    if (_attendanceRecords.isNotEmpty) {
-      _attendanceRecords[0] = AttendanceRecord(
-        date: _attendanceRecords[0].date,
-        checkIn: '09:02 AM',
-        checkOut: null,
-        status: 'present',
-        location: _attendanceRecords[0].location,
-      );
+    final now = DateTime.now();
+    final timestamp = now.toIso8601String();
+    final record = AttendanceRecord(
+      date: _todayKey,
+      checkIn: timestamp,
+      checkOut: null,
+      status: 'present',
+      location: _attendanceRecords.isNotEmpty
+          ? _attendanceRecords.first.location
+          : null,
+    );
+    if (_attendanceRecords.isNotEmpty && _attendanceRecords.first.date == _todayKey) {
+      _attendanceRecords[0] = record;
+    } else {
+      _attendanceRecords.insert(0, record);
     }
-    return const CheckInResult(
+    return CheckInResult(
       success: true,
       attendanceId: 'a1',
       status: 'CHECKED_IN',
-      timestamp: '09:02 AM',
+      timestamp: timestamp,
     );
   }
 
   Future<CheckInResult> checkOut({double? latitude, double? longitude}) async {
     await Future<void>.delayed(_delay);
-    if (_attendanceRecords.isNotEmpty) {
+    final timestamp = DateTime.now().toIso8601String();
+    if (_attendanceRecords.isNotEmpty && _attendanceRecords.first.date == _todayKey) {
       _attendanceRecords[0] = AttendanceRecord(
         date: _attendanceRecords[0].date,
         checkIn: _attendanceRecords[0].checkIn,
-        checkOut: '06:30 PM',
+        checkOut: timestamp,
         status: _attendanceRecords[0].status,
         location: _attendanceRecords[0].location,
       );
     }
-    return const CheckInResult(
+    return CheckInResult(
       success: true,
       attendanceId: 'a1',
       status: 'CHECKED_OUT',
-      timestamp: '06:30 PM',
+      timestamp: timestamp,
     );
   }
 
@@ -396,48 +415,69 @@ class StaffDummyApi {
       );
 
   SalarySummary get _salarySummary => const SalarySummary(
+        hasPayslips: true,
         month: 'June 2024',
         gross: '₹28,000',
         deductions: '₹2,240',
         net: '₹25,760',
         status: 'Paid',
+        ref: 'FIELD_PAYROLL:demo-june',
       );
 
   Future<SalarySummary> getSalarySummary() => _simulate(_salarySummary);
 
   List<Payslip> get _payslips => const [
         Payslip(
-          id: 'p1',
+          ref: 'FIELD_PAYROLL:demo-june',
           month: 'June 2024',
           amount: '₹25,760',
-          paidOn: '1 Jul 2024',
+          grossAmount: '₹28,000',
+          deductionsAmount: '₹2,240',
+          deductionBreakdown: {'pf': 1800, 'esic': 440},
+          status: 'Paid',
+          presentDays: 26,
         ),
         Payslip(
-          id: 'p2',
+          ref: 'FIELD_PAYROLL:demo-may',
           month: 'May 2024',
           amount: '₹25,760',
-          paidOn: '1 Jun 2024',
+          grossAmount: '₹28,000',
+          deductionsAmount: '₹2,240',
+          deductionBreakdown: {'pf': 1800, 'esic': 440},
+          status: 'Paid',
+          presentDays: 25,
         ),
         Payslip(
-          id: 'p3',
+          ref: 'FIELD_PAYROLL:demo-april',
           month: 'April 2024',
           amount: '₹24,500',
-          paidOn: '1 May 2024',
+          grossAmount: '₹26,500',
+          deductionsAmount: '₹2,000',
+          deductionBreakdown: {'pf': 1600, 'esic': 400},
+          status: 'Paid',
+          presentDays: 24,
         ),
       ];
 
   Future<List<Payslip>> getPayslipHistory() => _simulate(_payslips);
 
-  Future<Payslip> getPayslip(String id) async {
+  Future<Payslip> getPayslip(String ref) async {
     await Future<void>.delayed(_delay);
-    return _payslips.firstWhere((p) => p.id == id);
+    return _payslips.firstWhere((p) => p.ref == ref);
   }
 
+  Future<List<int>> downloadPayslipPdf(String ref) => _simulate(
+        'Offline demo copy — connect to the network for the real PDF.'.codeUnits,
+      );
+
   BankDetails get _bankDetails => const BankDetails(
-        accountHolder: 'Rajesh Kumar',
-        accountNumber: '****4567',
+        accountHolderName: 'Rajesh Kumar',
+        accountNumberMasked: '****4567',
+        last4: '4567',
         bankName: 'HDFC Bank',
         ifsc: 'HDFC0001234',
+        verified: true,
+        verifiedAt: null,
       );
 
   Future<BankDetails> getBankDetails() => _simulate(_bankDetails);

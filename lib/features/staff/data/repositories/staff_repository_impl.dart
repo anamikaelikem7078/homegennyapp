@@ -90,14 +90,14 @@ class StaffRepositoryImpl implements StaffRepository {
       _executor.fetch(dummy: () => _dummy.getDocument(id));
 
   @override
-  Future<Result<void>> uploadDocument(String name, String type, String filePath) =>
+  Future<Result<void>> uploadDocument(String name, String type, PlatformFile file) =>
       _executor.mutateVoid(
         remote: () async {
-          await _remote.uploadDocument(filePath: filePath, name: name, type: type);
+          await _remote.uploadDocument(file: file, name: name, type: type);
         },
         dummy: () async {
-          await _local.uploadDocument(name, type, filePath);
-          await _dummy.uploadDocument(name, type, filePath);
+          await _local.uploadDocument(name, type, file);
+          await _dummy.uploadDocument(name, type, file);
         },
       );
 
@@ -210,8 +210,11 @@ class StaffRepositoryImpl implements StaffRepository {
       );
 
   @override
-  Future<Result<StaffAgreement>> getAgreement() =>
-      _executor.fetch(local: () async => _local.getAgreement(), dummy: _dummy.getAgreement);
+  Future<Result<StaffAgreement>> getAgreement() => _executor.fetch(
+        remote: _remote.getAgreementStatus,
+        local: () async => _local.getAgreement(),
+        dummy: _dummy.getAgreement,
+      );
 
   @override
   Future<Result<void>> signAgreement(String signature) =>
@@ -237,7 +240,10 @@ class StaffRepositoryImpl implements StaffRepository {
         for (final r in history) {
           if (r.date == today) return Success(r);
         }
-        return Success(history.isNotEmpty ? history.first : null);
+        // No record for today yet — a new shift starts fresh, so don't fall
+        // back to a previous (already-completed) day's record here or the
+        // check-in toggle would stay stuck showing "Shift Completed" forever.
+        return const Success(null);
       },
       onError: (f) => Error(f),
     );
@@ -273,20 +279,50 @@ class StaffRepositoryImpl implements StaffRepository {
       _executor.fetch(local: () async => await _local.getMonthlyAttendance(month), dummy: () => _dummy.getMonthlyAttendance(month));
 
   @override
-  Future<Result<SalarySummary>> getSalarySummary() =>
-      _executor.fetch(dummy: _dummy.getSalarySummary);
+  Future<Result<SalarySummary>> getSalarySummary() => _executor.fetch(
+        remote: _remote.getSalarySummary,
+        dummy: _dummy.getSalarySummary,
+      );
 
   @override
-  Future<Result<List<Payslip>>> getPayslipHistory() =>
-      _executor.fetch(dummy: _dummy.getPayslipHistory);
+  Future<Result<List<Payslip>>> getPayslipHistory() => _executor.fetch(
+        remote: _remote.getPayslipHistory,
+        dummy: _dummy.getPayslipHistory,
+      );
 
   @override
-  Future<Result<Payslip>> getPayslip(String id) =>
-      _executor.fetch(dummy: () => _dummy.getPayslip(id));
+  Future<Result<Payslip>> getPayslip(String ref) => _executor.fetch(
+        remote: () => _remote.getPayslip(ref),
+        dummy: () => _dummy.getPayslip(ref),
+      );
 
   @override
-  Future<Result<BankDetails>> getBankDetails() =>
-      _executor.fetch(dummy: _dummy.getBankDetails);
+  Future<Result<List<int>>> downloadPayslipPdf(String ref) => _executor.mutate(
+        remote: () => _remote.downloadPayslipPdf(ref),
+        dummy: () => _dummy.downloadPayslipPdf(ref),
+      );
+
+  @override
+  Future<Result<BankDetails>> getBankDetails() => _executor.fetch(
+        remote: _remote.getBankAccount,
+        dummy: _dummy.getBankDetails,
+      );
+
+  @override
+  Future<Result<BankDetails>> updateBankDetails({
+    required String accountHolderName,
+    required String accountNumber,
+    required String ifsc,
+    String? bankName,
+  }) =>
+      _executor.mutate(
+        remote: () => _remote.updateBankAccount(
+          accountHolderName: accountHolderName,
+          accountNumber: accountNumber,
+          ifsc: ifsc,
+          bankName: bankName,
+        ),
+      );
 
   @override
   Future<Result<List<StaffNotification>>> getNotifications() => _executor.fetch(

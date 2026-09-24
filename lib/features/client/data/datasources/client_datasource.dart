@@ -80,9 +80,36 @@ class ClientRemoteDataSource extends BaseRemoteDataSource {
     );
   }
 
-  // Note: GET /client/complaints does not exist on the backend — only
-  // POST /client/complaints does. getComplaints() stays dummy/local-only,
-  // see ClientDummyDataSource.getComplaints.
+  /// Downloads the invoice as a printable/shareable HTML document — the
+  /// same renderer Finance uses internally.
+  Future<String> downloadInvoice(String invoiceId) =>
+      getText(ApiConstants.clientInvoiceDownload(invoiceId));
+
+  /// GET /client/invoices/:invoiceId — must be the invoice's UUID
+  /// (`invoiceId`/`invoiceId` field), never the slash-containing invoice
+  /// number (`id`/`invoiceNumber`), which 404s when used as a path segment.
+  Future<ClientInvoiceDetail> getInvoiceDetail(String invoiceId) async {
+    final json = await getJson(ApiConstants.clientInvoiceDetail(invoiceId));
+    return ClientDtoCodec.decodeInvoiceDetail(json);
+  }
+
+  Future<List<ClientPaymentHistory>> getPaymentHistory() async {
+    final json = await getJson(ApiConstants.clientPaymentHistory);
+    return ClientDtoCodec.decodeList(
+      json['items'] as List<dynamic>? ?? [],
+      ClientDtoCodec.decodePaymentHistory,
+    );
+  }
+
+  /// GET /client/complaints — returns `{ complaints: [...], total }`, not
+  /// the `items` envelope used elsewhere in this file.
+  Future<List<ClientComplaint>> getComplaints() async {
+    final json = await getJson(ApiConstants.clientComplaints);
+    return ClientDtoCodec.decodeList(
+      json['complaints'] as List<dynamic>? ?? [],
+      ClientDtoCodec.decodeComplaint,
+    );
+  }
 
   Future<Map<String, dynamic>> raiseComplaint({
     required String subject,
@@ -99,6 +126,43 @@ class ClientRemoteDataSource extends BaseRemoteDataSource {
       }
     }
     return uploadMultipart(ApiConstants.clientComplaints, formData: FormData.fromMap(formMap));
+  }
+
+  /// GET /client/replacements — the client's past replacement requests.
+  Future<List<ClientReplacementRequest>> getReplacements() async {
+    final json = await getJson(ApiConstants.clientReplacements);
+    return ClientDtoCodec.decodeList(
+      json['items'] as List<dynamic>? ?? [],
+      ClientDtoCodec.decodeReplacementRequest,
+    );
+  }
+
+  /// POST /client/replacements. `placement_id` is required once the client
+  /// has more than one staff placed — the backend 400s with a message
+  /// asking to pick one; that message is surfaced to the user as-is rather
+  /// than guessed at client-side.
+  Future<ReplacementRequestResult> postReplacement({
+    required String reason,
+    String? placementId,
+    String? preferredDate,
+  }) async {
+    final json = await postJson(
+      ApiConstants.clientReplacements,
+      data: {
+        'reason': reason,
+        if (placementId != null) 'placement_id': placementId,
+        if (preferredDate != null) 'preferred_date': preferredDate,
+      },
+    );
+    return ClientDtoCodec.decodeReplacementResult(json);
+  }
+
+  Future<List<ClientNotification>> getNotifications() async {
+    final json = await getJson(ApiConstants.clientNotifications);
+    return ClientDtoCodec.decodeList(
+      json['items'] as List<dynamic>? ?? [],
+      ClientDtoCodec.decodeNotification,
+    );
   }
 }
 

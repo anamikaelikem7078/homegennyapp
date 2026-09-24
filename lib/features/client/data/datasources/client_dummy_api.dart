@@ -130,6 +130,8 @@ class ClientDummyApi {
 
   ClientInvoice get _currentInvoice => const ClientInvoice(
         id: 'HG-INV-2407-001',
+        invoiceId: 'HG-INV-2407-001',
+        invoiceNumber: 'HG-INV-2407-001',
         billingMonth: '7/2024',
         salaryComponent: 15000,
         managementFee: 3000,
@@ -171,8 +173,10 @@ class ClientDummyApi {
   Future<List<ClientPaymentHistory>> getPaymentHistory() =>
       _simulate(_paymentHistory);
 
-  Future<String> downloadInvoice(String invoiceId) =>
-      _simulate('Invoice $invoiceId downloaded');
+  Future<String> downloadInvoice(String invoiceId) => _simulate(
+        '<html><body><h1>Invoice $invoiceId</h1><p>Offline demo copy — '
+        'connect to the network for the real document.</p></body></html>',
+      );
 
   List<ClientComplaint> get _complaints => const [
         ClientComplaint(

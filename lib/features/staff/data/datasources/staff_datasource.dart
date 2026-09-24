@@ -79,6 +79,90 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
     );
   }
 
+  /// GET /staff/salary — no id params (staff identity comes from the auth
+  /// token); optional [month]/[year] default to the latest period server-side.
+  Future<SalarySummary> getSalarySummary({int? month, int? year}) async {
+    final json = await getJson(
+      ApiConstants.staffSalary,
+      queryParameters: {
+        if (month != null) 'month': month,
+        if (year != null) 'year': year,
+      },
+    );
+    return StaffDtoCodec.decodeSalarySummary(json);
+  }
+
+  Future<List<Payslip>> getPayslipHistory() async {
+    final json = await getJson(ApiConstants.staffPayslips);
+    return StaffDtoCodec.decodeList(
+      json['items'] as List<dynamic>? ?? [],
+      StaffDtoCodec.decodePayslip,
+    );
+  }
+
+  Future<Payslip> getPayslip(String ref) async {
+    final all = await getPayslipHistory();
+    return all.firstWhere(
+      (p) => p.ref == ref,
+      orElse: () => throw StateError('No payslip found for ref $ref'),
+    );
+  }
+
+  /// Downloads a rendered payslip PDF as raw bytes. There is no per-payslip
+  /// id on the backend — [ref] is the synthetic "$month-$year" key produced
+  /// by [StaffDtoCodec], parsed back into the month/year query params the
+  /// endpoint actually expects (same convention as GET /staff/salary).
+  Future<List<int>> downloadPayslipPdf(String ref) {
+    final parts = ref.split('-');
+    final month = parts.isNotEmpty ? int.tryParse(parts[0]) : null;
+    final year = parts.length > 1 ? int.tryParse(parts[1]) : null;
+    return getBytes(
+      ApiConstants.staffPayslipPdf,
+      queryParameters: {
+        if (month != null) 'month': month,
+        if (year != null) 'year': year,
+      },
+    );
+  }
+
+  Future<BankDetails> getBankAccount() async {
+    final json = await getJson(ApiConstants.staffBankAccount);
+    return StaffDtoCodec.decodeBankDetails(json);
+  }
+
+  /// PUT /staff/bank-account. Saving always resets `verified` to false
+  /// server-side. A 400 (e.g. bad IFSC format) surfaces its message via the
+  /// normal Dio/RepositoryExecutor error path — no client-side IFSC regex.
+  Future<BankDetails> updateBankAccount({
+    required String accountHolderName,
+    required String accountNumber,
+    required String ifsc,
+    String? bankName,
+  }) async {
+    final json = await putJson(
+      ApiConstants.staffBankAccount,
+      data: {
+        'account_holder_name': accountHolderName,
+        'account_number': accountNumber,
+        'ifsc': ifsc,
+        if (bankName != null) 'bank_name': bankName,
+      },
+    );
+    return StaffDtoCodec.decodeBankDetails(json);
+  }
+
+  /// GET /staff/agreement — read-only status; actual e-signing happens via
+  /// POST /agreements/:id/sign (a separate, already-wired module).
+  Future<StaffAgreement> getAgreementStatus() async {
+    final json = await getJson(ApiConstants.staffAgreement);
+    return StaffDtoCodec.decodeAgreement(json);
+  }
+
+  /// GET /staff/video-certification — read/progress call only; recording and
+  /// uploading a video still goes through the existing /video-cert/* flow.
+  Future<Map<String, dynamic>> getVideoCertificationProgress() =>
+      getJson(ApiConstants.staffVideoCert);
+
   Future<List<StaffDocument>> getDocuments({int page = 1}) async {
     final json = await getJson(
       ApiConstants.staffDocuments,
@@ -96,16 +180,22 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
   }
 
   Future<Map<String, dynamic>> uploadDocument({
-    required String filePath,
+    required PlatformFile file,
     required String name,
     required String type,
   }) async {
+    // On web `file_picker`'s `PlatformFile.path` getter throws the moment
+    // it's read — never touch it there, only bytes (see uploadVideoCertFile).
+    final filePath = kIsWeb ? null : file.path;
+    final multipartFile = filePath != null
+        ? await MultipartFile.fromFile(filePath, filename: file.name)
+        : MultipartFile.fromBytes(file.bytes!, filename: file.name);
     return uploadMultipart(
       ApiConstants.staffDocuments,
       formData: FormData.fromMap({
         'name': name,
         'type': type,
-        'file': await MultipartFile.fromFile(filePath),
+        'file': multipartFile,
       }),
     );
   }
@@ -291,7 +381,7 @@ class StaffLocalDataSource extends BaseLocalDataSource {
   
   // -- Missing Methods for Hive Sync --
   
-  Future<void> uploadDocument(String name, String type, String filePath) async {
+  Future<void> uploadDocument(String name, String type, PlatformFile file) async {
     // Generate UUID, save to document box
     // To implement fully we'd need access to HiveService or a box.
     // For now, we simulate success since the dummy also simulates it.
@@ -359,7 +449,7 @@ class StaffDummyDataSource {
       _api.updateProfile(address: address, email: email);
   Future<List<StaffDocument>> getDocuments() => _api.getDocuments();
   Future<StaffDocument> getDocument(String id) => _api.getDocument(id);
-  Future<void> uploadDocument(String name, String type, String filePath) => _api.uploadDocument(name, type, filePath);
+  Future<void> uploadDocument(String name, String type, PlatformFile file) => _api.uploadDocument(name, type, file);
   Future<void> reuploadDocument(String id, String name) => _api.reuploadDocument(id, name);
   Future<List<TrainingCategory>> getTrainingCategories() => _api.getTrainingCategories();
   Future<List<TrainingCourse>> getTrainingCourses({String? categoryId}) =>
@@ -384,6 +474,7 @@ class StaffDummyDataSource {
   Future<SalarySummary> getSalarySummary() => _api.getSalarySummary();
   Future<List<Payslip>> getPayslipHistory() => _api.getPayslipHistory();
   Future<Payslip> getPayslip(String id) => _api.getPayslip(id);
+  Future<List<int>> downloadPayslipPdf(String ref) => _api.downloadPayslipPdf(ref);
   Future<BankDetails> getBankDetails() => _api.getBankDetails();
   Future<List<StaffNotification>> getNotifications() => _api.getNotifications();
   Future<void> markNotificationRead(String id) => _api.markNotificationRead(id);

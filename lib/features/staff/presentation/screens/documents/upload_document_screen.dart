@@ -1,5 +1,5 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,20 +24,24 @@ class _StaffUploadDocumentScreenState extends ConsumerState<StaffUploadDocumentS
   List<PlatformFile> _pickedFiles = [];
   bool _isSubmitting = false;
 
-  static const _documentTypes = ['Aadhaar Card', 'PAN Card', 'Address Proof', 'Police Verification', 'Other'];
+  // Must match the backend's canonical document type strings exactly (see
+  // DocumentsService.getMandatoryDocumentTypes / homegenny's DOC_TYPE_TO_API)
+  // — otherwise the upload is stored under a type the HR portal and the
+  // mandatory-document/onboarding checks don't recognize, and it silently
+  // fails to satisfy that document slot anywhere despite uploading fine.
+  static const _documentTypes = [
+    'Aadhaar Card',
+    'PAN Card',
+    'Passport Size Photo',
+    'Police Verification Certificate',
+    'Address Proof',
+    'Other',
+  ];
 
   @override
   void dispose() {
     _nameController.dispose();
     super.dispose();
-  }
-
-  String _fileTypeFromName(String name) {
-    final ext = name.split('.').last.toUpperCase();
-    if (ext == 'PDF' || ext == 'DOC' || ext == 'DOCX' || ext == 'XLS' || ext == 'XLSX') {
-      return ext.length <= 4 ? ext : 'FILE';
-    }
-    return 'FILE';
   }
 
   Future<void> _upload() async {
@@ -60,13 +64,12 @@ class _StaffUploadDocumentScreenState extends ConsumerState<StaffUploadDocumentS
     final name = _nameController.text.trim().isNotEmpty
         ? _nameController.text.trim()
         : _documentType!;
-    final type = _fileTypeFromName(file.name);
 
     setState(() => _isSubmitting = true);
     final result = await ref.read(staffRepositoryProvider).uploadDocument(
           name,
-          type,
-          kIsWeb ? file.name : (file.path ?? file.name),
+          _documentType!,
+          file,
         );
     if (!mounted) return;
     setState(() => _isSubmitting = false);
@@ -90,6 +93,7 @@ class _StaffUploadDocumentScreenState extends ConsumerState<StaffUploadDocumentS
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'xls', 'xlsx'],
+      withData: kIsWeb,
     );
     if (result != null) {
       setState(() {
