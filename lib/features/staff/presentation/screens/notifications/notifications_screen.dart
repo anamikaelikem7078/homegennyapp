@@ -47,7 +47,7 @@ class StaffNotificationsScreen extends ConsumerWidget {
                 onTap: () {
                   ref.read(staffRepositoryProvider).markNotificationRead(n.id);
                   ref.invalidate(staffNotificationsProvider);
-                  _navigateForType(context, n.type);
+                  _navigateForType(context, n.type, n.data);
                 },
               ),
             ),
@@ -62,19 +62,31 @@ class StaffNotificationsScreen extends ConsumerWidget {
         'training' => Icons.school_outlined,
         'salary' => Icons.payments_outlined,
         'agreement' => Icons.description_outlined,
+        'QUIZ_RESCHEDULED' => Icons.event_repeat_outlined,
+        'QUIZ_PASSED' => Icons.emoji_events_outlined,
+        'QUIZ_FAILED' => Icons.quiz_outlined,
         _ => Icons.notifications_outlined,
       };
 
-  void _navigateForType(BuildContext context, String type) {
+  void _navigateForType(BuildContext context, String type, Map<String, dynamic>? data) {
     switch (type) {
       case 'document':
         context.push(StaffRoutes.documents);
       case 'training':
+      case 'QUIZ_RESCHEDULED':
         context.push(StaffRoutes.training);
       case 'salary':
         context.push(StaffRoutes.salary);
       case 'agreement':
         context.push(StaffRoutes.agreement);
+      case 'QUIZ_PASSED':
+      case 'QUIZ_FAILED':
+        final attemptId = data?['attemptId'] as String?;
+        if (attemptId != null) {
+          context.push(StaffRoutes.trainingResult(attemptId));
+        } else {
+          context.push(StaffRoutes.training);
+        }
     }
   }
 }

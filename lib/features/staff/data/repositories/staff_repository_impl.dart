@@ -106,24 +106,38 @@ class StaffRepositoryImpl implements StaffRepository {
       _executor.mutateVoid(dummy: () => _dummy.reuploadDocument(id, name));
 
   @override
-  Future<Result<List<TrainingCategory>>> getTrainingCategories() =>
-      _executor.fetch(dummy: _dummy.getTrainingCategories);
+  Future<Result<TrainingHome>> getTrainingHome() => _executor.fetch(
+        remote: _remote.getTrainingHome,
+        dummy: _dummy.getTrainingHome,
+      );
 
   @override
-  Future<Result<List<TrainingCourse>>> getTrainingCourses({String? categoryId}) =>
-      _executor.fetch(dummy: () => _dummy.getTrainingCourses(categoryId: categoryId));
+  Future<Result<QuizAttemptStart>> startQuiz(String quizId) => _executor.mutate(
+        remote: () => _remote.startQuiz(quizId),
+        dummy: () => _dummy.startQuiz(quizId),
+      );
 
   @override
-  Future<Result<TrainingCourse>> getTrainingCourse(String id) =>
-      _executor.fetch(dummy: () => _dummy.getTrainingCourse(id));
+  Future<Result<QuizSubmitResult>> submitQuizAttempt(
+    String attemptId,
+    List<TrainingQuizAnswer> answers,
+  ) =>
+      _executor.mutate(
+        remote: () => _remote.submitQuizAttempt(attemptId, answers),
+        dummy: () => _dummy.submitQuizAttempt(attemptId, answers),
+      );
 
   @override
-  Future<Result<List<QuizQuestion>>> getQuiz(String courseId) =>
-      _executor.fetch(dummy: () => _dummy.getQuiz(courseId));
+  Future<Result<QuizResultDetail>> getQuizResult(String attemptId) => _executor.fetch(
+        remote: () => _remote.getQuizResult(attemptId),
+        dummy: () => _dummy.getQuizResult(attemptId),
+      );
 
   @override
-  Future<Result<QuizResult>> submitQuiz(String courseId, Map<String, int> answers) =>
-      _executor.mutate(dummy: () => _dummy.submitQuiz(courseId, answers));
+  Future<Result<List<int>>> downloadTrainingMaterial(String viewUrl) => _executor.mutate(
+        remote: () => _remote.downloadMaterialBytes(viewUrl),
+        dummy: () => _dummy.downloadMaterialBytes(viewUrl),
+      );
 
   // The video-cert endpoints key everything on staff_applicants.id (checked
   // via phone-match ownership), which is a different id from the logged-in

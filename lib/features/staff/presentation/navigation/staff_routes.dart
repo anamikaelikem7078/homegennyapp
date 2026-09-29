@@ -21,14 +21,13 @@ abstract final class StaffRoutes {
   static String documentDetail(String id) => '/staff/documents/$id';
   static String documentReupload(String id) => '/staff/documents/$id/reupload';
 
-  // Training
+  // Training — material is opened with the TrainingMaterial passed via
+  // `extra` (there is no single-material fetch endpoint); quiz is keyed by
+  // quiz id, result by attempt id.
   static const String training = '/staff/training';
-  static const String trainingCategories = '/staff/training/categories';
-  static String trainingVideo(String id) => '/staff/training/video/$id';
-  static String trainingPdf(String id) => '/staff/training/pdf/$id';
+  static String trainingMaterial(String id) => '/staff/training/material/$id';
   static String trainingQuiz(String id) => '/staff/training/quiz/$id';
-  static String trainingResult(String id) => '/staff/training/result/$id';
-  static String trainingCertificate(String id) => '/staff/training/certificate/$id';
+  static String trainingResult(String attemptId) => '/staff/training/result/$attemptId';
 
   // Video certification
   static const String videoCertification = '/staff/video-certification';

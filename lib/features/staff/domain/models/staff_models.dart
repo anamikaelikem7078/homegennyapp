@@ -61,53 +61,329 @@ class StaffDocument {
   final String? rejectionReason;
 }
 
-/// Training category model.
-class TrainingCategory {
-  const TrainingCategory({
-    required this.id,
-    required this.name,
-    required this.courseCount,
-    required this.icon,
-  });
+/// Training material type — matches the backend's uppercase enum exactly.
+enum TrainingMaterialType { note, pdf, video }
 
-  final String id;
-  final String name;
-  final int courseCount;
-  final String icon;
-}
-
-/// Training course model.
-class TrainingCourse {
-  const TrainingCourse({
+/// One study-material item on a training batch — matches an entry of
+/// `GET /training/mine`'s `batches[].materials[]` exactly.
+class TrainingMaterial {
+  const TrainingMaterial({
     required this.id,
-    required this.title,
-    required this.categoryId,
-    required this.duration,
-    required this.progress,
     required this.type,
+    required this.title,
+    required this.createdAt,
+    this.body,
+    this.sizeBytes,
+    this.viewUrl,
   });
 
   final String id;
+  final TrainingMaterialType type;
   final String title;
-  final String categoryId;
-  final String duration;
-  final double progress;
-  final String type; // video, pdf, quiz
+  final String createdAt;
+  /// Set only for [TrainingMaterialType.note] — the note text itself.
+  final String? body;
+  final int? sizeBytes;
+  /// Relative (needs the Bearer header) or, once cloud storage is live, an
+  /// absolute signed URL (needs none) — null for notes. Never cache this;
+  /// re-fetch `/training/mine` for a fresh one each time it's opened.
+  final String? viewUrl;
 }
 
-/// Quiz question model.
-class QuizQuestion {
-  const QuizQuestion({
+/// A quiz's state, driving its card entirely — never re-derive this from
+/// dates on the client, the backend already accounts for `opensAt` etc.
+enum TrainingQuizState { locked, scheduled, available, inProgress, underReview, passed, failed }
+
+/// Score summary of a quiz's most recent graded attempt — matches
+/// a quiz object's `lastResult` exactly (null until at least one attempt has
+/// been graded).
+class QuizLastResult {
+  const QuizLastResult({
+    required this.attemptId,
+    required this.score,
+    required this.maxScore,
+    required this.passed,
+    required this.gradedAt,
+  });
+
+  final String attemptId;
+  final int score;
+  final int maxScore;
+  final bool passed;
+  final String gradedAt;
+}
+
+/// One row of a quiz's `attempts[]` history — every past (and the current)
+/// attempt, each with its own [attemptId] usable against the result endpoint.
+class QuizAttemptSummary {
+  const QuizAttemptSummary({
+    required this.attemptId,
+    required this.attemptNumber,
+    required this.status,
+    required this.score,
+    required this.maxScore,
+    required this.passed,
+    required this.submittedAt,
+    required this.gradedAt,
+  });
+
+  final String attemptId;
+  final int attemptNumber;
+  final String status;
+  final int? score;
+  final int? maxScore;
+  final bool? passed;
+  final String? submittedAt;
+  final String? gradedAt;
+}
+
+/// A quiz on a training batch — matches `GET /training/mine`'s
+/// `batches[].quizzes[]` item (also returned as-is by
+/// `GET /training/quizzes/mine`) exactly. Drive the quiz card entirely off
+/// [state]; never compute pass/fail or availability from dates on the phone.
+class TrainingQuiz {
+  const TrainingQuiz({
     required this.id,
-    required this.question,
-    required this.options,
-    required this.correctIndex,
+    required this.batchId,
+    required this.batchCode,
+    required this.title,
+    required this.questionCount,
+    required this.totalPoints,
+    required this.passMarks,
+    required this.state,
+    this.quizDate,
+    this.opensAt,
+    this.attemptId,
+    this.rescheduleNote,
+    this.lastResult,
+    this.attempts = const [],
   });
 
   final String id;
-  final String question;
-  final List<String> options;
-  final int correctIndex;
+  final String batchId;
+  final String batchCode;
+  final String title;
+  final int questionCount;
+  final int totalPoints;
+  final int passMarks;
+  final TrainingQuizState state;
+  final String? quizDate;
+  /// `LOCKED` → a plain `YYYY-MM-DD` date. `SCHEDULED` → a full ISO
+  /// date-time. Null otherwise.
+  final String? opensAt;
+  final String? attemptId;
+  final String? rescheduleNote;
+  final QuizLastResult? lastResult;
+  final List<QuizAttemptSummary> attempts;
+}
+
+/// One training batch a staff member is/was enrolled in — matches an entry
+/// of `GET /training/mine`'s `batches[]` exactly. `startDate`/`endDate`/
+/// `quizDate` are plain `YYYY-MM-DD` — show as-is, never parse into a UTC
+/// `DateTime` (that can shift the displayed day).
+class TrainingBatch {
+  const TrainingBatch({
+    required this.id,
+    required this.batchCode,
+    required this.series,
+    required this.trainerName,
+    required this.status,
+    required this.startDate,
+    required this.endDate,
+    required this.enrolledAt,
+    required this.materials,
+    required this.quizzes,
+    this.classroom,
+    this.quizDate,
+  });
+
+  final String id;
+  final String batchCode;
+  final String series;
+  final String trainerName;
+  final String? classroom;
+  final String status;
+  final String startDate;
+  final String endDate;
+  final String? quizDate;
+  final String enrolledAt;
+  final List<TrainingMaterial> materials;
+  final List<TrainingQuiz> quizzes;
+}
+
+/// Video-certification progress line ("Video certification 3/9 approved") —
+/// matches `GET /training/mine`'s `videoCert` object exactly.
+class TrainingVideoCertProgress {
+  const TrainingVideoCertProgress({required this.approved, required this.required_});
+
+  final int approved;
+  final int required_;
+}
+
+/// The entire Training home screen in one call — matches
+/// `GET /training/mine` exactly. `batches` is newest first; usually one, but
+/// a re-trained staff member can have more.
+class TrainingHome {
+  const TrainingHome({
+    required this.staffFullName,
+    required this.staffCode,
+    required this.series,
+    required this.pipelineStage,
+    required this.videoCert,
+    required this.batches,
+  });
+
+  final String staffFullName;
+  final String staffCode;
+  final String series;
+  final String pipelineStage;
+  final TrainingVideoCertProgress videoCert;
+  final List<TrainingBatch> batches;
+}
+
+/// A quiz question type — MCQ (pick one of [TrainingQuizQuestion.options]) or
+/// free-text (answer-type, marked by the trainer on the web).
+enum TrainingQuestionType { mcq, text }
+
+/// One question of a started quiz attempt — matches
+/// `POST /training/quizzes/:quizId/start`'s `questions[]` item exactly.
+/// There is intentionally **no correct-answer field** here: the server never
+/// sends it to the app, only the result endpoint reveals correctness.
+class TrainingQuizQuestion {
+  const TrainingQuizQuestion({
+    required this.id,
+    required this.questionText,
+    required this.type,
+    required this.orderIndex,
+    required this.points,
+    this.options,
+  });
+
+  final String id;
+  final String questionText;
+  final TrainingQuestionType type;
+  final List<String>? options;
+  final int orderIndex;
+  final int points;
+}
+
+/// A started (or resumed) quiz attempt, with its questions — matches
+/// `POST /training/quizzes/:quizId/start`'s response exactly.
+class QuizAttemptStart {
+  const QuizAttemptStart({
+    required this.attemptId,
+    required this.quizId,
+    required this.status,
+    required this.title,
+    required this.totalPoints,
+    required this.passMarks,
+    required this.questions,
+  });
+
+  final String attemptId;
+  final String quizId;
+  final String status;
+  final String title;
+  final int totalPoints;
+  final int passMarks;
+  final List<TrainingQuizQuestion> questions;
+}
+
+/// One answer to submit — exactly one of [selectedOption] (MCQ, 0-based
+/// index) / [answerText] (TEXT) should be set; leaving both unset marks the
+/// question wrong (✘) server-side.
+class TrainingQuizAnswer {
+  const TrainingQuizAnswer({required this.questionId, this.selectedOption, this.answerText});
+
+  final String questionId;
+  final int? selectedOption;
+  final String? answerText;
+
+  Map<String, dynamic> toJson() => {
+        'question_id': questionId,
+        if (selectedOption != null) 'selected_option': selectedOption,
+        if (answerText != null) 'answer_text': answerText,
+      };
+}
+
+/// Immediate response to submitting a quiz attempt — matches
+/// `POST /training/quizzes/attempts/:attemptId/submit`'s response exactly.
+/// [score]/[passed] are null while [pendingReview] is true (an answer-type
+/// question is awaiting the trainer's ✔/✘ on the web).
+class QuizSubmitResult {
+  const QuizSubmitResult({
+    required this.attemptId,
+    required this.state,
+    required this.pendingReview,
+    required this.maxScore,
+    required this.passMarks,
+    this.score,
+    this.passed,
+  });
+
+  final String attemptId;
+  final TrainingQuizState state;
+  final bool pendingReview;
+  final int? score;
+  final int maxScore;
+  final int passMarks;
+  final bool? passed;
+}
+
+/// Per-question breakdown of a graded (or under-review) attempt — matches
+/// `GET /training/quizzes/attempts/:attemptId/result`'s `questions[]` item
+/// exactly. There is intentionally no field for which option was *correct* —
+/// only which one the staff picked, and whether that was right.
+class QuizResultQuestion {
+  const QuizResultQuestion({
+    required this.questionId,
+    required this.questionText,
+    required this.type,
+    required this.points,
+    required this.correct,
+    required this.pointsAwarded,
+    this.options,
+    this.yourSelectedOption,
+    this.yourAnswerText,
+  });
+
+  final String questionId;
+  final String questionText;
+  final TrainingQuestionType type;
+  final List<String>? options;
+  final int points;
+  final int? yourSelectedOption;
+  final String? yourAnswerText;
+  final bool correct;
+  final int pointsAwarded;
+}
+
+/// Full result of one quiz attempt — matches
+/// `GET /training/quizzes/attempts/:attemptId/result` exactly. While the
+/// attempt is still `UNDER_REVIEW`, [questions] comes back empty and
+/// [score]/[passed] stay null.
+class QuizResultDetail {
+  const QuizResultDetail({
+    required this.attemptId,
+    required this.title,
+    required this.state,
+    required this.maxScore,
+    required this.passMarks,
+    required this.questions,
+    this.score,
+    this.passed,
+    this.gradedAt,
+  });
+
+  final String attemptId;
+  final String title;
+  final TrainingQuizState state;
+  final int? score;
+  final int maxScore;
+  final int passMarks;
+  final bool? passed;
+  final String? gradedAt;
+  final List<QuizResultQuestion> questions;
 }
 
 /// Video certification prompt.
@@ -303,7 +579,10 @@ class BankDetails {
   final String? verifiedAt;
 }
 
-/// Staff notification model.
+/// Staff notification model. [type] can be an empty string on older rows
+/// (no `type` sent by the backend) — treat that the same as an unknown type
+/// and just show the text. [data] carries type-specific deep-link payload,
+/// e.g. `{quizId, attemptId}` for the training-quiz types.
 class StaffNotification {
   const StaffNotification({
     required this.id,
@@ -312,6 +591,7 @@ class StaffNotification {
     required this.time,
     required this.isRead,
     required this.type,
+    this.data,
   });
 
   final String id;
@@ -320,6 +600,7 @@ class StaffNotification {
   final String time;
   final bool isRead;
   final String type;
+  final Map<String, dynamic>? data;
 }
 
 /// Staff profile model — matches `GET /staff/profile` exactly. `role`,
@@ -399,15 +680,3 @@ class CheckInResult {
   final double? longitude;
 }
 
-/// Training quiz result.
-class QuizResult {
-  const QuizResult({
-    required this.score,
-    required this.total,
-    required this.passed,
-  });
-
-  final int score;
-  final int total;
-  final bool passed;
-}

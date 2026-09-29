@@ -11,6 +11,35 @@ abstract interface class AuthRepository {
     required String password,
   });
 
+  Future<Result<UserModel>> registerStaff({
+    required String fullName,
+    required String phone,
+    String? alternatePhone,
+    String? email,
+    required String password,
+    required String dateOfBirth,
+    required String gender,
+    required String address,
+    String? city,
+    String? stateName,
+    String? pincode,
+    required String series,
+  });
+
+  Future<Result<UserModel>> registerCustomer({
+    required String fullName,
+    required String phone,
+    String? email,
+    required String password,
+    String? businessName,
+    required String panCard,
+    required String address,
+    String? city,
+    String? stateName,
+    String? pincode,
+    String? gstn,
+  });
+
   Future<Result<bool>> verifyOtp({
     required String phone,
     required String otp,

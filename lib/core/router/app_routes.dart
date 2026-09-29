@@ -2,6 +2,7 @@
 abstract final class AppRoutes {
   static const String splash = '/';
   static const String login = '/login';
+  static const String register = '/register';
   static const String otp = '/otp';
   static const String forgotPassword = '/forgot-password';
   static const String resetPassword = '/reset-password';
@@ -18,6 +19,7 @@ abstract final class AppRoutes {
 
   static const List<String> authRoutes = [
     login,
+    register,
     otp,
     forgotPassword,
     resetPassword,
@@ -28,6 +30,7 @@ abstract final class AppRoutes {
   static const List<String> publicRoutes = [
     splash,
     login,
+    register,
     otp,
     forgotPassword,
     resetPassword,

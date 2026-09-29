@@ -49,7 +49,11 @@ class UserDto {
 
   factory UserDto.fromJson(Map<String, dynamic> json) => UserDto(
         id: json['id']?.toString() ?? '',
-        name: json['name'] as String? ?? '',
+        // Registration responses (and possibly login, for accounts created
+        // via self-registration) key the display name as `full_name` rather
+        // than `name` — fall back to it so those users don't cache with an
+        // empty name.
+        name: json['name'] as String? ?? json['full_name'] as String? ?? '',
         email: json['email'] as String? ?? '',
         phone: json['phone'] as String? ?? '',
         role: UserRole.fromString(json['role'] as String?),

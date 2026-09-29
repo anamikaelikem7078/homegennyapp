@@ -8,6 +8,7 @@ import '../../common/presentation/screens/forgot_password_screen.dart';
 import '../../common/presentation/screens/reset_password_screen.dart';
 import '../../common/presentation/screens/change_password_screen.dart';
 import '../../common/presentation/screens/login_screen.dart';
+import '../../common/presentation/screens/register_screen.dart';
 import '../../common/presentation/screens/no_internet_screen.dart';
 import '../../common/presentation/screens/otp_screen.dart';
 import '../../common/presentation/screens/session_expired_screen.dart';
@@ -111,6 +112,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.login,
         name: 'login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      fadeRoute(
+        path: AppRoutes.register,
+        name: 'register',
+        builder: (context, state) {
+          final role = state.uri.queryParameters['role'];
+          return RegisterScreen(initialRole: role);
+        },
       ),
       fadeRoute(
         path: AppRoutes.otp,

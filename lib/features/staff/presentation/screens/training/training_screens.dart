@@ -1,843 +1,253 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../../core/extensions/context_extensions.dart';
+import 'package:pdfx/pdfx.dart';
+import 'package:video_player/video_player.dart';
 
+import '../../../../../core/constants/api_constants.dart';
+import '../../../../../core/di/injection.dart';
+import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
 import '../../widgets/staff_scaffold.dart';
 
-/// Training courses list.
+const _kBg = Color(0xFFFBF9F8);
+const _kPrimary = Color(0xFF1A56FF);
+const _kInk = Color(0xFF0F172A);
+const _kMuted = Color(0xFF64748B);
+const _kHairline = Color(0xFFF1F5F9);
+
+TextStyle _serif({required double size, FontWeight weight = FontWeight.w600, Color color = _kInk}) =>
+    GoogleFonts.libreCaslonText(fontSize: size, fontWeight: weight, color: color);
+
+TextStyle _sans({required double size, FontWeight weight = FontWeight.w400, Color color = _kMuted}) =>
+    GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color);
+
+/// Reformats a plain `YYYY-MM-DD` date for display without ever going
+/// through [DateTime] — parsing a date-only string as UTC (or accidentally
+/// treating it as one) can shift the displayed day depending on the device's
+/// timezone, so this only ever does string surgery.
+String _prettyPlainDate(String? ymd) {
+  if (ymd == null || ymd.isEmpty) return '';
+  final parts = ymd.split('-');
+  if (parts.length != 3) return ymd;
+  const months = [
+    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  final month = int.tryParse(parts[1]);
+  final day = int.tryParse(parts[2]);
+  if (month == null || day == null || month < 1 || month > 12) return ymd;
+  return '$day ${months[month]} ${parts[0]}';
+}
+
+AppBar _trainingAppBar(BuildContext context, String title) => AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: _kPrimary),
+        onPressed: () {
+          if (context.canPop()) context.pop();
+        },
+      ),
+      centerTitle: true,
+      title: Text(title, style: _serif(size: 20, color: _kPrimary)),
+    );
+
+/// Training home — study material + quizzes for every batch the staff member
+/// is (or was) enrolled in. Stays reachable regardless of pipeline stage,
+/// since a rescheduled quiz can arrive after the staff has moved on.
 class StaffTrainingScreen extends ConsumerWidget {
   const StaffTrainingScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final courses = ref.watch(staffTrainingCoursesProvider);
+    final home = ref.watch(staffTrainingHomeProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF)),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            }
-          },
-        ),
-        centerTitle: true,
-        title: Text(
-          'HomeGenny',
-          style: GoogleFonts.libreCaslonText(
-            color: const Color(0xFF1A56FF),
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Color(0xFF475569)),
-            onPressed: () {},
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 14,
-              backgroundImage: const NetworkImage('https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=400'),
-            ),
-          )
-        ],
-      ),
-      body: courses.when(
+      backgroundColor: _kBg,
+      appBar: _trainingAppBar(context, 'Training'),
+      body: home.when(
         loading: () => const DsLoadingWidget(),
-        error: (_, __) => DsErrorState(
-          title: 'Error',
-          onRetry: () => ref.invalidate(staffTrainingCoursesProvider),
+        error: (e, _) => DsErrorState(
+          title: 'Could not load training',
+          message: e.toString().replaceFirst('Exception: ', ''),
+          onRetry: () => ref.invalidate(staffTrainingHomeProvider),
         ),
-        data: (list) => RefreshIndicator(
-          onRefresh: () async => ref.invalidate(staffTrainingCoursesProvider),
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            children: [
-              Text(
-                'Mandatory Training',
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF0F172A),
+        data: (h) {
+          if (h.batches.isEmpty) {
+            return const DsEmptyState(
+              icon: Icons.school_outlined,
+              title: 'No training yet',
+              message: 'Your trainer hasn\'t added you to a batch yet. Check back soon.',
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: () async => ref.invalidate(staffTrainingHomeProvider),
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              children: [
+                Text('Mandatory Training', style: _serif(size: 26)),
+                const SizedBox(height: 8),
+                Text(
+                  'Study your batch material and complete each quiz to stay on track.',
+                  style: _sans(size: 14, color: _kMuted).copyWith(height: 1.5),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Stay compliant and up to date with your\ncore certifications. Your progress is tracked\nautomatically.',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: const Color(0xFF64748B),
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 32),
-              ...list.map((course) => _CourseTile(course: course)),
-              const SizedBox(height: 16),
-              
-              // Professional Growth Footer
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE0E7FF),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.workspace_premium_outlined, color: Color(0xFF1A56FF), size: 24),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Professional Growth',
-                      style: GoogleFonts.libreCaslonText(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Completion of these modules unlocks the\nSenior Household Liaison certificate path.',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: const Color(0xFF475569),
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Stack(
-                      children: [
-                        Container(
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE2E8F0),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: 0.45,
-                          child: Container(
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1A56FF),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      '45% TOWARDS BADGE',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1A56FF),
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              // Optional skill image card
-              Container(
-                height: 180,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  image: const DecorationImage(
-                    image: NetworkImage('https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&q=80&w=800'),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withOpacity(0.7),
-                      ],
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'OPTIONAL SKILL',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white70,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Advanced Concierge\nEtiquette',
-                        style: GoogleFonts.libreCaslonText(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
+                if (h.videoCert.required_ > 0) ...[
+                  const SizedBox(height: 20),
+                  _VideoCertProgressBar(progress: h.videoCert),
+                ],
+                const SizedBox(height: 24),
+                for (final batch in h.batches) _BatchSection(batch: batch),
+                const SizedBox(height: 32),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 }
 
-class _CourseTile extends StatelessWidget {
-  const _CourseTile({required this.course});
-  final TrainingCourse course;
+class _VideoCertProgressBar extends StatelessWidget {
+  const _VideoCertProgressBar({required this.progress});
+  final TrainingVideoCertProgress progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = progress.required_ == 0 ? 0.0 : progress.approved / progress.required_;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.videocam_outlined, size: 16, color: _kPrimary),
+              const SizedBox(width: 8),
+              Text(
+                'Video certification ${progress.approved}/${progress.required_} approved',
+                style: _sans(size: 12, weight: FontWeight.w600, color: _kInk),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: ratio.clamp(0, 1),
+              minHeight: 6,
+              backgroundColor: const Color(0xFFE2E8F0),
+              valueColor: const AlwaysStoppedAnimation<Color>(_kPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BatchSection extends StatelessWidget {
+  const _BatchSection({required this.batch});
+  final TrainingBatch batch;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 16, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(batch.batchCode, style: _sans(size: 10, weight: FontWeight.w700, color: const Color(0xFF94A3B8)).copyWith(letterSpacing: 1.2)),
+          const SizedBox(height: 6),
           Text(
-            _getCategoryLabel(),
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF94A3B8),
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            course.title,
-            style: GoogleFonts.libreCaslonText(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF0F172A),
-            ),
+            [batch.trainerName, if (batch.classroom != null) batch.classroom!].where((s) => s.isNotEmpty).join(' · '),
+            style: _serif(size: 18),
           ),
           const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(Icons.access_time, size: 14, color: Color(0xFF64748B)),
+              const Icon(Icons.event_outlined, size: 14, color: _kMuted),
               const SizedBox(width: 6),
               Text(
-                course.duration,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: const Color(0xFF64748B),
-                ),
+                '${_prettyPlainDate(batch.startDate)} – ${_prettyPlainDate(batch.endDate)}',
+                style: _sans(size: 12),
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Circular progress or checkmark
-              SizedBox(
-                width: 48,
-                height: 48,
-                child: course.progress >= 1.0
-                  ? Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFF1A56FF), width: 2),
-                      ),
-                      child: const Icon(Icons.check, color: Color(0xFF1A56FF), size: 24),
-                    )
-                  : Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CircularProgressIndicator(
-                          value: course.progress,
-                          strokeWidth: 3,
-                          backgroundColor: const Color(0xFFE2E8F0),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1A56FF)),
-                        ),
-                        Text(
-                          '${(course.progress * 100).round()}%',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1A56FF),
-                          ),
-                        ),
-                      ],
-                    ),
-              ),
-              _buildActionButton(context),
-            ],
-          ),
+          if (batch.materials.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text('STUDY MATERIAL', style: _sans(size: 10, weight: FontWeight.w700, color: const Color(0xFF94A3B8)).copyWith(letterSpacing: 1.2)),
+            const SizedBox(height: 8),
+            for (final m in batch.materials) _MaterialTile(material: m),
+          ],
+          if (batch.quizzes.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text('QUIZZES', style: _sans(size: 10, weight: FontWeight.w700, color: const Color(0xFF94A3B8)).copyWith(letterSpacing: 1.2)),
+            const SizedBox(height: 8),
+            for (final q in batch.quizzes) _QuizCard(quiz: q),
+          ],
         ],
-      ),
-    );
-  }
-
-  String _getCategoryLabel() {
-    return switch (course.type) {
-      'video' => 'VIDEO MODULE',
-      'pdf' => 'READING MODULE',
-      'quiz' => 'QUIZ',
-      _ => 'MODULE',
-    };
-  }
-
-  Widget _buildActionButton(BuildContext context) {
-    String label;
-    bool isFilled = false;
-
-    if (course.progress >= 1.0) {
-      return GestureDetector(
-        onTap: () => _openCourse(context, course),
-        child: Text(
-          'Review',
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF0F172A),
-          ),
-        ),
-      );
-    } else if (course.progress > 0) {
-      label = 'Resume';
-      isFilled = false;
-    } else {
-      label = course.type == 'quiz' ? 'Start Quiz' : 'Continue';
-      isFilled = course.type != 'quiz';
-    }
-
-    // specific case for the image
-    if (course.title.contains('Fire Safety')) {
-      label = 'Continue';
-      isFilled = true;
-    }
-
-    if (isFilled) {
-      return ElevatedButton(
-        onPressed: () => _openCourse(context, course),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1A56FF),
-          foregroundColor: Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-          minimumSize: const Size(0, 36),
-        ),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-    } else {
-      return GestureDetector(
-        onTap: () => _openCourse(context, course),
-        child: Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF0F172A),
-          ),
-        ),
-      );
-    }
-  }
-
-  void _openCourse(BuildContext context, TrainingCourse c) {
-    switch (c.type) {
-      case 'video':
-        context.push(StaffRoutes.trainingVideo(c.id));
-      case 'pdf':
-        context.push(StaffRoutes.trainingPdf(c.id));
-      case 'quiz':
-        context.push(StaffRoutes.trainingQuiz(c.id));
-      default:
-        context.push(StaffRoutes.trainingVideo(c.id));
-    }
-  }
-}
-
-/// Training categories screen.
-class StaffTrainingCategoriesScreen extends ConsumerWidget {
-  const StaffTrainingCategoriesScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final categories = ref.watch(staffTrainingCategoriesProvider);
-
-    return StaffPageScaffold(
-      title: 'Training Categories',
-      body: categories.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (list) => ListView.builder(
-          itemCount: list.length,
-          itemBuilder: (_, i) {
-            final cat = list[i];
-            return StaffMenuTile(
-              icon: Icons.folder_special_outlined,
-              title: cat.name,
-              subtitle: '${cat.courseCount} courses',
-              onTap: () => context.push(StaffRoutes.training),
-            );
-          },
-        ),
       ),
     );
   }
 }
 
-/// Video player placeholder screen.
-class StaffVideoPlayerScreen extends ConsumerWidget {
-  const StaffVideoPlayerScreen({super.key, required this.courseId});
-  final String courseId;
+class _MaterialTile extends StatelessWidget {
+  const _MaterialTile({required this.material});
+  final TrainingMaterial material;
+
+  ({IconData icon, Color color}) get _style => switch (material.type) {
+        TrainingMaterialType.pdf => (icon: Icons.picture_as_pdf_outlined, color: const Color(0xFFDC2626)),
+        TrainingMaterialType.video => (icon: Icons.play_circle_outline, color: _kPrimary),
+        TrainingMaterialType.note => (icon: Icons.description_outlined, color: const Color(0xFF475569)),
+      };
+
+  String get _subtitle => switch (material.type) {
+        TrainingMaterialType.pdf =>
+          material.sizeBytes != null ? '${(material.sizeBytes! / 1024).round()} KB' : 'PDF',
+        TrainingMaterialType.video => 'Video',
+        TrainingMaterialType.note => 'Note',
+      };
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final course = ref.watch(staffTrainingCourseProvider(courseId));
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF)),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            }
-          },
-        ),
-        title: Text(
-          'Video Training',
-          style: GoogleFonts.libreCaslonText(
-            color: const Color(0xFF1A56FF),
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.share_outlined, color: Color(0xFF475569)),
-            onPressed: () {},
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 14,
-              backgroundImage: const NetworkImage('https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=400'),
-            ),
-          )
-        ],
-      ),
-      body: course.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (c) => Column(
+  Widget build(BuildContext context) {
+    final s = _style;
+    return InkWell(
+      onTap: () => context.push(StaffRoutes.trainingMaterial(material.id), extra: material),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
           children: [
-            Expanded(
-              child: ListView(
-                children: [
-                  // Video Player Placeholder
-                  Container(
-                    width: double.infinity,
-                    height: 220,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF0F172A),
-                      image: DecorationImage(
-                        image: NetworkImage('https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=800'),
-                        fit: BoxFit.cover,
-                        colorFilter: ColorFilter.mode(Colors.black45, BlendMode.darken),
-                      ),
-                    ),
-                    child: Center(
-                      child: Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A56FF),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(Icons.play_arrow, color: Colors.white, size: 36),
-                      ),
-                    ),
-                  ),
-                  
-                  // Content Module
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.02),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                'MODULE 04',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF475569),
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              width: 4,
-                              height: 4,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFCBD5E1),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Communication\nSeries',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF64748B),
-                                height: 1.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Client\nCommunication',
-                          style: GoogleFonts.libreCaslonText(
-                            fontSize: 32,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF0F172A),
-                            height: 1.1,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Master the art of high-impact professional correspondence. This session covers tone modulation, active listening strategies, and managing stakeholder expectations in luxury service environments.',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: const Color(0xFF475569),
-                            height: 1.8,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            const Icon(Icons.access_time_outlined, color: Color(0xFF64748B), size: 16),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Duration: ${c.duration}',
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF64748B),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        
-                        // Status & Prerequisites Cards
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFF1F5F9)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'STATUS',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF64748B),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF1A56FF),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'In Progress',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF1A56FF),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFF1F5F9)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'PREREQUISITES',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF64748B),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Ethics 101, Workplace Basics',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF0F172A),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Learning Resources
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Learning Resources',
-                          style: GoogleFonts.libreCaslonText(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1A56FF),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFF1F5F9)),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEEF2FF),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.description_outlined, color: Color(0xFF1A56FF), size: 20),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Study Guide PDF',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Summary of key\ncommunication tactics',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        color: const Color(0xFF64748B),
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(Icons.file_download_outlined, color: Color(0xFF94A3B8), size: 20),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFF1F5F9)),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFE2E8F0),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.quiz_outlined, color: Color(0xFF475569), size: 20),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Knowledge Check',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '5-minute quiz available after\nvideo',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        color: const Color(0xFF64748B),
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const Icon(Icons.arrow_forward_outlined, color: Color(0xFF94A3B8), size: 20),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            // Footer Action
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFBF9F8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
-                    blurRadius: 10,
-                    offset: const Offset(0, -4),
-                  ),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: s.color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+              child: Icon(s.icon, size: 18, color: s.color),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(material.title, style: _sans(size: 13, weight: FontWeight.w600, color: _kInk)),
+                  Text(_subtitle, style: _sans(size: 11)),
                 ],
               ),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () {
-                    context.showDsSnackBar('Video completed', type: DsSnackBarType.success);
-                    context.pop();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A56FF),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    'MARK COMPLETE',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-              ),
             ),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF94A3B8)),
           ],
         ),
       ),
@@ -845,358 +255,522 @@ class StaffVideoPlayerScreen extends ConsumerWidget {
   }
 }
 
-/// PDF reader placeholder screen.
-class StaffPdfReaderScreen extends ConsumerWidget {
-  const StaffPdfReaderScreen({super.key, required this.courseId});
-  final String courseId;
+class _QuizCard extends StatelessWidget {
+  const _QuizCard({required this.quiz});
+  final TrainingQuiz quiz;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final course = ref.watch(staffTrainingCourseProvider(courseId));
+  Widget build(BuildContext context) {
+    final r = quiz.lastResult;
+    final (String subtitle, String? buttonLabel, VoidCallback? onPressed) = switch (quiz.state) {
+      TrainingQuizState.locked => ('Quiz opens on ${_prettyPlainDate(quiz.opensAt)}', null, null),
+      TrainingQuizState.scheduled => (
+          'Retake on ${DateFormatter.timestamp(quiz.opensAt)}${quiz.rescheduleNote != null ? '\n${quiz.rescheduleNote}' : ''}',
+          null,
+          null,
+        ),
+      TrainingQuizState.available => (
+          '${quiz.questionCount} questions · ${quiz.totalPoints} marks · Pass ${quiz.passMarks}'
+              '${quiz.rescheduleNote != null ? '\n${quiz.rescheduleNote}' : ''}',
+          'Start',
+          () => context.push(StaffRoutes.trainingQuiz(quiz.id)),
+        ),
+      TrainingQuizState.inProgress => (
+          'Continue your quiz',
+          'Continue',
+          () => context.push(StaffRoutes.trainingQuiz(quiz.id)),
+        ),
+      TrainingQuizState.underReview => ('Submitted — trainer is checking your answers', null, null),
+      TrainingQuizState.passed => (
+          'Passed · ${r?.score ?? 0}/${r?.maxScore ?? quiz.totalPoints}',
+          'View result',
+          () => context.push(StaffRoutes.trainingResult(r?.attemptId ?? quiz.attemptId ?? '')),
+        ),
+      TrainingQuizState.failed => (
+          '${r?.score ?? 0}/${r?.maxScore ?? quiz.totalPoints} — trainer will reschedule',
+          'View result',
+          () => context.push(StaffRoutes.trainingResult(r?.attemptId ?? quiz.attemptId ?? '')),
+        ),
+    };
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1A56FF), size: 20),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            }
-          },
-        ),
-        title: Text(
-          'PDF Reader',
-          style: GoogleFonts.libreCaslonText(
-            color: const Color(0xFF0F172A),
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(10), border: Border.all(color: _kHairline)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(quiz.title, style: _sans(size: 13, weight: FontWeight.w600, color: _kInk)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: _sans(size: 11).copyWith(height: 1.4)),
+              ],
+            ),
           ),
-        ),
-        centerTitle: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.share_outlined, color: Color(0xFF475569), size: 22),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: Color(0xFF475569), size: 22),
-            onPressed: () {},
-          ),
+          if (buttonLabel != null) ...[
+            const SizedBox(width: 12),
+            ElevatedButton(
+              onPressed: onPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kPrimary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                minimumSize: const Size(0, 34),
+              ),
+              child: Text(buttonLabel, style: _sans(size: 12, weight: FontWeight.w600, color: Colors.white)),
+            ),
+          ],
         ],
       ),
-      body: course.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (c) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            children: [
-              Expanded(
+    );
+  }
+}
+
+/// Opens one piece of study material. There is no single-material fetch
+/// endpoint, so [material] is expected to arrive via `extra` from the
+/// training home list — if it's missing (e.g. a raw deep link), the screen
+/// just points the user back to Training rather than guessing at content.
+class StaffTrainingMaterialScreen extends StatelessWidget {
+  const StaffTrainingMaterialScreen({super.key, required this.materialId, this.material});
+  final String materialId;
+  final TrainingMaterial? material;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = material;
+    return Scaffold(
+      backgroundColor: _kBg,
+      appBar: _trainingAppBar(context, m?.title ?? 'Material'),
+      body: m == null
+          ? DsErrorState(
+              title: 'Material not found',
+              message: 'Open this from the Training screen.',
+              onRetry: () => context.go(StaffRoutes.training),
+              retryLabel: 'Back to Training',
+            )
+          : switch (m.type) {
+              TrainingMaterialType.note => _NoteView(material: m),
+              TrainingMaterialType.pdf => _PdfView(material: m),
+              TrainingMaterialType.video => _VideoView(material: m),
+            },
+    );
+  }
+}
+
+class _NoteView extends StatelessWidget {
+  const _NoteView({required this.material});
+  final TrainingMaterial material;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        material.body ?? '',
+        style: _sans(size: 15, color: _kInk).copyWith(height: 1.7),
+      ),
+    );
+  }
+}
+
+class _PdfView extends ConsumerStatefulWidget {
+  const _PdfView({required this.material});
+  final TrainingMaterial material;
+
+  @override
+  ConsumerState<_PdfView> createState() => _PdfViewState();
+}
+
+class _PdfViewState extends ConsumerState<_PdfView> {
+  PdfControllerPinch? _controller;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final url = widget.material.viewUrl;
+    if (url == null) {
+      setState(() => _error = 'No file attached to this material.');
+      return;
+    }
+    final result = await ref.read(staffRepositoryProvider).downloadTrainingMaterial(url);
+    if (!mounted) return;
+    result.fold(
+      onSuccess: (bytes) {
+        setState(() {
+          _controller = PdfControllerPinch(document: PdfDocument.openData(Uint8List.fromList(bytes)));
+        });
+      },
+      onError: (f) => setState(() => _error = f.message),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return DsErrorState(title: 'Could not open PDF', message: _error, onRetry: _load);
+    }
+    final controller = _controller;
+    if (controller == null) return const DsLoadingWidget();
+    return PdfViewPinch(controller: controller);
+  }
+}
+
+class _VideoView extends ConsumerStatefulWidget {
+  const _VideoView({required this.material});
+  final TrainingMaterial material;
+
+  @override
+  ConsumerState<_VideoView> createState() => _VideoViewState();
+}
+
+class _VideoViewState extends ConsumerState<_VideoView> {
+  VideoPlayerController? _controller;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final url = widget.material.viewUrl;
+    if (url == null) {
+      setState(() => _error = 'No file attached to this material.');
+      return;
+    }
+    final isAbsolute = url.startsWith('http://') || url.startsWith('https://');
+    Uri uri;
+    Map<String, String> headers = {};
+    if (isAbsolute) {
+      uri = Uri.parse(url);
+    } else {
+      uri = Uri.parse('${ApiConstants.apiOrigin}$url');
+      final token = await ref.read(jwtTokenHandlerProvider).getAccessToken();
+      if (token != null && token.isNotEmpty) {
+        headers = {ApiConstants.headerAuthorization: '${ApiConstants.bearerPrefix}$token'};
+      }
+    }
+    final controller = VideoPlayerController.networkUrl(uri, httpHeaders: headers);
+    try {
+      await controller.initialize();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not play this video.');
+      return;
+    }
+    if (!mounted) {
+      controller.dispose();
+      return;
+    }
+    setState(() => _controller = controller..play());
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return DsErrorState(title: 'Could not play video', message: _error, onRetry: () {
+        setState(() => _error = null);
+        _load();
+      });
+    }
+    final controller = _controller;
+    if (controller == null) return const DsLoadingWidget();
+    return Center(
+      child: AspectRatio(
+        aspectRatio: controller.value.aspectRatio == 0 ? 16 / 9 : controller.value.aspectRatio,
+        child: Stack(
+          alignment: Alignment.bottomCenter,
+          children: [
+            VideoPlayer(controller),
+            GestureDetector(
+              onTap: () => setState(() => controller.value.isPlaying ? controller.pause() : controller.play()),
+              child: AnimatedOpacity(
+                opacity: controller.value.isPlaying ? 0 : 1,
+                duration: const Duration(milliseconds: 200),
                 child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(40),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 24,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFDF2F2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.picture_as_pdf,
-                          size: 64,
-                          color: Color(0xFFDC2626), // Red
-                        ),
-                      ),
-                      const SizedBox(height: 48),
-                      Text(
-                        'Fire Safety\nGuidelines',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.libreCaslonText(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF0F172A),
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Complete reading to ensure\nsafety compliance and\nemergency preparedness.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: const Color(0xFF475569),
-                          height: 1.6,
-                        ),
-                      ),
-                      const Spacer(),
-                      
-                      // Progress Bar
-                      Container(
-                        width: 120,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A56FF),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Page 1 of 12',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: const Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ),
+                  color: Colors.black26,
+                  child: const Icon(Icons.play_arrow_rounded, size: 56, color: Colors.white),
                 ),
               ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'SAFETY PROTOCOL',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF475569),
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  Text(
-                    '100% READ',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF1A56FF),
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: () => context.pop(),
-                  icon: const Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
-                  label: Text(
-                    'FINISH READING',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A56FF),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            ),
+            VideoProgressIndicator(controller, allowScrubbing: true, padding: const EdgeInsets.all(8)),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Training quiz screen.
+/// A quiz — MCQ questions render as radio options, TEXT questions as a free
+/// text field. Submitting sends a list of answers keyed by the *attempt* id
+/// (from `start`), never the quiz id.
 class StaffQuizScreen extends ConsumerStatefulWidget {
-  const StaffQuizScreen({super.key, required this.courseId});
-  final String courseId;
+  const StaffQuizScreen({super.key, required this.quizId});
+  final String quizId;
 
   @override
   ConsumerState<StaffQuizScreen> createState() => _StaffQuizScreenState();
 }
 
 class _StaffQuizScreenState extends ConsumerState<StaffQuizScreen> {
-  final _answers = <String, int>{};
+  final Map<String, int> _selected = {};
+  final Map<String, String> _text = {};
+  bool _submitting = false;
 
   @override
   Widget build(BuildContext context) {
-    final quiz = ref.watch(staffQuizProvider(widget.courseId));
+    final attempt = ref.watch(staffQuizStartProvider(widget.quizId));
 
     return StaffPageScaffold(
       title: 'Quiz',
-      body: quiz.when(
+      body: attempt.when(
         loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (questions) => Column(
+        error: (e, _) => DsErrorState(
+          title: 'Quiz unavailable',
+          message: e.toString().replaceFirst('Exception: ', ''),
+          onRetry: () => ref.invalidate(staffQuizStartProvider(widget.quizId)),
+        ),
+        data: (a) => Column(
           children: [
             Expanded(
               child: ListView.builder(
-                itemCount: questions.length,
+                padding: EdgeInsets.all(AppSpacing.lg),
+                itemCount: a.questions.length,
                 itemBuilder: (_, i) {
-                  final q = questions[i];
+                  final q = a.questions[i];
                   return Padding(
                     padding: EdgeInsets.only(bottom: AppSpacing.lg),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('${i + 1}. ${q.question}',
+                        Text('${i + 1}. ${q.questionText}  (${q.points} pt${q.points == 1 ? '' : 's'})',
                             style: Theme.of(context).textTheme.titleSmall),
-                        ...List.generate(q.options.length, (oi) {
-                          return RadioListTile<int>(
-                            title: Text(q.options[oi]),
-                            value: oi,
-                            groupValue: _answers[q.id],
-                            onChanged: (v) =>
-                                setState(() => _answers[q.id] = v!),
-                          );
-                        }),
+                        const SizedBox(height: 8),
+                        if (q.type == TrainingQuestionType.mcq)
+                          ...List.generate((q.options ?? []).length, (oi) {
+                            return RadioListTile<int>(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(q.options![oi]),
+                              value: oi,
+                              groupValue: _selected[q.id],
+                              onChanged: (v) => setState(() => _selected[q.id] = v!),
+                            );
+                          })
+                        else
+                          TextField(
+                            minLines: 3,
+                            maxLines: 6,
+                            decoration: const InputDecoration(
+                              hintText: 'Type your answer…',
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (v) => _text[q.id] = v,
+                          ),
                       ],
                     ),
                   );
                 },
               ),
             ),
-            DsPrimaryButton(
-              label: 'Submit Quiz',
-              onPressed: _answers.length == questions.length
-                  ? () async {
-                      final result = await ref
-                          .read(staffRepositoryProvider)
-                          .submitQuiz(widget.courseId, _answers);
-                      if (!context.mounted) return;
-                      result.fold(
-                        onSuccess: (r) => context.pushReplacement(
-                          StaffRoutes.trainingResult(widget.courseId),
-                          extra: r,
-                        ),
-                        onError: (f) => context.showDsSnackBar(f.message,
-                            type: DsSnackBarType.error),
-                      );
-                    }
-                  : null,
+            Padding(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: DsPrimaryButton(
+                label: 'Submit Quiz',
+                isLoading: _submitting,
+                onPressed: _submitting ? null : () => _submit(a),
+              ),
             ),
           ],
         ),
       ),
     );
   }
-}
 
-/// Training quiz result screen.
-class StaffTrainingResultScreen extends StatelessWidget {
-  const StaffTrainingResultScreen({super.key, required this.courseId, this.result});
-  final String courseId;
-  final QuizResult? result;
+  Future<void> _submit(QuizAttemptStart attempt) async {
+    final unanswered = attempt.questions.where((q) => q.type == TrainingQuestionType.mcq
+        ? !_selected.containsKey(q.id)
+        : (_text[q.id]?.trim().isEmpty ?? true));
 
-  @override
-  Widget build(BuildContext context) {
-    final r = result ?? const QuizResult(score: 2, total: 3, passed: true);
+    if (unanswered.isNotEmpty) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Unanswered questions'),
+          content: Text(
+            '${unanswered.length} question${unanswered.length == 1 ? '' : 's'} left blank will be marked wrong. Submit anyway?',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Go back')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Submit anyway')),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
 
-    return StaffPageScaffold(
-      title: 'Training Result',
-      showBack: false,
-      body: Column(
-        children: [
-          Icon(
-            r.passed ? Icons.emoji_events_rounded : Icons.sentiment_dissatisfied,
-            size: 80,
-            color: r.passed ? AppColors.success : AppColors.error,
-          ),
-          SizedBox(height: AppSpacing.lg),
-          Text(
-            r.passed ? 'Congratulations!' : 'Try Again',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          Text('Score: ${r.score}/${r.total}'),
-          const Spacer(),
-          if (r.passed)
-            DsGradientButton(
-              label: 'View Certificate',
-              onPressed: () =>
-                  context.push(StaffRoutes.trainingCertificate(courseId)),
-            ),
-          SizedBox(height: AppSpacing.sm),
-          DsOutlineButton(
-            label: 'Back to Training',
-            onPressed: () => context.go(StaffRoutes.training),
-          ),
-        ],
-      ),
+    setState(() => _submitting = true);
+    final answers = [
+      for (final q in attempt.questions)
+        TrainingQuizAnswer(
+          questionId: q.id,
+          selectedOption: q.type == TrainingQuestionType.mcq ? _selected[q.id] : null,
+          answerText: q.type == TrainingQuestionType.text ? _text[q.id] : null,
+        ),
+    ];
+    final result = await ref.read(staffRepositoryProvider).submitQuizAttempt(attempt.attemptId, answers);
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    result.fold(
+      onSuccess: (r) {
+        ref.invalidate(staffTrainingHomeProvider);
+        context.pushReplacement(StaffRoutes.trainingResult(r.attemptId));
+      },
+      onError: (f) => context.showDsSnackBar(f.message, type: DsSnackBarType.error),
     );
   }
 }
 
-/// Training certificate screen.
-class StaffCertificateScreen extends ConsumerWidget {
-  const StaffCertificateScreen({super.key, required this.courseId});
-  final String courseId;
+/// Quiz result — keyed by attempt id. While still under review this shows a
+/// waiting state instead of scores (the endpoint returns no questions yet).
+class StaffTrainingResultScreen extends ConsumerWidget {
+  const StaffTrainingResultScreen({super.key, required this.attemptId});
+  final String attemptId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final course = ref.watch(staffTrainingCourseProvider(courseId));
+    final result = ref.watch(staffQuizResultProvider(attemptId));
 
     return StaffPageScaffold(
-      title: 'Certificate',
-      body: course.when(
+      title: 'Quiz Result',
+      showBack: false,
+      body: result.when(
         loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (c) => Column(
-          children: [
-            Container(
-              padding: EdgeInsets.all(AppSpacing.xxl),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    AppColors.primary.withValues(alpha: 0.1),
-                    AppColors.secondary.withValues(alpha: 0.1),
+        error: (e, _) => DsErrorState(
+          title: 'Could not load result',
+          message: e.toString().replaceFirst('Exception: ', ''),
+          onRetry: () => ref.invalidate(staffQuizResultProvider(attemptId)),
+        ),
+        data: (r) {
+          if (r.state == TrainingQuizState.underReview) {
+            return DsEmptyState(
+              icon: Icons.hourglass_top_rounded,
+              title: 'Submitted',
+              message: 'Trainer is checking your answers. You\'ll be notified once it\'s graded.',
+              actionLabel: 'Back to Training',
+              onAction: () => context.go(StaffRoutes.training),
+            );
+          }
+          final passed = r.passed ?? false;
+          return ListView(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            children: [
+              Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      passed ? Icons.emoji_events_rounded : Icons.sentiment_dissatisfied_rounded,
+                      size: 72,
+                      color: passed ? AppColors.success : AppColors.error,
+                    ),
+                    SizedBox(height: AppSpacing.md),
+                    Text(r.title, style: Theme.of(context).textTheme.titleLarge, textAlign: TextAlign.center),
+                    SizedBox(height: AppSpacing.xs),
+                    Text(
+                      passed ? 'Passed' : 'Not this time — trainer will reschedule',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    SizedBox(height: AppSpacing.xs),
+                    Text('${r.score ?? 0}/${r.maxScore} · Pass mark ${r.passMarks}'),
                   ],
                 ),
-                borderRadius: AppRadius.xlAll,
-                border: Border.all(color: AppColors.primary),
               ),
-              child: Column(
-                children: [
-                  Icon(Icons.verified_rounded,
-                      size: 64, color: AppColors.primary),
-                  SizedBox(height: AppSpacing.md),
-                  Text('Certificate of Completion',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  SizedBox(height: AppSpacing.sm),
-                  Text(c.title, textAlign: TextAlign.center),
-                  SizedBox(height: AppSpacing.lg),
-                  Text('HomeGenny Training Program'),
-                ],
+              SizedBox(height: AppSpacing.xl),
+              for (final q in r.questions) _ResultQuestionTile(question: q),
+              SizedBox(height: AppSpacing.md),
+              DsOutlineButton(label: 'Back to Training', onPressed: () => context.go(StaffRoutes.training)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ResultQuestionTile extends StatelessWidget {
+  const _ResultQuestionTile({required this.question});
+  final QuizResultQuestion question;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.only(bottom: AppSpacing.md),
+      padding: EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kHairline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                question.correct ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                size: 18,
+                color: question.correct ? AppColors.success : AppColors.error,
               ),
-            ),
-            const Spacer(),
-            DsOutlineButton(
-              label: 'Download PDF',
-              icon: Icons.download_rounded,
-              onPressed: () => context.showDsSnackBar('Download started'),
-            ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(question.questionText, style: _sans(size: 13, weight: FontWeight.w600, color: _kInk))),
+              Text('${question.pointsAwarded}/${question.points}', style: _sans(size: 12, weight: FontWeight.w600)),
+            ],
+          ),
+          if (question.type == TrainingQuestionType.mcq && question.options != null) ...[
+            const SizedBox(height: 8),
+            for (var i = 0; i < question.options!.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      i == question.yourSelectedOption ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                      size: 16,
+                      color: i == question.yourSelectedOption ? _kPrimary : const Color(0xFFCBD5E1),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(question.options![i], style: _sans(size: 12))),
+                  ],
+                ),
+              ),
+          ] else if (question.yourAnswerText != null) ...[
+            const SizedBox(height: 8),
+            Text('Your answer: ${question.yourAnswerText}', style: _sans(size: 12).copyWith(fontStyle: FontStyle.italic)),
           ],
-        ),
+        ],
       ),
     );
   }

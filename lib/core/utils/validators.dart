@@ -25,6 +25,25 @@ abstract final class Validators {
     return null;
   }
 
+  /// Password rule for the self-registration endpoints (staff + client):
+  /// 8-72 chars with at least one uppercase, one lowercase, one digit, and
+  /// one of `@ $ ! % * ? & # - _`. Stricter than [password] (used by
+  /// login-adjacent flows that only enforce length) because the backend
+  /// rejects anything short of this with a 400.
+  static String? registerPassword(String? value) {
+    final lengthError = password(value);
+    if (lengthError != null) return lengthError;
+    final v = value!;
+    final hasUpper = RegExp(r'[A-Z]').hasMatch(v);
+    final hasLower = RegExp(r'[a-z]').hasMatch(v);
+    final hasDigit = RegExp(r'[0-9]').hasMatch(v);
+    final hasSpecial = RegExp(r'[@$!%*?&#\-_]').hasMatch(v);
+    if (!hasUpper || !hasLower || !hasDigit || !hasSpecial) {
+      return 'passwordWeak';
+    }
+    return null;
+  }
+
   static String? phone(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'phoneRequired';

@@ -137,38 +137,22 @@ List<RouteBase> get staffRoutes => [
         builder: (_, __) => const StaffTrainingScreen(),
         routes: [
           GoRoute(
-            path: 'categories',
-            builder: (_, __) => const StaffTrainingCategoriesScreen(),
-          ),
-          GoRoute(
-            path: 'video/:id',
-            builder: (context, state) => StaffVideoPlayerScreen(
-              courseId: state.pathParameters['id']!,
-            ),
-          ),
-          GoRoute(
-            path: 'pdf/:id',
-            builder: (context, state) => StaffPdfReaderScreen(
-              courseId: state.pathParameters['id']!,
+            path: 'material/:id',
+            builder: (context, state) => StaffTrainingMaterialScreen(
+              materialId: state.pathParameters['id']!,
+              material: state.extra as TrainingMaterial?,
             ),
           ),
           GoRoute(
             path: 'quiz/:id',
             builder: (context, state) => StaffQuizScreen(
-              courseId: state.pathParameters['id']!,
+              quizId: state.pathParameters['id']!,
             ),
           ),
           GoRoute(
             path: 'result/:id',
             builder: (context, state) => StaffTrainingResultScreen(
-              courseId: state.pathParameters['id']!,
-              result: state.extra as QuizResult?,
-            ),
-          ),
-          GoRoute(
-            path: 'certificate/:id',
-            builder: (context, state) => StaffCertificateScreen(
-              courseId: state.pathParameters['id']!,
+              attemptId: state.pathParameters['id']!,
             ),
           ),
         ],

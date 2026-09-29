@@ -69,6 +69,16 @@ abstract final class ExceptionHandler {
         return ServerFailure(message: message, code: '$statusCode');
       case 422:
         return ValidationFailure(message: message, code: '$statusCode');
+      case 409:
+        return ValidationFailure(message: message, code: '$statusCode');
+      case 429:
+        // Login and both self-registration endpoints share one 5/min-per-IP
+        // bucket — surface a fixed, friendly message rather than whatever
+        // text the throttle guard sent, and never auto-retry on this.
+        return const ValidationFailure(
+          message: 'Too many attempts. Please try again in a minute.',
+          code: '429',
+        );
       case 500:
       case 502:
       case 503:

@@ -14,11 +14,11 @@ abstract interface class StaffRepository {
   Future<Result<StaffDocument>> getDocument(String id);
   Future<Result<void>> uploadDocument(String name, String type, PlatformFile file);
   Future<Result<void>> reuploadDocument(String id, String name);
-  Future<Result<List<TrainingCategory>>> getTrainingCategories();
-  Future<Result<List<TrainingCourse>>> getTrainingCourses({String? categoryId});
-  Future<Result<TrainingCourse>> getTrainingCourse(String id);
-  Future<Result<List<QuizQuestion>>> getQuiz(String courseId);
-  Future<Result<QuizResult>> submitQuiz(String courseId, Map<String, int> answers);
+  Future<Result<TrainingHome>> getTrainingHome();
+  Future<Result<QuizAttemptStart>> startQuiz(String quizId);
+  Future<Result<QuizSubmitResult>> submitQuizAttempt(String attemptId, List<TrainingQuizAnswer> answers);
+  Future<Result<QuizResultDetail>> getQuizResult(String attemptId);
+  Future<Result<List<int>>> downloadTrainingMaterial(String viewUrl);
   Future<Result<List<VideoCertPrompt>>> getVideoCertPrompts();
   Future<Result<void>> uploadVideoCert(
     String promptId,

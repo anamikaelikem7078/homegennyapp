@@ -140,125 +140,169 @@ class StaffDummyApi {
 
   Future<void> reuploadDocument(String id, String name) => _simulate(null);
 
-  List<TrainingCategory> get _categories => const [
-        TrainingCategory(
-          id: 'c1',
-          name: 'Safety & Compliance',
-          courseCount: 3,
-          icon: 'shield',
-        ),
-        TrainingCategory(
-          id: 'c2',
-          name: 'Customer Service',
-          courseCount: 2,
-          icon: 'people',
-        ),
-        TrainingCategory(
-          id: 'c3',
-          name: 'Technical Skills',
-          courseCount: 4,
-          icon: 'build',
-        ),
-      ];
+  // Dummy answer key kept only on the phone side, to score the offline demo
+  // quiz — the real API never sends this to the app (see decodeQuizQuestion).
+  static const _dummyQuizAnswerKey = {'q1': 1, 'q2': 0};
 
-  Future<List<TrainingCategory>> getTrainingCategories() =>
-      _simulate(_categories);
-
-  List<TrainingCourse> get _courses => const [
-        TrainingCourse(
-          id: 'tr1',
-          title: 'Workplace Safety Basics',
-          categoryId: 'c1',
-          duration: '25 min',
-          progress: 1.0,
-          type: 'video',
-        ),
-        TrainingCourse(
-          id: 'tr2',
-          title: 'Fire Safety Guidelines',
-          categoryId: 'c1',
-          duration: '15 min',
-          progress: 0.6,
-          type: 'pdf',
-        ),
-        TrainingCourse(
-          id: 'tr3',
-          title: 'Safety Assessment Quiz',
-          categoryId: 'c1',
-          duration: '10 min',
-          progress: 0.0,
-          type: 'quiz',
-        ),
-        TrainingCourse(
-          id: 'tr4',
-          title: 'Client Communication',
-          categoryId: 'c2',
-          duration: '20 min',
-          progress: 0.0,
-          type: 'video',
-        ),
-      ];
-
-  Future<List<TrainingCourse>> getTrainingCourses({String? categoryId}) async {
-    await Future<void>.delayed(_delay);
-    if (categoryId == null) return _courses;
-    return _courses.where((c) => c.categoryId == categoryId).toList();
-  }
-
-  Future<TrainingCourse> getTrainingCourse(String id) async {
-    await Future<void>.delayed(_delay);
-    return _courses.firstWhere((c) => c.id == id);
-  }
-
-  List<QuizQuestion> get _quizQuestions => const [
-        QuizQuestion(
+  List<TrainingQuizQuestion> get _dummyQuizQuestions => const [
+        TrainingQuizQuestion(
           id: 'q1',
-          question: 'What should you do first in case of fire?',
-          options: [
-            'Run immediately',
-            'Activate fire alarm',
-            'Take photos',
-            'Ignore it',
-          ],
-          correctIndex: 1,
+          questionText: 'What should you do first in case of fire?',
+          type: TrainingQuestionType.mcq,
+          options: ['Run immediately', 'Activate fire alarm', 'Take photos', 'Ignore it'],
+          orderIndex: 0,
+          points: 1,
         ),
-        QuizQuestion(
+        TrainingQuizQuestion(
           id: 'q2',
-          question: 'PPE stands for?',
+          questionText: 'PPE stands for?',
+          type: TrainingQuestionType.mcq,
           options: [
             'Personal Protective Equipment',
             'Public Property Entry',
             'Private Process Engine',
             'None of the above',
           ],
-          correctIndex: 0,
+          orderIndex: 1,
+          points: 1,
         ),
-        QuizQuestion(
+        TrainingQuizQuestion(
           id: 'q3',
-          question: 'Who is responsible for workplace safety?',
-          options: ['Only managers', 'Only staff', 'Everyone', 'Nobody'],
-          correctIndex: 2,
+          questionText: 'How would you handle a medical emergency at a client home?',
+          type: TrainingQuestionType.text,
+          orderIndex: 2,
+          points: 1,
         ),
       ];
 
-  Future<List<QuizQuestion>> getQuiz(String courseId) =>
-      _simulate(_quizQuestions);
+  TrainingHome get _trainingHome => TrainingHome(
+        staffFullName: _profile.fullName,
+        staffCode: _profile.staffCode,
+        series: _profile.series,
+        pipelineStage: _profile.pipelineStage,
+        videoCert: const TrainingVideoCertProgress(approved: 3, required_: 9),
+        batches: [
+          TrainingBatch(
+            id: 'batch-1',
+            batchCode: 'TRN-M3X-DEMO-0001',
+            series: _profile.series,
+            trainerName: 'Sunita Trainer',
+            classroom: 'Room A',
+            status: 'ONGOING',
+            startDate: '2026-09-29',
+            endDate: '2026-10-04',
+            quizDate: '2026-10-02',
+            enrolledAt: DateTime.now().toIso8601String(),
+            materials: const [
+              TrainingMaterial(
+                id: 'mat-note-1',
+                type: TrainingMaterialType.note,
+                title: 'Read this first',
+                createdAt: '2026-09-29T00:00:00.000Z',
+                body: 'Welcome to your training batch. Complete the material below, then attempt the quiz.',
+              ),
+              TrainingMaterial(
+                id: 'mat-pdf-1',
+                type: TrainingMaterialType.pdf,
+                title: 'Safety rules',
+                createdAt: '2026-09-29T00:00:00.000Z',
+                sizeBytes: 182044,
+              ),
+              TrainingMaterial(
+                id: 'mat-video-1',
+                type: TrainingMaterialType.video,
+                title: 'Day 1 intro',
+                createdAt: '2026-09-29T00:00:00.000Z',
+              ),
+            ],
+            quizzes: [
+              TrainingQuiz(
+                id: 'quiz-1',
+                batchId: 'batch-1',
+                batchCode: 'TRN-M3X-DEMO-0001',
+                title: 'Day 1 Recap',
+                questionCount: _dummyQuizQuestions.length,
+                totalPoints: _dummyQuizQuestions.length,
+                passMarks: 2,
+                state: TrainingQuizState.available,
+                quizDate: '2026-10-02',
+              ),
+            ],
+          ),
+        ],
+      );
 
-  Future<QuizResult> submitQuiz(
-    String courseId,
-    Map<String, int> answers,
+  Future<TrainingHome> getTrainingHome() => _simulate(_trainingHome);
+
+  Future<QuizAttemptStart> startQuiz(String quizId) => _simulate(
+        QuizAttemptStart(
+          attemptId: 'attempt-$quizId',
+          quizId: quizId,
+          status: 'IN_PROGRESS',
+          title: 'Day 1 Recap',
+          totalPoints: _dummyQuizQuestions.length,
+          passMarks: 2,
+          questions: _dummyQuizQuestions,
+        ),
+      );
+
+  Future<QuizSubmitResult> submitQuizAttempt(
+    String attemptId,
+    List<TrainingQuizAnswer> answers,
   ) async {
     await Future<void>.delayed(_delay);
-    var score = 0;
-    for (final q in _quizQuestions) {
-      if (answers[q.id] == q.correctIndex) score++;
+    final hasTextAnswer = answers.any((a) => a.answerText != null && a.answerText!.isNotEmpty);
+    if (hasTextAnswer) {
+      return QuizSubmitResult(
+        attemptId: attemptId,
+        state: TrainingQuizState.underReview,
+        pendingReview: true,
+        maxScore: _dummyQuizQuestions.length,
+        passMarks: 2,
+      );
     }
-    return QuizResult(
+    var score = 0;
+    for (final a in answers) {
+      if (_dummyQuizAnswerKey[a.questionId] == a.selectedOption) score++;
+    }
+    final passed = score >= 2;
+    return QuizSubmitResult(
+      attemptId: attemptId,
+      state: passed ? TrainingQuizState.passed : TrainingQuizState.failed,
+      pendingReview: false,
       score: score,
-      total: _quizQuestions.length,
-      passed: score >= 2,
+      maxScore: _dummyQuizQuestions.length,
+      passMarks: 2,
+      passed: passed,
     );
   }
+
+  Future<QuizResultDetail> getQuizResult(String attemptId) => _simulate(
+        QuizResultDetail(
+          attemptId: attemptId,
+          title: 'Day 1 Recap',
+          state: TrainingQuizState.passed,
+          score: 2,
+          maxScore: _dummyQuizQuestions.length,
+          passMarks: 2,
+          passed: true,
+          gradedAt: DateTime.now().toIso8601String(),
+          questions: [
+            for (final q in _dummyQuizQuestions)
+              QuizResultQuestion(
+                questionId: q.id,
+                questionText: q.questionText,
+                type: q.type,
+                options: q.options,
+                points: q.points,
+                yourSelectedOption: q.type == TrainingQuestionType.mcq ? _dummyQuizAnswerKey[q.id] : null,
+                yourAnswerText: q.type == TrainingQuestionType.text ? 'Sample answer' : null,
+                correct: true,
+                pointsAwarded: q.points,
+              ),
+          ],
+        ),
+      );
 
   List<VideoCertPrompt> get _videoPrompts => const [
         VideoCertPrompt(
@@ -524,4 +568,8 @@ class StaffDummyApi {
 
   Future<void> updatePassword(String current, String newPassword) =>
       _simulate(null);
+
+  Future<List<int>> downloadMaterialBytes(String viewUrl) => _simulate(
+        'Offline demo copy — connect to the network for the real file.'.codeUnits,
+      );
 }

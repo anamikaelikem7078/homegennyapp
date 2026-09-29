@@ -143,10 +143,12 @@ abstract final class StaffDtoCodec {
         longitude: (json['longitude'] as num?)?.toDouble(),
       );
 
-  // ── Notification ──
+  // ── Notification ── (`type`/`data` are the newer training-quiz fields;
+  // `type` can be absent on older rows — default to '' and let the UI treat
+  // that like any other unrecognized type)
   static Map<String, dynamic> encodeNotification(StaffNotification n) => {
         'id': n.id, 'title': n.title, 'message': n.message,
-        'time': n.time, 'is_read': n.isRead, 'type': n.type,
+        'time': n.time, 'is_read': n.isRead, 'type': n.type, 'data': n.data,
       };
 
   static StaffNotification decodeNotification(Map<String, dynamic> json) =>
@@ -156,7 +158,190 @@ abstract final class StaffDtoCodec {
         message: json['message'] as String,
         time: json['time'] as String,
         isRead: json['is_read'] as bool,
-        type: json['type'] as String,
+        type: json['type'] as String? ?? '',
+        data: (json['data'] as Map<String, dynamic>?),
+      );
+
+  // ── Training / quiz ── (GET /training/mine, quiz start/submit/result —
+  // see homegennyapp docs for the full contract. The server never sends the
+  // correct answer to any of these; only the result endpoint reveals it)
+  static TrainingMaterialType _decodeMaterialType(String? raw) => switch (raw) {
+        'PDF' => TrainingMaterialType.pdf,
+        'VIDEO' => TrainingMaterialType.video,
+        _ => TrainingMaterialType.note,
+      };
+
+  static TrainingMaterial decodeTrainingMaterial(Map<String, dynamic> json) => TrainingMaterial(
+        id: json['id'] as String? ?? '',
+        type: _decodeMaterialType(json['type'] as String?),
+        title: json['title'] as String? ?? '',
+        createdAt: json['createdAt'] as String? ?? '',
+        body: json['body'] as String?,
+        sizeBytes: json['sizeBytes'] as int?,
+        viewUrl: json['viewUrl'] as String?,
+      );
+
+  static TrainingQuizState decodeQuizState(String? raw) => switch (raw) {
+        'LOCKED' => TrainingQuizState.locked,
+        'SCHEDULED' => TrainingQuizState.scheduled,
+        'AVAILABLE' => TrainingQuizState.available,
+        'IN_PROGRESS' => TrainingQuizState.inProgress,
+        'UNDER_REVIEW' => TrainingQuizState.underReview,
+        'PASSED' => TrainingQuizState.passed,
+        'FAILED' => TrainingQuizState.failed,
+        _ => TrainingQuizState.locked,
+      };
+
+  static TrainingQuestionType decodeQuestionType(String? raw) =>
+      raw == 'TEXT' ? TrainingQuestionType.text : TrainingQuestionType.mcq;
+
+  static QuizLastResult? _decodeLastResult(Map<String, dynamic>? json) {
+    if (json == null) return null;
+    return QuizLastResult(
+      attemptId: json['attemptId'] as String? ?? '',
+      score: json['score'] as int? ?? 0,
+      maxScore: json['maxScore'] as int? ?? 0,
+      passed: json['passed'] as bool? ?? false,
+      gradedAt: json['gradedAt'] as String? ?? '',
+    );
+  }
+
+  static QuizAttemptSummary decodeAttemptSummary(Map<String, dynamic> json) => QuizAttemptSummary(
+        attemptId: json['attemptId'] as String? ?? '',
+        attemptNumber: json['attemptNumber'] as int? ?? 1,
+        status: json['status'] as String? ?? '',
+        score: json['score'] as int?,
+        maxScore: json['maxScore'] as int?,
+        passed: json['passed'] as bool?,
+        submittedAt: json['submittedAt'] as String?,
+        gradedAt: json['gradedAt'] as String?,
+      );
+
+  static TrainingQuiz decodeTrainingQuiz(Map<String, dynamic> json) => TrainingQuiz(
+        id: json['id'] as String? ?? '',
+        batchId: json['batchId'] as String? ?? '',
+        batchCode: json['batchCode'] as String? ?? '',
+        title: json['title'] as String? ?? '',
+        questionCount: json['questionCount'] as int? ?? 0,
+        totalPoints: json['totalPoints'] as int? ?? 0,
+        passMarks: json['passMarks'] as int? ?? 0,
+        state: decodeQuizState(json['state'] as String?),
+        quizDate: json['quizDate'] as String?,
+        opensAt: json['opensAt'] as String?,
+        attemptId: json['attemptId'] as String?,
+        rescheduleNote: json['rescheduleNote'] as String?,
+        lastResult: _decodeLastResult(json['lastResult'] as Map<String, dynamic>?),
+        attempts: decodeList(
+          json['attempts'] as List<dynamic>? ?? [],
+          decodeAttemptSummary,
+        ),
+      );
+
+  static TrainingBatch decodeTrainingBatch(Map<String, dynamic> json) => TrainingBatch(
+        id: json['id'] as String? ?? '',
+        batchCode: json['batchCode'] as String? ?? '',
+        series: json['series'] as String? ?? '',
+        trainerName: json['trainerName'] as String? ?? '',
+        classroom: json['classroom'] as String?,
+        status: json['status'] as String? ?? '',
+        startDate: json['startDate'] as String? ?? '',
+        endDate: json['endDate'] as String? ?? '',
+        quizDate: json['quizDate'] as String?,
+        enrolledAt: json['enrolledAt'] as String? ?? '',
+        materials: decodeList(
+          json['materials'] as List<dynamic>? ?? [],
+          decodeTrainingMaterial,
+        ),
+        quizzes: decodeList(
+          json['quizzes'] as List<dynamic>? ?? [],
+          decodeTrainingQuiz,
+        ),
+      );
+
+  /// Matches `GET /training/mine` exactly — the entire Training home screen.
+  static TrainingHome decodeTrainingHome(Map<String, dynamic> json) {
+    final staff = json['staff'] as Map<String, dynamic>? ?? {};
+    final videoCert = json['videoCert'] as Map<String, dynamic>? ?? {};
+    return TrainingHome(
+      staffFullName: staff['fullName'] as String? ?? '',
+      staffCode: staff['staffCode'] as String? ?? '',
+      series: staff['series'] as String? ?? '',
+      pipelineStage: staff['pipelineStage'] as String? ?? '',
+      videoCert: TrainingVideoCertProgress(
+        approved: videoCert['approved'] as int? ?? 0,
+        required_: videoCert['required'] as int? ?? 0,
+      ),
+      batches: decodeList(
+        json['batches'] as List<dynamic>? ?? [],
+        decodeTrainingBatch,
+      ),
+    );
+  }
+
+  static TrainingQuizQuestion decodeQuizQuestion(Map<String, dynamic> json) => TrainingQuizQuestion(
+        id: json['id'] as String? ?? '',
+        questionText: json['questionText'] as String? ?? '',
+        type: decodeQuestionType(json['type'] as String?),
+        options: (json['options'] as List<dynamic>?)?.cast<String>(),
+        orderIndex: json['orderIndex'] as int? ?? 0,
+        points: json['points'] as int? ?? 0,
+      );
+
+  /// Matches `POST /training/quizzes/:quizId/start`'s response exactly — no
+  /// correct-answer field is ever present, by design.
+  static QuizAttemptStart decodeQuizAttemptStart(Map<String, dynamic> json) => QuizAttemptStart(
+        attemptId: json['id'] as String? ?? '',
+        quizId: json['quizId'] as String? ?? '',
+        status: json['status'] as String? ?? '',
+        title: json['title'] as String? ?? '',
+        totalPoints: json['totalPoints'] as int? ?? 0,
+        passMarks: json['passMarks'] as int? ?? 0,
+        questions: decodeList(
+          json['questions'] as List<dynamic>? ?? [],
+          decodeQuizQuestion,
+        ),
+      );
+
+  /// Matches `POST /training/quizzes/attempts/:attemptId/submit`'s response
+  /// exactly. `score`/`passed` are null while `pendingReview` is true.
+  static QuizSubmitResult decodeQuizSubmitResult(Map<String, dynamic> json) => QuizSubmitResult(
+        attemptId: json['attemptId'] as String? ?? '',
+        state: decodeQuizState(json['state'] as String?),
+        pendingReview: json['pendingReview'] as bool? ?? false,
+        score: json['score'] as int?,
+        maxScore: json['maxScore'] as int? ?? 0,
+        passMarks: json['passMarks'] as int? ?? 0,
+        passed: json['passed'] as bool?,
+      );
+
+  static QuizResultQuestion decodeQuizResultQuestion(Map<String, dynamic> json) => QuizResultQuestion(
+        questionId: json['questionId'] as String? ?? '',
+        questionText: json['questionText'] as String? ?? '',
+        type: decodeQuestionType(json['type'] as String?),
+        options: (json['options'] as List<dynamic>?)?.cast<String>(),
+        points: json['points'] as int? ?? 0,
+        yourSelectedOption: json['yourSelectedOption'] as int?,
+        yourAnswerText: json['yourAnswerText'] as String?,
+        correct: json['correct'] as bool? ?? false,
+        pointsAwarded: json['pointsAwarded'] as int? ?? 0,
+      );
+
+  /// Matches `GET /training/quizzes/attempts/:attemptId/result` exactly. An
+  /// attempt still `UNDER_REVIEW` comes back with an empty `questions` list
+  /// and null `score`/`passed`.
+  static QuizResultDetail decodeQuizResultDetail(Map<String, dynamic> json) => QuizResultDetail(
+        attemptId: json['attemptId'] as String? ?? '',
+        title: json['title'] as String? ?? '',
+        state: decodeQuizState(json['state'] as String?),
+        score: json['score'] as int?,
+        maxScore: json['maxScore'] as int? ?? 0,
+        passMarks: json['passMarks'] as int? ?? 0,
+        passed: json['passed'] as bool?,
+        gradedAt: json['gradedAt'] as String?,
+        questions: decodeList(
+          json['questions'] as List<dynamic>? ?? [],
+          decodeQuizResultQuestion,
+        ),
       );
 
   static List<Map<String, dynamic>> encodeList<T>(

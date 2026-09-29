@@ -7,6 +7,8 @@ abstract final class ApiConstants {
 
   // Auth
   static const String authLogin = '/auth/login';
+  static const String authRegisterStaff = '/auth/register/staff';
+  static const String authRegisterCustomer = '/auth/register/customer';
   static const String authVerifyOtp = '/auth/verify-otp';
   static const String authRefreshToken = '/auth/refresh';
   static const String authForgotPassword = '/auth/forgot-password';
@@ -29,6 +31,20 @@ abstract final class ApiConstants {
   static const String staffDocuments = '/staff/documents';
   static String staffDocument(String id) => '/staff/documents/$id';
   static const String staffTraining = '/staff/training';
+
+  // Staff training — study material + quizzes (GET /training/mine is the
+  // whole home screen in one call; quiz endpoints are keyed by quiz id to
+  // start, then by attempt id for submit/result, per the backend contract).
+  static const String trainingMine = '/training/mine';
+  static const String trainingQuizzesMine = '/training/quizzes/mine';
+  static String trainingQuizStart(String quizId) => '/training/quizzes/$quizId/start';
+  static String trainingAttemptQuestions(String attemptId) =>
+      '/training/quizzes/attempts/$attemptId/questions';
+  static String trainingAttemptSubmit(String attemptId) =>
+      '/training/quizzes/attempts/$attemptId/submit';
+  static String trainingAttemptResult(String attemptId) =>
+      '/training/quizzes/attempts/$attemptId/result';
+
   static const String staffVideoCert = '/staff/video-certification';
   static const String staffAgreement = '/staff/agreement';
   static const String staffDeployment = '/staff/deployment';
@@ -131,6 +147,14 @@ abstract final class ApiConstants {
   // Maps
   static const String mapsGeocode = '/maps/geocode';
   static const String mapsReverseGeocode = '/maps/reverse-geocode';
+
+  /// Scheme+host(+port) of [baseUrl], with no path — for prefixing a
+  /// relative `viewUrl` (which already starts with `/api/v1/...`) returned
+  /// by a training material, so it isn't double-prefixed with `/api/v1`.
+  static String get apiOrigin {
+    final uri = Uri.parse(baseUrl);
+    return Uri(scheme: uri.scheme, host: uri.host, port: uri.hasPort ? uri.port : null).toString();
+  }
 
   static const String headerAuthorization = 'Authorization';
   static const String headerContentType = 'Content-Type';

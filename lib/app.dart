@@ -9,7 +9,6 @@ import 'core/presentation/app_wrapper.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
-
 /// Root application widget.
 class HomeGennyApp extends ConsumerWidget {
   const HomeGennyApp({super.key});

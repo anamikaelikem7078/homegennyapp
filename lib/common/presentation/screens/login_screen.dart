@@ -97,8 +97,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   _buildHeader(),
                   SizedBox(height: 48),
                   _buildForm(loginState.isLoading),
-                  // SizedBox(height: 48),
-                  // _buildFooter(),
+                  SizedBox(height: 32),
+                  _buildSignUpFooter(),
                   SizedBox(height: 16),
                 ],
               ),
@@ -347,6 +347,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSignUpFooter() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          "Don't have an account? ",
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: const Color(0xFF6B7280),
+          ),
+        ),
+        InkWell(
+          onTap: () => context.push(AppRoutes.register),
+          child: Text(
+            'Sign Up',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: _electricBlue,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

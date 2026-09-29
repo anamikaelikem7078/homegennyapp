@@ -127,6 +127,106 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<Result<UserModel>> registerStaff({
+    required String fullName,
+    required String phone,
+    String? alternatePhone,
+    String? email,
+    required String password,
+    required String dateOfBirth,
+    required String gender,
+    required String address,
+    String? city,
+    String? stateName,
+    String? pincode,
+    required String series,
+  }) async {
+    try {
+      final dto = await _remote.registerStaff(
+        fullName: fullName,
+        phone: phone,
+        alternatePhone: alternatePhone,
+        email: email,
+        password: password,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        address: address,
+        city: city,
+        stateName: stateName,
+        pincode: pincode,
+        series: series,
+      );
+      return _completeRegistration(dto, phone);
+    } catch (e, stack) {
+      return Error(ExceptionHandler.handle(e, stack));
+    }
+  }
+
+  @override
+  Future<Result<UserModel>> registerCustomer({
+    required String fullName,
+    required String phone,
+    String? email,
+    required String password,
+    String? businessName,
+    required String panCard,
+    required String address,
+    String? city,
+    String? stateName,
+    String? pincode,
+    String? gstn,
+  }) async {
+    try {
+      final dto = await _remote.registerCustomer(
+        fullName: fullName,
+        phone: phone,
+        email: email,
+        password: password,
+        businessName: businessName,
+        panCard: panCard,
+        address: address,
+        city: city,
+        stateName: stateName,
+        pincode: pincode,
+        gstn: gstn,
+      );
+      return _completeRegistration(dto, phone);
+    } catch (e, stack) {
+      return Error(ExceptionHandler.handle(e, stack));
+    }
+  }
+
+  /// Shared post-success step for both registration endpoints — mirrors
+  /// [login]'s token-save + user-cache sequence so a freshly registered
+  /// account is signed in immediately, with no separate OTP/profile-fetch
+  /// round trip (registration never triggers 2FA).
+  Future<Result<UserModel>> _completeRegistration(
+    AuthTokensDto dto,
+    String phone,
+  ) async {
+    final tokens = _mapper.toTokens(dto);
+    await _tokenHandler.saveTokens(
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    );
+    await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
+
+    if (dto.user == null) {
+      return const Error(
+        UnknownFailure(
+          message: 'Registration succeeded but no user profile was returned.',
+        ),
+      );
+    }
+
+    final user = _mapper.toUser(dto.user!);
+    await _secureStorage.write(StorageKeys.userId, user.id);
+    await _secureStorage.write(StorageKeys.userRole, user.role.value);
+    await _local.cacheUser(dto.user!);
+    return Success(user);
+  }
+
+  @override
   Future<Result<bool>> verifyOtp({
     required String phone,
     required String otp,

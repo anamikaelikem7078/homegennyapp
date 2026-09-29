@@ -171,6 +171,61 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
     return StaffDocumentsPageDto.fromJson(json).items;
   }
 
+  Future<TrainingHome> getTrainingHome() async {
+    final json = await getJson(ApiConstants.trainingMine);
+    return StaffDtoCodec.decodeTrainingHome(json);
+  }
+
+  /// Starts a new quiz attempt, or resumes the open one. 409 means the quiz
+  /// can't be started right now (LOCKED/SCHEDULED/UNDER_REVIEW/PASSED/
+  /// FAILED) — the caller shows the server's `message` and refreshes the
+  /// training home. This surfaces as a normal [Failure] via
+  /// [ExceptionHandler], no special handling needed here.
+  Future<QuizAttemptStart> startQuiz(String quizId) async {
+    final json = await postJson(ApiConstants.trainingQuizStart(quizId));
+    return StaffDtoCodec.decodeQuizAttemptStart(json);
+  }
+
+  Future<QuizSubmitResult> submitQuizAttempt(
+    String attemptId,
+    List<TrainingQuizAnswer> answers,
+  ) async {
+    final json = await postJson(
+      ApiConstants.trainingAttemptSubmit(attemptId),
+      data: {'answers': answers.map((a) => a.toJson()).toList()},
+    );
+    return StaffDtoCodec.decodeQuizSubmitResult(json);
+  }
+
+  Future<QuizResultDetail> getQuizResult(String attemptId) async {
+    final json = await getJson(ApiConstants.trainingAttemptResult(attemptId));
+    return StaffDtoCodec.decodeQuizResultDetail(json);
+  }
+
+  /// Downloads a training material's bytes (used for the PDF viewer — a
+  /// viewer that can't send headers can't hit [viewUrl] directly). Handles
+  /// both shapes a material's `viewUrl` can take: a relative path on our own
+  /// API (hit through the authenticated Dio instance, bearer attached
+  /// automatically) or, once cloud storage is live, an absolute signed URL
+  /// that needs no header (hit with a bare Dio so our bearer token is never
+  /// sent to a third party) — same trust-what-the-backend-returned principle
+  /// as [uploadVideoCertFile].
+  Future<List<int>> downloadMaterialBytes(String viewUrl) async {
+    if (viewUrl.startsWith('http://') || viewUrl.startsWith('https://')) {
+      final response = await Dio().get<List<int>>(
+        viewUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data ?? [];
+    }
+    final basePath = Uri.parse(ApiConstants.baseUrl).path;
+    var path = viewUrl;
+    if (basePath.isNotEmpty && path.startsWith(basePath)) {
+      path = path.substring(basePath.length);
+    }
+    return getBytes(path);
+  }
+
   Future<List<StaffNotification>> getNotifications() async {
     final json = await getJson(ApiConstants.staffNotifications);
     return StaffDtoCodec.decodeList(
@@ -451,13 +506,12 @@ class StaffDummyDataSource {
   Future<StaffDocument> getDocument(String id) => _api.getDocument(id);
   Future<void> uploadDocument(String name, String type, PlatformFile file) => _api.uploadDocument(name, type, file);
   Future<void> reuploadDocument(String id, String name) => _api.reuploadDocument(id, name);
-  Future<List<TrainingCategory>> getTrainingCategories() => _api.getTrainingCategories();
-  Future<List<TrainingCourse>> getTrainingCourses({String? categoryId}) =>
-      _api.getTrainingCourses(categoryId: categoryId);
-  Future<TrainingCourse> getTrainingCourse(String id) => _api.getTrainingCourse(id);
-  Future<List<QuizQuestion>> getQuiz(String courseId) => _api.getQuiz(courseId);
-  Future<QuizResult> submitQuiz(String courseId, Map<String, int> answers) =>
-      _api.submitQuiz(courseId, answers);
+  Future<TrainingHome> getTrainingHome() => _api.getTrainingHome();
+  Future<QuizAttemptStart> startQuiz(String quizId) => _api.startQuiz(quizId);
+  Future<QuizSubmitResult> submitQuizAttempt(String attemptId, List<TrainingQuizAnswer> answers) =>
+      _api.submitQuizAttempt(attemptId, answers);
+  Future<QuizResultDetail> getQuizResult(String attemptId) => _api.getQuizResult(attemptId);
+  Future<List<int>> downloadMaterialBytes(String viewUrl) => _api.downloadMaterialBytes(viewUrl);
   Future<List<VideoCertPrompt>> getVideoCertPrompts() => _api.getVideoCertPrompts();
   Future<void> uploadVideoCert(String promptId) => _api.uploadVideoCert(promptId);
   Future<StaffAgreement> getAgreement() => _api.getAgreement();

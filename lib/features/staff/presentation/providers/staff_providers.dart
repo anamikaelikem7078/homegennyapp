@@ -4,7 +4,6 @@ import 'package:camera/camera.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/staff_models.dart';
-import '../../domain/repositories/staff_repository.dart';
 
 export '../../../../core/di/injection.dart' show staffRepositoryProvider;
 
@@ -58,37 +57,28 @@ final staffDocumentProvider =
   );
 });
 
-final staffTrainingCategoriesProvider =
-    FutureProvider<List<TrainingCategory>>((ref) async {
-  final result =
-      await ref.watch(staffRepositoryProvider).getTrainingCategories();
+final staffTrainingHomeProvider = FutureProvider<TrainingHome>((ref) async {
+  final result = await ref.watch(staffRepositoryProvider).getTrainingHome();
   return result.fold(
     onSuccess: (data) => data,
     onError: (f) => throw Exception(f.message),
   );
 });
 
-final staffTrainingCoursesProvider =
-    FutureProvider<List<TrainingCourse>>((ref) async {
-  final result = await ref.watch(staffRepositoryProvider).getTrainingCourses();
+/// Starts (or resumes) a quiz attempt — a family so each quiz id gets its
+/// own cached attempt while the user is on the quiz screen.
+final staffQuizStartProvider =
+    FutureProvider.family<QuizAttemptStart, String>((ref, quizId) async {
+  final result = await ref.watch(staffRepositoryProvider).startQuiz(quizId);
   return result.fold(
     onSuccess: (data) => data,
     onError: (f) => throw Exception(f.message),
   );
 });
 
-final staffTrainingCourseProvider =
-    FutureProvider.family<TrainingCourse, String>((ref, id) async {
-  final result = await ref.watch(staffRepositoryProvider).getTrainingCourse(id);
-  return result.fold(
-    onSuccess: (data) => data,
-    onError: (f) => throw Exception(f.message),
-  );
-});
-
-final staffQuizProvider =
-    FutureProvider.family<List<QuizQuestion>, String>((ref, courseId) async {
-  final result = await ref.watch(staffRepositoryProvider).getQuiz(courseId);
+final staffQuizResultProvider =
+    FutureProvider.family<QuizResultDetail, String>((ref, attemptId) async {
+  final result = await ref.watch(staffRepositoryProvider).getQuizResult(attemptId);
   return result.fold(
     onSuccess: (data) => data,
     onError: (f) => throw Exception(f.message),
