@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/series/series_catalog.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
+import '../../../../design_system/widgets/buttons/ds_buttons.dart';
+import '../../../../design_system/widgets/dialogs/ds_dialogs.dart';
+import '../../../../design_system/widgets/feedback/ds_feedback.dart';
 import '../../domain/models/pipeline_stage.dart';
 import '../providers/rm_providers.dart';
 
@@ -25,37 +30,29 @@ Future<bool> advanceStageAction(
   String? confirmTitle,
   String? confirmMessage,
 }) async {
-  if (!PipelineStages.canAdvance(fromStage, toStage)) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
+  if (!PipelineStages.canAdvance(fromStage, toStage,
+      stage25Enabled: ref.read(seriesCatalogProvider).stage25Enabled)) {
+    DsSnackBar.show(
+      context,
+      message:
           'Cannot move from ${PipelineStages.label(fromStage)} to ${PipelineStages.label(toStage)} directly — '
           'stages must be completed in order.',
-        ),
-        backgroundColor: RmTheme.crimsonDanger,
-      ),
+      type: DsSnackBarType.error,
     );
     return false;
   }
 
-  final confirmed = await showDialog<bool>(
+  final isExit =
+      toStage == PipelineStages.terminal || toStage == PipelineStages.deferred;
+  final confirmed = await DsConfirmationDialog.show(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text(confirmTitle ?? 'Advance to ${PipelineStages.label(toStage)}?'),
-      content: Text(
-        confirmMessage ??
-            'This will move the staff member from ${PipelineStages.label(fromStage)} to ${PipelineStages.label(toStage)}. '
-                'This action is recorded on the pipeline history and cannot be silently undone.',
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
-        FilledButton(
-          onPressed: () => Navigator.of(dialogContext).pop(true),
-          style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue),
-          child: const Text('Confirm'),
-        ),
-      ],
-    ),
+    title: confirmTitle ?? 'Advance to ${PipelineStages.label(toStage)}?',
+    message: confirmMessage ??
+        'This will move the staff member from ${PipelineStages.label(fromStage)} to ${PipelineStages.label(toStage)}. '
+            'This action is recorded on the pipeline history and cannot be silently undone.',
+    confirmLabel: 'Confirm',
+    isDestructive: isExit,
+    icon: isExit ? Icons.warning_amber_rounded : Icons.rocket_launch_rounded,
   );
   if (confirmed != true) return false;
   if (!context.mounted) return false;
@@ -75,17 +72,18 @@ Future<bool> advanceStageAction(
       ref.invalidate(rmKanbanProvider);
       ref.invalidate(rmDashboardProvider);
       ref.invalidate(staffByIdProvider(staffId));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Moved to ${PipelineStages.label(staff.pipelineStage)}'),
-          backgroundColor: RmTheme.emeraldGreen,
-        ),
+      DsSnackBar.show(
+        context,
+        message: 'Moved to ${PipelineStages.label(staff.pipelineStage)}',
+        type: DsSnackBarType.success,
       );
       return true;
     },
     onError: (failure) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(failure.message), backgroundColor: RmTheme.crimsonDanger),
+      DsSnackBar.show(
+        context,
+        message: failure.message,
+        type: DsSnackBarType.error,
       );
       return false;
     },
@@ -129,44 +127,60 @@ class AdvanceStageButton extends ConsumerStatefulWidget {
 class _AdvanceStageButtonState extends ConsumerState<AdvanceStageButton> {
   bool _submitting = false;
 
+  Future<void> _run() async {
+    setState(() => _submitting = true);
+    final success = await advanceStageAction(
+      context,
+      ref,
+      staffId: widget.staffId,
+      fromStage: widget.fromStage,
+      toStage: widget.toStage,
+      reasonCode: widget.reasonCode,
+      payload: widget.payload,
+      terminalOutcome: widget.terminalOutcome,
+      confirmTitle: widget.confirmTitle,
+      confirmMessage: widget.confirmMessage,
+    );
+    if (mounted) setState(() => _submitting = false);
+    if (success) widget.onSuccess?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: FilledButton(
-        onPressed: (!widget.enabled || _submitting)
-            ? null
-            : () async {
-                setState(() => _submitting = true);
-                final success = await advanceStageAction(
-                  context,
-                  ref,
-                  staffId: widget.staffId,
-                  fromStage: widget.fromStage,
-                  toStage: widget.toStage,
-                  reasonCode: widget.reasonCode,
-                  payload: widget.payload,
-                  terminalOutcome: widget.terminalOutcome,
-                  confirmTitle: widget.confirmTitle,
-                  confirmMessage: widget.confirmMessage,
-                );
-                if (mounted) setState(() => _submitting = false);
-                if (success) widget.onSuccess?.call();
-              },
-        style: FilledButton.styleFrom(
-          backgroundColor: RmTheme.electricBlue,
-          disabledBackgroundColor: RmTheme.borderSubtle,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    if (!widget.enabled) {
+      // Locked state: grey pill with a lock so it reads as "not yet".
+      return Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: RmTheme.surfaceSecondary,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: RmTheme.borderSubtle),
         ),
-        child: _submitting
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-            : Text(widget.label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-      ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.lock_rounded, size: 17, color: RmTheme.textSecondary),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: RmTheme.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return DsGradientButton(
+      label: widget.label,
+      isLoading: _submitting,
+      onPressed: _submitting ? null : _run,
     );
   }
 }

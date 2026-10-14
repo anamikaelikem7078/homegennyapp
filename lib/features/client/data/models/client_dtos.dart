@@ -49,6 +49,12 @@ abstract final class ClientDtoCodec {
         'series': s.series,
         'deploymentDate': s.deploymentDate,
         'status': s.status,
+        'placementId': s.placementId,
+        'features': {
+          'care_plan': s.hasCarePlan,
+          'menu': s.hasMenu,
+          'instructions': s.hasInstructions,
+        },
       };
 
   static ClientAssignedStaff decodeAssignedStaff(Map<String, dynamic> json) =>
@@ -59,6 +65,10 @@ abstract final class ClientDtoCodec {
         series: json['series'] as String?,
         deploymentDate: json['deploymentDate'] as String? ?? '',
         status: json['status'] as String? ?? 'ON_TRIAL',
+        placementId: json['placementId'] as String?,
+        hasCarePlan: (json['features'] as Map?)?['care_plan'] == true,
+        hasMenu: (json['features'] as Map?)?['menu'] == true,
+        hasInstructions: (json['features'] as Map?)?['instructions'] != false,
       );
 
   // ── Staff profile detail ── (matches GET /client/staff/:id/profile exactly;

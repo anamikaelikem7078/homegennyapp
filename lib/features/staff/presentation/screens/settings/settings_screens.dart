@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,220 +8,134 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/extensions/context_extensions.dart';
+import '../../../../../core/localization/locale_provider.dart';
 import '../../../../../core/presentation/screens/app_settings_screens.dart';
 import '../../../../../core/router/app_routes.dart';
-import '../../../../../core/localization/locale_provider.dart';
+import '../../../../../core/theme/theme_provider.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/staff_routes.dart';
-import '../../widgets/staff_scaffold.dart';
 
+void _back(BuildContext context, [String fallback = StaffRoutes.profile]) =>
+    context.canPop() ? context.pop() : context.go(fallback);
+
+/// Staff settings.
 class StaffSettingsScreen extends ConsumerWidget {
   const StaffSettingsScreen({super.key});
+
+  Future<void> _logout(BuildContext context, WidgetRef ref) async {
+    final ok = await DsConfirmationDialog.show(
+      context: context,
+      title: 'Log out?',
+      message: 'You will need to sign in again on this device.',
+      confirmLabel: 'Log out',
+      isDestructive: true,
+      icon: Icons.logout_rounded,
+    );
+    if (ok != true) return;
+    await ref.read(authProvider.notifier).logout();
+    if (context.mounted) context.go(AppRoutes.login);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeProvider);
-    final primaryColor = const Color(0xFF1A56FF);
-    final textDark = const Color(0xFF0F172A);
-    final textGrey = const Color(0xFF64748B);
-    final cardBg = Colors.white;
+    final themeMode = ref.watch(themeModeProvider);
+    final user = ref.watch(authProvider).user;
+    final langLabel = locale.languageCode == 'hi' ? 'Hindi' : 'English';
+    final themeLabel = switch (themeMode) {
+      ThemeMode.dark => 'Dark',
+      ThemeMode.light => 'Light',
+      ThemeMode.system => 'System',
+    };
 
-    // Soft, multi-layered high-depth shadows
-    final tactileShadows = [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.04),
-        blurRadius: 16,
-        offset: const Offset(0, 8),
+    return DsPage(
+      title: 'Settings',
+      subtitle: 'App preferences and security',
+      onBack: () => _back(context),
+      bottom: DsOutlineButton(
+        label: 'Log out',
+        icon: Icons.logout_rounded,
+        color: AppColors.error,
+        onPressed: () => _logout(context, ref),
       ),
-      BoxShadow(
-        color: Colors.black.withOpacity(0.01),
-        blurRadius: 4,
-        offset: const Offset(0, 2),
-      ),
-    ];
-
-    Widget buildSettingCard({
-      required IconData icon,
-      required String title,
-      String? subtitle,
-      required VoidCallback onTap,
-    }) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: tactileShadows,
-          ),
+      body: [
+        DsGradientCard(
           child: Row(
             children: [
-              // Icon container with soft background
               Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9), // Soft grey background
-                  borderRadius: BorderRadius.circular(12),
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: SweepGradient(colors: [AppColors.sunYellow, AppColors.secondary, AppColors.sunYellow]),
                 ),
-                child: Center(
-                  child: Icon(icon, color: primaryColor, size: 22),
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  child: DsInitialsAvatar(name: user?.name ?? 'Staff', size: 54, radius: 27),
                 ),
               ),
-              const SizedBox(width: 16),
-              // Text columns
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
-                      style: GoogleFonts.inter(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: textDark,
-                      ),
+                      user?.name ?? 'Your account',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
                     ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 4),
+                    if (user?.phone != null && user!.phone!.isNotEmpty)
                       Text(
-                        subtitle,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                          color: textGrey,
+                        user.phone!,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.8),
                         ),
                       ),
-                    ],
+                    const SizedBox(height: 8),
+                    const DsGlassPill('STAFF ACCOUNT', icon: Icons.verified_user_rounded),
                   ],
                 ),
-              ),
-              // Chevron right
-              Icon(
-                Icons.chevron_right_rounded,
-                color: const Color(0xFF94A3B8),
-                size: 20,
               ),
             ],
           ),
         ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8), // Soft off-white
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: primaryColor),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
-            }
-          },
+        const DsSection('Preferences'),
+        DsListCard(
+          icon: Icons.translate_rounded,
+          title: context.l10n.languageSettings,
+          subtitle: 'Currently $langLabel',
+          onTap: () => context.push(StaffRoutes.settingsLanguage),
         ),
-        centerTitle: true,
-        title: Text(
-          'Settings',
-          style: GoogleFonts.libreCaslonText(
-            color: primaryColor,
-            fontSize: 28,
-            fontWeight: FontWeight.w600,
-          ),
+        DsListCard(
+          icon: Icons.palette_rounded,
+          title: context.l10n.themeSettings,
+          subtitle: 'Currently $themeLabel',
+          onTap: () => context.push(StaffRoutes.settingsTheme),
         ),
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                  child: IntrinsicHeight(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        buildSettingCard(
-                          icon: Icons.language_rounded,
-                          title: context.l10n.languageSettings,
-                          subtitle: locale.languageCode == 'hi' ? 'Hindi' : 'English',
-                          onTap: () => context.push(StaffRoutes.settingsLanguage),
-                        ),
-                        buildSettingCard(
-                          icon: Icons.palette_outlined,
-                          title: context.l10n.themeSettings,
-                          onTap: () => context.push(StaffRoutes.settingsTheme),
-                        ),
-                        buildSettingCard(
-                          icon: Icons.fingerprint_rounded,
-                          title: 'Biometric Login',
-                          onTap: () => context.push(StaffRoutes.settingsBiometric),
-                        ),
-                        buildSettingCard(
-                          icon: Icons.lock_outline_rounded,
-                          title: 'Change Password',
-                          onTap: () => context.push(StaffRoutes.settingsPassword),
-                        ),
-                        
-                        // Push logout button to the bottom using IntrinsicHeight spacer
-                        const Spacer(),
-                        const SizedBox(height: 40),
-                        
-                        // Red outlined Logout button
-                        GestureDetector(
-                          onTap: () async {
-                            await ref.read(authProvider.notifier).logout();
-                            if (context.mounted) context.go(AppRoutes.login);
-                          },
-                          child: Container(
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF2F2).withOpacity(0.4), // Soft light red background tint
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: const Color(0xFFEF4444).withOpacity(0.3), // Red outline
-                                width: 1.5,
-                              ),
-                              boxShadow: tactileShadows,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.logout_rounded,
-                                  color: const Color(0xFFDC2626), // Electric red icon
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'Logout',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFFDC2626), // Electric red text
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
+        const DsSection('Security'),
+        DsListCard(
+          icon: Icons.fingerprint_rounded,
+          title: 'Biometric login',
+          subtitle: 'Sign in with fingerprint or face',
+          onTap: () => context.push(StaffRoutes.settingsBiometric),
         ),
-      ),
+        DsListCard(
+          icon: Icons.lock_reset_rounded,
+          title: 'Change password',
+          subtitle: 'Update your account password',
+          onTap: () => context.push(StaffRoutes.settingsPassword),
+        ),
+        const DsSection('Support'),
+        DsListCard(
+          icon: Icons.support_agent_rounded,
+          title: 'Help & support',
+          subtitle: 'Chat, call or read FAQs',
+          onTap: () => context.push(StaffRoutes.help),
+        ),
+      ],
     );
   }
 }
@@ -229,242 +145,138 @@ class StaffLanguageSettingsScreen extends ConsumerStatefulWidget {
   const StaffLanguageSettingsScreen({super.key});
 
   @override
-  ConsumerState<StaffLanguageSettingsScreen> createState() =>
-      _StaffLanguageSettingsScreenState();
+  ConsumerState<StaffLanguageSettingsScreen> createState() => _StaffLanguageSettingsScreenState();
 }
 
 class _StaffLanguageSettingsScreenState extends ConsumerState<StaffLanguageSettingsScreen> {
-  late String _selectedLanguageCode;
+  late String _selected = ref.read(localeProvider).languageCode;
+  bool _saving = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _selectedLanguageCode = ref.read(localeProvider).languageCode;
+  static const _languages = [
+    ('en', 'English', 'Default', 'A'),
+    ('hi', 'Hindi', 'हिन्दी', 'अ'),
+  ];
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await ref.read(localeProvider.notifier).setLocale(Locale(_selected));
+    if (!mounted) return;
+    setState(() => _saving = false);
+    context.showDsSnackBar('Language updated', type: DsSnackBarType.success);
+    _back(context, StaffRoutes.settings);
   }
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF1A56FF);
-    final textDark = const Color(0xFF0F172A);
-    final textGrey = const Color(0xFF64748B);
-    
-    final tactileShadows = [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.04),
-        blurRadius: 16,
-        offset: const Offset(0, 8),
-      ),
-      BoxShadow(
-        color: Colors.black.withOpacity(0.01),
-        blurRadius: 4,
-        offset: const Offset(0, 2),
-      ),
-    ];
+    final current = ref.watch(localeProvider).languageCode;
 
-    Widget buildLanguageOption(String title, String subtitle, String code) {
-      final isSelected = _selectedLanguageCode == code;
-      return GestureDetector(
-        onTap: () {
-          setState(() {
-            _selectedLanguageCode = code;
-          });
-        },
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: tactileShadows,
-            border: isSelected
-                ? Border.all(color: primaryColor.withOpacity(0.1), width: 1.5)
-                : null,
+    return DsPage(
+      title: 'Language',
+      subtitle: 'Choose your app language',
+      onBack: () => _back(context, StaffRoutes.settings),
+      bottom: DsGradientButton(
+        label: 'Save changes',
+        icon: Icons.check_rounded,
+        isLoading: _saving,
+        onPressed: _saving || _selected == current ? null : _save,
+      ),
+      body: [
+        for (final (code, name, sub, glyph) in _languages)
+          _LanguageCard(
+            name: name,
+            subtitle: sub,
+            glyph: glyph,
+            selected: _selected == code,
+            current: current == code,
+            onTap: () => setState(() => _selected = code),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
+        const SizedBox(height: 6),
+        const DsNote(text: 'More languages are coming soon.'),
+      ],
+    );
+  }
+}
+
+class _LanguageCard extends StatelessWidget {
+  const _LanguageCard({
+    required this.name,
+    required this.subtitle,
+    required this.glyph,
+    required this.selected,
+    required this.current,
+    required this.onTap,
+  });
+
+  final String name;
+  final String subtitle;
+  final String glyph;
+  final bool selected;
+  final bool current;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: 220.ms,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: dsCardDecoration(
+          color: selected ? AppColors.primary.withValues(alpha: 0.05) : Colors.white,
+          border: selected ? AppColors.primary : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: selected
+                    ? const LinearGradient(colors: [AppColors.primaryLight, AppColors.primaryDark])
+                    : null,
+                color: selected ? null : AppColors.iconAccentSoft,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                glyph,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? Colors.white : AppColors.iconAccent,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: textDark,
-                    ),
+                    name,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.lightTextPrimary),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: textGrey,
-                    ),
-                  ),
+                  Text(subtitle, style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary)),
                 ],
               ),
-              // Radio selection state
-              Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSelected ? primaryColor : const Color(0xFFCBD5E1),
-                    width: isSelected ? 6.5 : 2,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8), // Soft off-white
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: primaryColor),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        centerTitle: true,
-        title: Text(
-          'Settings',
-          style: GoogleFonts.libreCaslonText(
-            color: primaryColor,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 16),
-                    Text(
-                      'Choose Language',
-                      style: GoogleFonts.libreCaslonText(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: primaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Select your preferred language for the application interface.',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: textGrey,
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    buildLanguageOption('English', '(DEFAULT SYSTEM)', 'en'),
-                    buildLanguageOption('Hindi', '(हिन्दी)', 'hi'),
-                  ],
-                ),
+            ),
+            if (current) ...[const DsPill('Current'), const SizedBox(width: 8)],
+            AnimatedContainer(
+              duration: 220.ms,
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: selected ? AppColors.primary : AppColors.lightBorder, width: selected ? 7 : 2),
               ),
             ),
-            
-            // Anchored action button
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () async {
-                    await ref.read(localeProvider.notifier).setLocale(Locale(_selectedLanguageCode));
-                    if (context.mounted) {
-                      context.showDsSnackBar('Language updated');
-                      Navigator.of(context).pop();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: Text(
-                    'SAVE CHANGES',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // Mock bottom navigation bar mirroring Home / Utility / Security / Account layout in screenshot
-            _buildMockBottomNav(primaryColor),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildMockBottomNav(Color primaryColor) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFF1F5F9), width: 1.5)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildMockNavItem(Icons.home_outlined, 'Home', false, primaryColor),
-          _buildMockNavItem(Icons.build_outlined, 'Utility', false, primaryColor),
-          _buildMockNavItem(Icons.security_outlined, 'Security', false, primaryColor),
-          _buildMockNavItem(Icons.person_rounded, 'Account', true, primaryColor),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMockNavItem(IconData icon, String label, bool isActive, Color activeColor) {
-    final inactiveColor = const Color(0xFF94A3B8);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        isActive
-            ? Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: activeColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(icon, color: activeColor, size: 20),
-              )
-            : Icon(icon, color: inactiveColor, size: 20),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-            color: isActive ? activeColor : inactiveColor,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -474,9 +286,7 @@ class StaffThemeSettingsScreen extends StatelessWidget {
   const StaffThemeSettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const AppThemeSettingsScreen();
-  }
+  Widget build(BuildContext context) => const AppThemeSettingsScreen();
 }
 
 /// Biometric settings.
@@ -484,12 +294,10 @@ class StaffBiometricSettingsScreen extends ConsumerStatefulWidget {
   const StaffBiometricSettingsScreen({super.key});
 
   @override
-  ConsumerState<StaffBiometricSettingsScreen> createState() =>
-      _StaffBiometricSettingsScreenState();
+  ConsumerState<StaffBiometricSettingsScreen> createState() => _StaffBiometricSettingsScreenState();
 }
 
-class _StaffBiometricSettingsScreenState
-    extends ConsumerState<StaffBiometricSettingsScreen> {
+class _StaffBiometricSettingsScreenState extends ConsumerState<StaffBiometricSettingsScreen> {
   bool _enabled = false;
   bool _loading = true;
 
@@ -500,8 +308,7 @@ class _StaffBiometricSettingsScreenState
   }
 
   Future<void> _load() async {
-    final enabled =
-        await ref.read(authRepositoryProvider).isBiometricEnabled();
+    final enabled = await ref.read(authRepositoryProvider).isBiometricEnabled();
     if (mounted) {
       setState(() {
         _enabled = enabled;
@@ -510,243 +317,146 @@ class _StaffBiometricSettingsScreenState
     }
   }
 
+  Future<void> _toggle(bool value) async {
+    HapticFeedback.mediumImpact();
+    await ref.read(authRepositoryProvider).setBiometricEnabled(value);
+    if (!mounted) return;
+    setState(() => _enabled = value);
+    context.showDsSnackBar(value ? 'Biometric login enabled' : 'Biometric login disabled', type: DsSnackBarType.success);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF1A56FF);
-    final textDark = const Color(0xFF0F172A);
-    final textGrey = const Color(0xFF64748B);
-
-    if (_loading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFFBF9F8),
-        body: Center(child: DsLoadingWidget()),
-      );
-    }
-
-    final tactileShadows = [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.04),
-        blurRadius: 16,
-        offset: const Offset(0, 8),
-      ),
-      BoxShadow(
-        color: Colors.black.withOpacity(0.01),
-        blurRadius: 4,
-        offset: const Offset(0, 2),
-      ),
-    ];
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8), // Soft off-white
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.close, color: textDark),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header title section
-              Text(
-                'Biometric Login',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: primaryColor,
-                ),
+    return DsPage(
+      title: 'Biometric login',
+      subtitle: 'Faster, secure sign-in',
+      onBack: () => _back(context, StaffRoutes.settings),
+      bottom: _loading
+          ? null
+          : DsGradientButton(
+              label: 'Done',
+              icon: Icons.check_rounded,
+              onPressed: () => _back(context, StaffRoutes.settings),
+            ),
+      body: _loading
+          ? const [
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 80),
+                child: Center(child: CircularProgressIndicator()),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Secure your account with high-end precision.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: textGrey,
-                ),
-              ),
-              
-              const Spacer(),
-
-              // Centered visual hero card containing blue fingerprint icon
+            ]
+          : [
+              const SizedBox(height: 12),
               Center(
-                child: Container(
-                  width: 200,
-                  height: 260,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
-                        blurRadius: 24,
-                        offset: const Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0F4FF), // Soft electric-blue tint background
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          Icons.fingerprint_rounded,
-                          color: primaryColor,
-                          size: 64,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    for (final (size, alpha) in [(190.0, 0.05), (150.0, 0.08)])
+                      Container(
+                        width: size,
+                        height: size,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: (_enabled ? AppColors.success : AppColors.primary).withValues(alpha: alpha),
                         ),
+                      )
+                          .animate(onPlay: (c) => c.repeat(reverse: true))
+                          .scaleXY(begin: 0.94, end: 1.06, duration: 1500.ms, curve: Curves.easeInOut),
+                    AnimatedContainer(
+                      duration: 300.ms,
+                      width: 108,
+                      height: 108,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: _enabled
+                              ? const [Color(0xFF34D399), Color(0xFF059669)]
+                              : const [AppColors.primaryLight, AppColors.primaryDark],
+                        ),
+                        borderRadius: BorderRadius.circular(34),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (_enabled ? AppColors.success : AppColors.primary).withValues(alpha: 0.35),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _enabled ? Icons.verified_user_rounded : Icons.fingerprint_rounded,
+                        color: Colors.white,
+                        size: 56,
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
-
-              const Spacer(),
-
-              // Action module card at the bottom
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: tactileShadows,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Switch row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              const SizedBox(height: 18),
+              Text(
+                _enabled ? 'Biometric login is on' : 'Sign in with a touch',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.lightTextPrimary),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Use your fingerprint or face instead of typing your password.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(fontSize: 13.5, height: 1.45, color: AppColors.lightTextSecondary),
+              ),
+              const SizedBox(height: 22),
+              Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(22),
+                  onTap: () => _toggle(!_enabled),
+                  child: Ink(
+                    padding: const EdgeInsets.all(14),
+                    decoration: dsCardDecoration(),
+                    child: Row(
                       children: [
+                        const DsIconTile(Icons.fingerprint_rounded),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Enable biometric login',
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.plusJakartaSans(
                                   fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: textDark,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.lightTextPrimary,
                                 ),
                               ),
-                              const SizedBox(height: 4),
                               Text(
-                                'Use fingerprint or face to sign in',
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: textGrey,
-                                ),
+                                'Fingerprint or face recognition',
+                                style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
                               ),
                             ],
                           ),
                         ),
-                        // Custom premium switch toggle
-                        GestureDetector(
-                          onTap: () async {
-                            final newValue = !_enabled;
-                            await ref.read(authRepositoryProvider).setBiometricEnabled(newValue);
-                            setState(() {
-                              _enabled = newValue;
-                            });
-                            if (context.mounted) {
-                              context.showDsSnackBar(
-                                newValue ? 'Biometric enabled' : 'Biometric disabled',
-                              );
-                            }
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 50,
-                            height: 30,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(15),
-                              color: _enabled ? primaryColor : const Color(0xFFE2E8F0),
-                            ),
-                            child: Stack(
-                              children: [
-                                AnimatedPositioned(
-                                  duration: const Duration(milliseconds: 200),
-                                  curve: Curves.easeIn,
-                                  left: _enabled ? 22 : 2,
-                                  top: 2,
-                                  child: Container(
-                                    width: 26,
-                                    height: 26,
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.white,
-                                    ),
-                                    child: _enabled
-                                        ? Icon(Icons.check, color: primaryColor, size: 16)
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        Switch(
+                          value: _enabled,
+                          activeThumbColor: Colors.white,
+                          activeTrackColor: AppColors.primary,
+                          inactiveThumbColor: Colors.white,
+                          inactiveTrackColor: AppColors.lightBorder,
+                          trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+                          onChanged: _toggle,
                         ),
                       ],
                     ),
-                    
-                    const SizedBox(height: 20),
-                    const Divider(color: Color(0xFFF1F5F9), height: 1),
-                    const SizedBox(height: 20),
-                    
-                    // Primary CTA
-                    ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: Text(
-                        'Continue Setup',
-                        style: GoogleFonts.inter(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Secondary Action
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
-                      child: Text(
-                        'Skip for now',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: textGrey,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
+              const DsNote(
+                tone: DsNoteTone.success,
+                text: 'Your biometric data never leaves your device.',
+              ),
             ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -756,16 +466,14 @@ class StaffChangePasswordScreen extends ConsumerStatefulWidget {
   const StaffChangePasswordScreen({super.key});
 
   @override
-  ConsumerState<StaffChangePasswordScreen> createState() =>
-      _StaffChangePasswordScreenState();
+  ConsumerState<StaffChangePasswordScreen> createState() => _StaffChangePasswordScreenState();
 }
 
-class _StaffChangePasswordScreenState
-    extends ConsumerState<StaffChangePasswordScreen> {
+class _StaffChangePasswordScreenState extends ConsumerState<StaffChangePasswordScreen> {
   final _currentController = TextEditingController();
   final _newController = TextEditingController();
   final _confirmController = TextEditingController();
-  
+
   bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
@@ -788,7 +496,6 @@ class _StaffChangePasswordScreenState
       context.showDsSnackBar('Passwords do not match', type: DsSnackBarType.error);
       return;
     }
-    
     setState(() => _loading = true);
     final result = await ref.read(staffRepositoryProvider).updatePassword(
           _currentController.text,
@@ -799,193 +506,140 @@ class _StaffChangePasswordScreenState
     result.fold(
       onSuccess: (_) {
         context.showDsSnackBar('Password updated successfully', type: DsSnackBarType.success);
-        Navigator.of(context).pop();
+        _back(context, StaffRoutes.settings);
       },
-      onError: (f) =>
-          context.showDsSnackBar(f.message, type: DsSnackBarType.error),
+      onError: (f) => context.showDsSnackBar(f.message, type: DsSnackBarType.error),
     );
   }
 
+  /// 0..4 strength score with a label and colour.
+  (int, String, Color) get _strength {
+    final p = _newController.text;
+    if (p.isEmpty) return (0, 'Enter a password', AppColors.lightTextHint);
+    var score = 0;
+    if (p.length >= 8) score++;
+    if (RegExp(r'[A-Z]').hasMatch(p) && RegExp(r'[a-z]').hasMatch(p)) score++;
+    if (RegExp(r'\d').hasMatch(p)) score++;
+    if (RegExp(r'[^A-Za-z0-9]').hasMatch(p)) score++;
+    return switch (score) {
+      <= 1 => (1, 'Weak', AppColors.error),
+      2 => (2, 'Fair', AppColors.warning),
+      3 => (3, 'Good', AppColors.primary),
+      _ => (4, 'Strong', AppColors.success),
+    };
+  }
+
+  Widget _eye(bool obscure, VoidCallback toggle) => IconButton(
+        icon: Icon(obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded, color: AppColors.lightTextSecondary),
+        onPressed: toggle,
+      );
+
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF1A56FF);
-    final textDark = const Color(0xFF0F172A);
-    final textGrey = const Color(0xFF64748B);
+    final (score, label, color) = _strength;
+    final matches = _confirmController.text.isNotEmpty && _confirmController.text == _newController.text;
 
-    Widget buildPasswordField({
-      required TextEditingController controller,
-      required String label,
-      required String hint,
-      required bool obscureText,
-      required VoidCallback onToggleVisibility,
-    }) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: textDark,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.01),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: controller,
-              obscureText: obscureText,
-              style: GoogleFonts.inter(fontSize: 14, color: textDark),
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-                prefixIcon: const Icon(Icons.lock_outline_rounded, color: Color(0xFF94A3B8), size: 20),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                    color: const Color(0xFF94A3B8),
-                    size: 20,
+    return DsPage(
+      title: 'Change password',
+      subtitle: 'Keep your account secure',
+      onBack: () => _back(context, StaffRoutes.settings),
+      bottom: DsGradientButton(
+        label: 'Update password',
+        icon: Icons.lock_rounded,
+        isLoading: _loading,
+        onPressed: _loading ? null : _submit,
+      ),
+      body: [
+        DsGradientCard(
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Use a long password with letters, numbers and symbols.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    height: 1.4,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
                   ),
-                  onPressed: onToggleVisibility,
                 ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
-            ),
+              const SizedBox(width: 12),
+              const DsFloatingIconTile(icon: Icons.lock_reset_rounded),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        DsLabeledField(
+          label: 'Current password',
+          controller: _currentController,
+          icon: Icons.lock_outline_rounded,
+          hint: 'Enter current password',
+          obscureText: _obscureCurrent,
+          suffix: _eye(_obscureCurrent, () => setState(() => _obscureCurrent = !_obscureCurrent)),
+        ),
+        const SizedBox(height: 16),
+        DsLabeledField(
+          label: 'New password',
+          controller: _newController,
+          icon: Icons.lock_rounded,
+          hint: 'Create new password',
+          obscureText: _obscureNew,
+          onChanged: (_) => setState(() {}),
+          suffix: _eye(_obscureNew, () => setState(() => _obscureNew = !_obscureNew)),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            for (var i = 1; i <= 4; i++) ...[
+              if (i > 1) const SizedBox(width: 6),
+              Expanded(
+                child: AnimatedContainer(
+                  duration: 250.ms,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: i <= score ? color : AppColors.lightBorder,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(width: 10),
+            Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        DsLabeledField(
+          label: 'Confirm password',
+          controller: _confirmController,
+          icon: Icons.lock_rounded,
+          hint: 'Confirm new password',
+          obscureText: _obscureConfirm,
+          onChanged: (_) => setState(() {}),
+          suffix: _eye(_obscureConfirm, () => setState(() => _obscureConfirm = !_obscureConfirm)),
+        ),
+        if (_confirmController.text.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                matches ? Icons.check_circle_rounded : Icons.error_rounded,
+                size: 16,
+                color: matches ? AppColors.success : AppColors.error,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                matches ? 'Passwords match' : 'Passwords do not match',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: matches ? AppColors.success : AppColors.error,
+                ),
+              ),
+            ],
           ),
         ],
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8), // Soft off-white
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: primaryColor),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        centerTitle: true,
-        title: Text(
-          'Settings',
-          style: GoogleFonts.libreCaslonText(
-            color: primaryColor,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - 32,
-                ),
-                child: IntrinsicHeight(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 16),
-                      Text(
-                        'Change Password',
-                        style: GoogleFonts.libreCaslonText(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: primaryColor,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Ensure your account is using a long, random password to stay secure.',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: textGrey,
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      buildPasswordField(
-                        controller: _currentController,
-                        label: 'Current password',
-                        hint: 'Enter current password',
-                        obscureText: _obscureCurrent,
-                        onToggleVisibility: () => setState(() => _obscureCurrent = !_obscureCurrent),
-                      ),
-                      const SizedBox(height: 20),
-                      buildPasswordField(
-                        controller: _newController,
-                        label: 'New password',
-                        hint: 'Create new password',
-                        obscureText: _obscureNew,
-                        onToggleVisibility: () => setState(() => _obscureNew = !_obscureNew),
-                      ),
-                      const SizedBox(height: 20),
-                      buildPasswordField(
-                        controller: _confirmController,
-                        label: 'Confirm password',
-                        hint: 'Confirm new password',
-                        obscureText: _obscureConfirm,
-                        onToggleVisibility: () => setState(() => _obscureConfirm = !_obscureConfirm),
-                      ),
-                      
-                      const Spacer(),
-                      const SizedBox(height: 40),
-                      
-                      // Submit button
-                      ElevatedButton(
-                        onPressed: _loading ? null : _submit,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryColor,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: _loading
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                'Update Password',
-                                style: GoogleFonts.inter(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
+      ],
     );
   }
 }

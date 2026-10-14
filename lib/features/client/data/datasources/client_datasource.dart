@@ -15,8 +15,10 @@ import '../../../../core/data/datasources/base_local_datasource.dart';
 import '../../../../core/data/datasources/json_asset_loader.dart';
 import '../../../../core/network/api_service.dart';
 import '../../domain/models/client_models.dart';
+import '../../domain/models/staff_request_models.dart';
 import '../datasources/client_dummy_api.dart';
 import '../models/client_dtos.dart';
+import '../models/staff_request_dtos.dart';
 
 class ClientRemoteDataSource extends BaseRemoteDataSource {
   ClientRemoteDataSource(super.dio);
@@ -164,6 +166,38 @@ class ClientRemoteDataSource extends BaseRemoteDataSource {
       ClientDtoCodec.decodeNotification,
     );
   }
+
+  // ── Staff requests ──
+
+  Future<List<StaffRequest>> getStaffRequests() async {
+    final json = await getJson(ApiConstants.clientStaffRequests);
+    return [
+      for (final e in (json['items'] as List?) ?? const [])
+        if (e is Map<String, dynamic>) StaffRequestDtoCodec.decodeRequest(e),
+    ];
+  }
+
+  Future<StaffRequest> getStaffRequest(String id) async {
+    final json = await getJson(ApiConstants.clientStaffRequest(id));
+    return StaffRequestDtoCodec.decodeRequest(json);
+  }
+
+  Future<StaffRequest> createStaffRequest(Map<String, dynamic> body) async {
+    final json = await postJson(ApiConstants.clientStaffRequests, data: body);
+    return StaffRequestDtoCodec.decodeRequest(json);
+  }
+
+  Future<void> selectStaffForRequest(String id, {required String staffId, String? note}) =>
+      postJson(
+        ApiConstants.clientStaffRequestSelect(id),
+        data: {'staff_id': staffId, if (note != null && note.isNotEmpty) 'note': note},
+      );
+
+  Future<void> rejectStaffRequestShortlist(String id, String reason) =>
+      postJson(ApiConstants.clientStaffRequestRejectShortlist(id), data: {'reason': reason});
+
+  Future<void> cancelStaffRequest(String id, String reason) =>
+      postJson(ApiConstants.clientStaffRequestCancel(id), data: {'reason': reason});
 }
 
 class ClientLocalDataSource extends BaseLocalDataSource {

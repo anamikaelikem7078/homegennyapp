@@ -60,6 +60,21 @@ abstract final class StaffRoutes {
   static const String bankDetails = '/staff/salary/bank';
   static const String taxDeclaration = '/staff/salary/tax';
 
+  // Daily care (caretaker)
+  static const String careToday = '/staff/care/today';
+  static String carePlan(String placementId) => '/staff/care/$placementId/plan';
+  static String careReport(String placementId) => '/staff/care/$placementId/report';
+
+  // Instructions from the family (every series)
+  static const String instructions = '/staff/instructions';
+
+  // "New from the family" — every client input, with Mark as read
+  static const String clientUpdates = '/staff/client-updates';
+
+  // Daily care (cook)
+  static const String cookToday = '/staff/cook/today';
+  static String cookRatings(String placementId) => '/staff/cook/$placementId/ratings';
+
   // Settings & help
   static const String settings = '/staff/settings';
   static const String settingsLanguage = '/staff/settings/language';

@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:homegennyapp/core/theme/app_fonts.dart';
 
 import '../../../../core/presentation/async_value_widget.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
+import '../../../../design_system/widgets/buttons/ds_buttons.dart';
+import '../../../../design_system/widgets/feedback/ds_feedback.dart';
 import '../../domain/models/pipeline_stage.dart';
 import '../../domain/models/rm_models.dart';
 import '../providers/rm_providers.dart';
 import '../widgets/advance_stage_action.dart';
+import '../widgets/rm_stage_ui.dart';
 
 /// S2.5 Assessment — the real assessment stage, between Verification and
 /// Training. Backed by `/assessments`. RM must not be able to blindly skip
@@ -32,361 +35,128 @@ class _RmAssessmentScreenState extends ConsumerState<RmAssessmentScreen> {
     final staffAsync = ref.watch(staffByIdProvider(widget.staffId));
     final assessmentsAsync = ref.watch(staffAssessmentsProvider(widget.staffId));
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(
+    final staff = staffAsync.valueOrNull;
+    if (staff == null) {
+      return Scaffold(
         backgroundColor: RmTheme.offWhite,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: RmTheme.textPrimary),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'Assessment (S2.5)',
-          style: RmTheme.headline(context).copyWith(fontSize: 20),
-        ),
-      ),
-      body: AsyncValueWidget<StaffRow?>(
-        value: staffAsync,
-        onRetry: () => ref.invalidate(staffByIdProvider(widget.staffId)),
-        builder: (staff) {
-          if (staff == null) {
-            return Center(
-              child: Text(
-                'Staff not found',
-                style: GoogleFonts.inter(color: RmTheme.textSecondary),
-              ),
-            );
-          }
-          return RefreshIndicator(
-            color: RmTheme.electricBlue,
-            onRefresh: () async => ref.invalidate(rmAssessmentsProvider),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Profile Header ──
-                  _buildProfileHeader(staff),
-
-                  const SizedBox(height: 20),
-
-                  // ── Main Content Area ──
-                  AsyncValueWidget<List<Assessment>>(
-                    value: assessmentsAsync,
-                    onRetry: () => ref.invalidate(rmAssessmentsProvider),
-                    builder: (assessments) =>
-                        _buildContent(context, staff, assessments),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader(StaffRow staff) {
-    final firstLetter =
-        staff.fullName.isNotEmpty ? staff.fullName[0].toUpperCase() : '?';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: RmTheme.borderSubtle.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: RmTheme.electricBlue.withValues(alpha: 0.1),
+        appBar: AppBar(title: const Text('Assessment')),
+        body: AsyncValueWidget<StaffRow?>(
+          value: staffAsync,
+          onRetry: () => ref.invalidate(staffByIdProvider(widget.staffId)),
+          builder: (_) => Center(
             child: Text(
-              firstLetter,
-              style: GoogleFonts.inter(
-                color: RmTheme.electricBlue,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
+              'Staff not found',
+              style: GoogleFonts.plusJakartaSans(color: RmTheme.textSecondary),
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  staff.fullName,
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
-                    color: RmTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${staff.staffCode} • ${StaffSeries.label(staff.series).toUpperCase()}',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: RmTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideX(begin: -0.02, end: 0, duration: 400.ms);
-  }
+        ),
+      );
+    }
 
-  Widget _buildContent(
-    BuildContext context,
-    StaffRow staff,
-    List<Assessment> assessments,
-  ) {
-    final latest = assessments.isEmpty ? null : assessments.first;
+    final assessments = assessmentsAsync.valueOrNull;
+    final latest =
+        (assessments == null || assessments.isEmpty) ? null : assessments.first;
+    final passed = latest != null && latest.passed;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ── List Section Title ──
-        Text(
-          'Assessment Log',
-          style: GoogleFonts.libreCaslonText(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: RmTheme.textPrimary,
-          ),
-        )
-            .animate()
-            .fadeIn(delay: 50.ms, duration: 300.ms),
-        const SizedBox(height: 12),
-
-        if (assessments.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
-            child: Center(
-              child: Text(
-                'No assessments yet for this staff member.',
-                style: GoogleFonts.inter(
-                  color: RmTheme.textSecondary,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ).animate().fadeIn(delay: 100.ms, duration: 300.ms)
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: assessments.length,
-            itemBuilder: (context, index) =>
-                _buildAssessmentCard(context, assessments[index], index),
-          ),
-
-        const SizedBox(height: 24),
-
-        // ── Form Area / New Attempt CTA ──
-        if (latest == null || latest.status == 'COMPLETED')
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: OutlinedButton(
-              onPressed: _creating ? null : () => _createAssessment(staff),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: RmTheme.electricBlue, width: 1.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: _creating
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: RmTheme.electricBlue,
-                      ),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.add_rounded, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          assessments.isEmpty
-                              ? 'Start Assessment'
-                              : 'New Attempt',
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          )
-              .animate()
-              .fadeIn(delay: 150.ms, duration: 350.ms)
-              .slideY(begin: 0.05, end: 0, delay: 150.ms, duration: 350.ms)
-        else
-          _SubmitAssessmentCard(assessment: latest, staffId: staff.id)
-              .animate()
-              .fadeIn(delay: 150.ms, duration: 350.ms)
-              .slideY(begin: 0.05, end: 0, delay: 150.ms, duration: 350.ms),
-
-        const SizedBox(height: 24),
-
-        // ── Advance Action Footer ──
-        if (latest != null && latest.passed)
+    return RmStageScaffold(
+      title: 'Assessment',
+      stageCode: 'S2.5',
+      stageColor: rmStageColor(PipelineStages.s25Assess),
+      onRefresh: () async => ref.invalidate(rmAssessmentsProvider),
+      bottom: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
           AdvanceStageButton(
             staffId: staff.id,
             fromStage: staff.pipelineStage,
             toStage: PipelineStages.s3Train,
             label: 'Advance to Training (S3)',
             reasonCode: 'ASSESSMENT_PASSED',
-          ).animate().fadeIn(delay: 200.ms, duration: 350.ms),
+            enabled: passed,
+          ),
+          RmHint(
+            done: passed,
+            text: passed
+                ? 'Latest attempt passed — ready to advance.'
+                : 'A passing attempt is required to advance.',
+          ),
+        ],
+      ),
+      body: [
+        RmStaffBanner(staff: staff, showTracker: false),
+        RmSectionTitle(
+          title: 'Assessment log',
+          trailing: assessments == null || assessments.isEmpty
+              ? null
+              : RmStatusPill(
+                  label: '${assessments.length} attempt${assessments.length == 1 ? '' : 's'}',
+                  color: RmTheme.electricBlue,
+                ),
+        ),
+        AsyncValueWidget<List<Assessment>>(
+          value: assessmentsAsync,
+          onRetry: () => ref.invalidate(rmAssessmentsProvider),
+          builder: (list) => _buildContent(staff, list),
+        ),
       ],
     );
   }
 
-  Widget _buildAssessmentCard(BuildContext context, Assessment a, int index) {
-    Color color = RmTheme.textSecondary;
-    IconData icon = Icons.help_outline_rounded;
-    if (a.result == AssessmentResults.pass) {
-      color = RmTheme.emeraldGreen;
-      icon = Icons.check_circle_outline_rounded;
-    }
-    if (a.result == AssessmentResults.fail) {
-      color = RmTheme.crimsonDanger;
-      icon = Icons.cancel_outlined;
-    }
-    if (a.result == AssessmentResults.partial) {
-      color = RmTheme.amberWarning;
-      icon = Icons.warning_amber_rounded;
-    }
+  Widget _buildContent(StaffRow staff, List<Assessment> assessments) {
+    final latest = assessments.isEmpty ? null : assessments.first;
+    final canStart = latest == null || latest.status == 'COMPLETED';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: RmTheme.borderSubtle.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x02000000),
-            blurRadius: 8,
-            offset: Offset(0, 3),
-          ),
+    final startButton = DsGradientButton(
+      label: assessments.isEmpty ? 'Start assessment' : 'New attempt',
+      icon: Icons.add_rounded,
+      isLoading: _creating,
+      onPressed: _creating ? null : () => _createAssessment(staff),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (assessments.isEmpty)
+          RmEmptyBlock(
+            icon: Icons.assignment_rounded,
+            title: 'No assessments yet',
+            message: staff.series == StaffSeries.driver
+                ? 'Start the driver practical road test to continue.'
+                : 'Start a general assessment to continue.',
+            action: startButton,
+          )
+        else ...[
+          for (final a in assessments) _attemptTile(a),
+          const SizedBox(height: 8),
+          if (canStart)
+            startButton
+          else
+            _SubmitAssessmentCard(assessment: latest, staffId: staff.id),
         ],
-      ),
-      child: Row(
-        children: [
-          // ── Circular Type Indicator ──
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 14),
+      ],
+    );
+  }
 
-          // ── Content Info ──
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Attempt #${a.attemptNumber} • ${a.assessmentType ?? 'GENERAL'}',
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14.5,
-                    color: RmTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Status: ${a.status.toUpperCase()}${a.score != null ? ' • Score: ${a.score}' : ''}',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: RmTheme.textSecondary,
-                  ),
-                ),
-                if (a.remarks != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    a.remarks!,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                      color: RmTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+  Widget _attemptTile(Assessment a) {
+    final (state, icon) = switch (a.result) {
+      AssessmentResults.pass => (RmStepState.done, Icons.check_circle_rounded),
+      AssessmentResults.fail => (RmStepState.failed, Icons.cancel_rounded),
+      AssessmentResults.partial => (RmStepState.warning, Icons.warning_rounded),
+      _ => (RmStepState.active, Icons.pending_rounded),
+    };
+    final details = [
+      rmTitleCase(a.status),
+      if (a.score != null) 'Score ${a.score}',
+      if (a.remarks != null && a.remarks!.trim().isNotEmpty) a.remarks!.trim(),
+    ].join(' · ');
 
-          // ── Badge Label ──
-          if (a.result != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: color.withValues(alpha: 0.25),
-                  width: 1,
-                ),
-              ),
-              child: Text(
-                a.result!.toUpperCase(),
-                style: GoogleFonts.inter(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 11,
-                  letterSpacing: 0.2,
-                ),
-              ),
-            ),
-        ],
-      ),
-    )
-        .animate()
-        .fadeIn(
-          delay: Duration(milliseconds: 50 * index),
-          duration: 400.ms,
-        )
-        .slideY(
-          begin: 0.04,
-          end: 0,
-          delay: Duration(milliseconds: 50 * index),
-          duration: 400.ms,
-        );
+    return RmStepTile(
+      icon: icon,
+      title: 'Attempt #${a.attemptNumber}',
+      subtitle: '${rmTitleCase(a.assessmentType ?? 'GENERAL')} · $details',
+      state: state,
+      statusLabel: a.result == null ? 'In progress' : rmTitleCase(a.result!),
+    );
   }
 
   Future<void> _createAssessment(StaffRow staff) async {
@@ -400,11 +170,10 @@ class _RmAssessmentScreenState extends ConsumerState<RmAssessmentScreen> {
     setState(() => _creating = false);
     result.fold(
       onSuccess: (_) => ref.invalidate(rmAssessmentsProvider),
-      onError: (f) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(f.message),
-          backgroundColor: RmTheme.crimsonDanger,
-        ),
+      onError: (f) => DsSnackBar.show(
+        context,
+        message: f.message,
+        type: DsSnackBarType.error,
       ),
     );
   }
@@ -504,7 +273,7 @@ class _SubmitAssessmentCardState extends ConsumerState<_SubmitAssessmentCard> {
           // ── Title ──
           Text(
             'Record Assessment Result',
-            style: GoogleFonts.libreCaslonText(
+            style: AppFonts.display(
               fontSize: 15,
               fontWeight: FontWeight.bold,
               color: RmTheme.textPrimary,
@@ -551,14 +320,14 @@ class _SubmitAssessmentCardState extends ConsumerState<_SubmitAssessmentCard> {
           TextFormField(
             controller: _scoreController,
             keyboardType: TextInputType.number,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 14.5,
               fontWeight: FontWeight.w500,
               color: RmTheme.textPrimary,
             ),
             decoration: InputDecoration(
               labelText: 'Score (optional)',
-              labelStyle: GoogleFonts.inter(
+              labelStyle: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
                 color: RmTheme.textSecondary,
@@ -594,14 +363,14 @@ class _SubmitAssessmentCardState extends ConsumerState<_SubmitAssessmentCard> {
           // ── Remarks textfield ──
           TextFormField(
             controller: _remarksController,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 14.5,
               fontWeight: FontWeight.w500,
               color: RmTheme.textPrimary,
             ),
             decoration: InputDecoration(
               labelText: 'Remarks (optional)',
-              labelStyle: GoogleFonts.inter(
+              labelStyle: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
                 color: RmTheme.textSecondary,
@@ -642,9 +411,7 @@ class _SubmitAssessmentCardState extends ConsumerState<_SubmitAssessmentCard> {
               onPressed: _submitting ? null : _submit,
               style: FilledButton.styleFrom(
                 backgroundColor: RmTheme.electricBlue,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: const StadiumBorder(),
               ),
               child: _submitting
                   ? const SizedBox(
@@ -657,7 +424,7 @@ class _SubmitAssessmentCardState extends ConsumerState<_SubmitAssessmentCard> {
                     )
                   : Text(
                       'Submit Result',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
@@ -703,7 +470,7 @@ class _VerdictChoiceCard extends StatelessWidget {
             child: Center(
               child: Text(
                 label,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   color: selected ? color : RmTheme.textSecondary,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,

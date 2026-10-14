@@ -11,6 +11,6 @@ void main() {
       ),
     );
 
-    expect(find.text('HomeGenny'), findsOneWidget);
+    expect(find.bySemanticsLabel('HomeGenny'), findsOneWidget);
   });
 }

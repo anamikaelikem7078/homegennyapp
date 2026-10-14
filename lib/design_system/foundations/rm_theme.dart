@@ -4,14 +4,19 @@ import '../../core/theme/app_colors.dart';
 
 abstract final class RmTheme {
   // Brand Colors
-  static const Color offWhite = Color(0xFFFBF9F8);
+  static const Color offWhite = Color(0xFFF6F8FC);
   static const Color electricBlue = Color(0xFF1A56FF);
-  static const Color electricBlueLight = Color(0xFF4A7BFF);
+  static const Color electricBlueLight = Color(0xFF2F6BFF);
+
+  // Orange accent for icons (matches login / sign-up)
+  static const Color iconAccent = AppColors.secondary;
+  static const Color iconAccentSoft = AppColors.secondaryContainer;
+  static const Color navy = AppColors.navy;
   
   // Semantic Colors
   static const Color emeraldGreen = Color(0xFF10B981);
   static const Color amberWarning = Color(0xFFF59E0B);
-  static const Color crimsonDanger = Color(0xFFDC2626);
+  static const Color crimsonDanger = Color(0xFFE5484D);
   
   // Text Colors
   static const Color textPrimary = Color(0xFF111827);
@@ -19,38 +24,40 @@ abstract final class RmTheme {
   
   // Surfaces & Borders
   static const Color cardSurface = Colors.white;
-  static const Color surfaceSecondary = Color(0xFFF3F4F6); // Gray 100
-  static const Color borderSubtle = Color(0xFFE5E7EB);
+  static const Color surfaceSecondary = Color(0xFFF3F5FA);
+  static const Color borderSubtle = Color(0xFFE8EBF2);
   
   // Typography
   static TextStyle headline(BuildContext? context) {
-    return GoogleFonts.libreCaslonText(
+    return GoogleFonts.plusJakartaSans(
       color: textPrimary,
-      fontWeight: FontWeight.w600,
+      fontWeight: FontWeight.w800,
       fontSize: 24,
+      letterSpacing: -0.6,
     );
   }
 
   static TextStyle title(BuildContext? context) {
-    return GoogleFonts.libreCaslonText(
-      color: electricBlue,
-      fontWeight: FontWeight.w600,
+    return GoogleFonts.plusJakartaSans(
+      color: textPrimary,
+      fontWeight: FontWeight.w800,
       fontSize: 20,
+      letterSpacing: -0.3,
     );
   }
 
   static TextStyle body(BuildContext? context) {
-    return GoogleFonts.inter(
+    return GoogleFonts.plusJakartaSans(
       color: textSecondary,
-      fontWeight: FontWeight.w400,
+      fontWeight: FontWeight.w500,
       fontSize: 14,
     );
   }
 
   static TextStyle label(BuildContext? context) {
-    return GoogleFonts.inter(
+    return GoogleFonts.plusJakartaSans(
       color: textPrimary,
-      fontWeight: FontWeight.w500,
+      fontWeight: FontWeight.w700,
       fontSize: 12,
     );
   }
@@ -58,27 +65,22 @@ abstract final class RmTheme {
   // Shadows
   static const List<BoxShadow> subtleShadow = [
     BoxShadow(
-      color: Color(0x0A000000),
-      blurRadius: 4,
-      offset: Offset(0, 2),
+      color: Color(0x0F0F172A),
+      blurRadius: 16,
+      offset: Offset(0, 4),
     ),
   ];
 
   static const List<BoxShadow> sophisticatedShadow = [
     BoxShadow(
-      color: Color(0x0A000000),
-      blurRadius: 4,
-      offset: Offset(0, 2),
-    ),
-    BoxShadow(
-      color: Color(0x05000000),
-      blurRadius: 10,
+      color: Color(0x0F0F172A),
+      blurRadius: 20,
       offset: Offset(0, 6),
     ),
     BoxShadow(
-      color: Color(0x03000000),
-      blurRadius: 20,
-      offset: Offset(0, 12),
+      color: Color(0x0A1A56FF),
+      blurRadius: 30,
+      offset: Offset(0, 14),
     ),
   ];
 

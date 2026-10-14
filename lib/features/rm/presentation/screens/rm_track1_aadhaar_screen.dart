@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:homegennyapp/core/theme/app_fonts.dart';
 
 import '../../../../core/utils/result.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
@@ -171,7 +172,7 @@ class _RmTrack1AadhaarScreenState extends ConsumerState<RmTrack1AadhaarScreen> {
             child: Text(
               'Name on Aadhaar ("$aadhaarName") doesn\'t match the staff record '
               '("$staffName"). Please confirm this is the same person before advancing.',
-              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: RmTheme.textPrimary),
+              style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w600, color: RmTheme.textPrimary),
             ),
           ),
         ],
@@ -208,12 +209,12 @@ class _RmTrack1AadhaarScreenState extends ConsumerState<RmTrack1AadhaarScreen> {
               Expanded(
                 child: Text(
                   'Aadhaar eKYC was already completed for this staff member.',
-                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: RmTheme.textSecondary),
+                  style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500, color: RmTheme.textSecondary),
                 ),
               ),
               TextButton(
                 onPressed: _startReVerify,
-                child: Text('Re-verify', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: RmTheme.electricBlue)),
+                child: Text('Re-verify', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold, color: RmTheme.electricBlue)),
               ),
             ],
           ).animate().fadeIn(duration: 300.ms),
@@ -225,12 +226,12 @@ class _RmTrack1AadhaarScreenState extends ConsumerState<RmTrack1AadhaarScreen> {
               children: [
                 Text(
                   'Enter Aadhaar Number',
-                  style: GoogleFonts.libreCaslonText(fontSize: 16, fontWeight: FontWeight.bold, color: RmTheme.textPrimary),
+                  style: AppFonts.display(fontSize: 16, fontWeight: FontWeight.bold, color: RmTheme.textPrimary),
                 ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.05, end: 0, duration: 300.ms),
                 const SizedBox(height: 4),
                 Text(
                   'A one-time password will be sent to the mobile number linked to this Aadhaar via UIDAI.',
-                  style: GoogleFonts.inter(fontSize: 12.5, color: RmTheme.textSecondary),
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: RmTheme.textSecondary),
                 ),
                 const SizedBox(height: 12),
                 VerificationTextField(
@@ -265,17 +266,17 @@ class _RmTrack1AadhaarScreenState extends ConsumerState<RmTrack1AadhaarScreen> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.sms_outlined, size: 18, color: RmTheme.electricBlue),
+                const Icon(Icons.sms_outlined, size: 18, color: RmTheme.iconAccent),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'OTP sent for Aadhaar ending ${_aadhaarController.text.trim().length >= 4 ? _aadhaarController.text.trim().substring(_aadhaarController.text.trim().length - 4) : ''}',
-                    style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: RmTheme.textPrimary),
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12.5, fontWeight: FontWeight.w600, color: RmTheme.textPrimary),
                   ),
                 ),
                 TextButton(
                   onPressed: _sendingOtp || _verifying ? null : _changeNumber,
-                  child: Text('Change', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: RmTheme.electricBlue)),
+                  child: Text('Change', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold, color: RmTheme.electricBlue)),
                 ),
               ],
             ),

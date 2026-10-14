@@ -107,7 +107,7 @@ class DsMenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = accentColor ?? AppColors.primary;
+    final accent = accentColor ?? AppColors.iconAccent;
 
     return Semantics(
       button: true,
@@ -136,7 +136,7 @@ class DsMenuTile extends StatelessWidget {
                 DsStatusChip(label: badge!, type: DsStatusType.warning),
                 SizedBox(width: AppSpacing.xs),
               ],
-              trailing ?? Icon(Icons.chevron_right_rounded, color: accent),
+              trailing ?? Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ],
           ),
         ),
@@ -167,7 +167,7 @@ class _IconBox extends StatelessWidget {
           padding: EdgeInsets.all(AppSpacing.sm),
           decoration: BoxDecoration(
             gradient: style == DsMenuTileStyle.premium
-                ? AppColors.brandGradient
+                ? AppColors.accentGradient
                 : LinearGradient(colors: [accent, accent.withValues(alpha: 0.7)]),
             borderRadius: AppRadius.mdAll,
             boxShadow: style == DsMenuTileStyle.premium ? AppShadows.soft() : null,
@@ -236,23 +236,21 @@ class DsKpiCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           padding: EdgeInsets.all(AppSpacing.lg),
-          decoration: AppDecorations.softCard(context).copyWith(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [accent.withValues(alpha: 0.08), accent.withValues(alpha: 0.02)],
-            ),
-          ),
+          decoration: AppDecorations.softCard(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: accent, size: 28),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: AppDecorations.iconTile(color: accent),
+                child: Icon(icon, color: accent, size: 22),
+              ),
               SizedBox(height: AppSpacing.md),
               Text(
                 value,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: accent,
+                      fontWeight: FontWeight.w800,
                     ),
               ),
               Text(label, style: Theme.of(context).textTheme.bodySmall),
@@ -335,21 +333,75 @@ class DsRoleShellScreen extends StatelessWidget {
       body: isTablet
           ? Row(
               children: [
-                NavigationRail(
-                  selectedIndex: navigationShell.currentIndex,
-                  onDestinationSelected: _onTap,
-                  labelType: NavigationRailLabelType.all,
-                  destinations: items
-                      .map(
-                        (item) => NavigationRailDestination(
-                          icon: Icon(item.icon),
-                          selectedIcon: Icon(item.selectedIcon),
-                          label: Text(item.label),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.navy.withValues(alpha: 0.06),
+                        blurRadius: 20,
+                        offset: const Offset(4, 0),
+                      ),
+                    ],
+                  ),
+                  child: SafeArea(
+                    right: false,
+                    child: NavigationRail(
+                      backgroundColor: Colors.white,
+                      selectedIndex: navigationShell.currentIndex,
+                      onDestinationSelected: _onTap,
+                      labelType: NavigationRailLabelType.all,
+                      groupAlignment: -0.85,
+                      minWidth: 84,
+                      indicatorColor: AppColors.primaryContainer,
+                      indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      selectedIconTheme: const IconThemeData(color: AppColors.primary, size: 24),
+                      unselectedIconTheme: const IconThemeData(color: Color(0xFF94A3B8), size: 23),
+                      selectedLabelTextStyle: const TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primary,
+                      ),
+                      unselectedLabelTextStyle: const TextStyle(
+                        fontFamily: 'Plus Jakarta Sans',
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      leading: Padding(
+                        padding: const EdgeInsets.only(top: 8, bottom: 20),
+                        child: Container(
+                          width: 46,
+                          height: 46,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.brandGradient,
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: const Text(
+                            'HG',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
-                      )
-                      .toList(),
+                      ),
+                      destinations: items
+                          .map(
+                            (item) => NavigationRailDestination(
+                              icon: Icon(item.icon),
+                              selectedIcon: Icon(item.selectedIcon),
+                              label: Text(item.label),
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
                 ),
-                const VerticalDivider(width: 1),
                 Expanded(child: navigationShell),
               ],
             )

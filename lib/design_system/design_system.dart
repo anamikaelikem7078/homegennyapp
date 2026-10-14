@@ -27,6 +27,9 @@ export 'widgets/search/ds_search_bar.dart';
 export 'widgets/states/ds_states.dart';
 export 'widgets/timeline/ds_timeline.dart';
 export 'widgets/layout/ds_role_layout.dart';
+export 'widgets/layout/ds_hero_header.dart';
+export 'widgets/layout/ds_profile_view.dart';
+export 'widgets/layout/ds_page_kit.dart';
 export 'widgets/motion/ds_fade_in.dart';
 
 /// Design system extensions for [BuildContext].

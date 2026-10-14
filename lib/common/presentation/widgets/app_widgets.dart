@@ -139,19 +139,39 @@ class StatusIllustration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = iconColor ?? Theme.of(context).colorScheme.primary;
+    final color = iconColor ?? Theme.of(context).colorScheme.secondary;
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
+        SizedBox(
+          width: 170,
+          height: 170,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 170,
+                height: 170,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: color.withValues(alpha: 0.25), width: 2),
+                ),
+              )
+                  .animate(onPlay: (c) => c.repeat())
+                  .scaleXY(begin: 0.6, end: 1, duration: 1800.ms, curve: Curves.easeOut)
+                  .fadeOut(duration: 1800.ms),
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 56, color: color),
+              ),
+            ],
           ),
-          child: Icon(icon, size: 56, color: color),
         )
             .animate()
             .fadeIn(duration: 500.ms)

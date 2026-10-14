@@ -3,6 +3,7 @@ import '../../../../core/utils/result.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/client_models.dart';
+import '../../domain/models/staff_request_models.dart';
 
 export '../../../../core/di/injection.dart' show clientRepositoryProvider;
 
@@ -103,6 +104,27 @@ final clientNotificationsProvider =
 
 final clientProfileProvider = FutureProvider<ClientProfile>((ref) async {
   final result = await ref.watch(clientRepositoryProvider).getProfile();
+  return result.fold(
+    onSuccess: (d) => d,
+    onError: (f) => throw Exception(f.message),
+  );
+});
+
+// ── Staff requests ── (autoDispose: refetched each time a screen opens,
+// since push notifications are not wired yet)
+
+final clientStaffRequestsProvider =
+    FutureProvider.autoDispose<List<StaffRequest>>((ref) async {
+  final result = await ref.watch(clientRepositoryProvider).getStaffRequests();
+  return result.fold(
+    onSuccess: (d) => d,
+    onError: (f) => throw Exception(f.message),
+  );
+});
+
+final clientStaffRequestProvider =
+    FutureProvider.autoDispose.family<StaffRequest, String>((ref, id) async {
+  final result = await ref.watch(clientRepositoryProvider).getStaffRequest(id);
   return result.fold(
     onSuccess: (d) => d,
     onError: (f) => throw Exception(f.message),

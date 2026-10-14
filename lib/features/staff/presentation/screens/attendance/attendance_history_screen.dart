@@ -1,388 +1,178 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../design_system/design_system.dart';
+import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
 
-/// Redesigned premium Attendance History Screen matching visual identity.
-class StaffAttendanceHistoryScreen extends ConsumerWidget {
+/// Real backend status values: "present" | "in_progress" | "absent"
+/// (see GET /staff/attendance/history) — there is no "late"/"leave".
+(Color, IconData, String) staffAttendanceStyle(String status) => switch (status) {
+      'present' => (AppColors.success, Icons.check_circle_rounded, 'Present'),
+      'in_progress' => (AppColors.warning, Icons.timelapse_rounded, 'In progress'),
+      'absent' => (AppColors.error, Icons.cancel_rounded, 'Absent'),
+      _ => (AppColors.primary, Icons.circle_rounded, status.replaceAll('_', ' ')),
+    };
+
+/// Attendance history.
+class StaffAttendanceHistoryScreen extends ConsumerStatefulWidget {
   const StaffAttendanceHistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StaffAttendanceHistoryScreen> createState() => _StaffAttendanceHistoryScreenState();
+}
+
+class _StaffAttendanceHistoryScreenState extends ConsumerState<StaffAttendanceHistoryScreen> {
+  String? _filter;
+
+  static const _filters = [
+    ('All', null),
+    ('Present', 'present'),
+    ('In progress', 'in_progress'),
+    ('Absent', 'absent'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     final history = ref.watch(staffAttendanceHistoryProvider);
-    final primaryColor = const Color(0xFF1A56FF);
-    final textDark = const Color(0xFF0F172A);
-    final textGrey = const Color(0xFF64748B);
-    final successColor = const Color(0xFF10B981);
-    final errorColor = const Color(0xFFEF4444);
-    final warningColor = const Color(0xFFF59E0B);
-    final leaveColor = const Color(0xFF6366F1);
 
-    final tactileCardShadows = [
-      BoxShadow(
-        color: Colors.black.withValues(alpha: 0.04),
-        blurRadius: 16,
-        spreadRadius: 0,
-        offset: const Offset(0, 8),
-      ),
-      BoxShadow(
-        color: Colors.black.withValues(alpha: 0.02),
-        blurRadius: 4,
-        spreadRadius: 0,
-        offset: const Offset(0, 2),
-      ),
-    ];
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF), size: 20),
-          onPressed: () => Navigator.of(context).pop(),
+    return DsPage(
+      title: 'Attendance history',
+      subtitle: 'Your daily check-ins',
+      onBack: () => context.canPop() ? context.pop() : context.go(StaffRoutes.attendance),
+      onRefresh: () async => ref.invalidate(staffAttendanceHistoryProvider),
+      actions: [
+        DsPageAction(
+          icon: Icons.calendar_month_rounded,
+          tooltip: 'Monthly view',
+          onPressed: () => context.push(StaffRoutes.monthlyAttendance),
         ),
-        title: Text(
-          'Attendance History',
-          style: GoogleFonts.libreCaslonText(
-            color: primaryColor,
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_today_outlined, color: Color(0xFF0F172A), size: 20),
-            onPressed: () => context.push(StaffRoutes.monthlyAttendance),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: SafeArea(
-        child: history.when(
-          loading: () => const Center(child: DsLoadingWidget(message: 'Loading history...')),
-          error: (e, _) => DsErrorState(
-            title: 'Failed to load history',
-            message: e.toString(),
-            onRetry: () => ref.invalidate(staffAttendanceHistoryProvider),
-          ),
-          data: (records) {
-            // Dynamically calculate PRESENT and IN-PROGRESS totals — the
-            // backend's real status values are "present" | "in_progress" |
-            // "absent" (see GET /staff/attendance/history), there is no
-            // "late"/"leave" distinction.
-            final presentCount = records.where((r) => r.status == 'present').length;
-            final inProgressCount = records.where((r) => r.status == 'in_progress').length;
+      ],
+      body: dsAsyncBody(
+        history,
+        onRetry: () => ref.invalidate(staffAttendanceHistoryProvider),
+        builder: (records) {
+          final present = records.where((r) => r.status == 'present').length;
+          final inProgress = records.where((r) => r.status == 'in_progress').length;
+          final absent = records.where((r) => r.status == 'absent').length;
+          final shown = _filter == null ? records : records.where((r) => r.status == _filter).toList();
 
-            return Column(
-              children: [
-                Expanded(
-                  child: DsRefreshIndicator(
-                    onRefresh: () async => ref.invalidate(staffAttendanceHistoryProvider),
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                      children: [
-                        // Summary Cards (Two side-by-side metric cards)
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: tactileCardShadows,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'PRESENT',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: textGrey,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      '$presentCount',
-                                      style: GoogleFonts.libreCaslonText(
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w700,
-                                        color: primaryColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: tactileCardShadows,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'IN PROGRESS',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: textGrey,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      '$inProgressCount',
-                                      style: GoogleFonts.libreCaslonText(
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w700,
-                                        color: primaryColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Daily Log List (Stack of tactile cards)
-                        if (records.isEmpty)
-                          const DsEmptyState(
-                            title: 'No attendance records',
-                            message: 'Your attendance history will appear here.',
-                            icon: Icons.history_rounded,
-                          )
-                        else
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: records.length,
-                            separatorBuilder: (_, index) => const SizedBox(height: 16),
-                            itemBuilder: (_, index) {
-                              final record = records[index];
-
-                              // Real backend status values: "present" |
-                              // "in_progress" | "absent" (no "late"/"leave").
-                              String badgeLabel;
-                              Color badgeColor;
-                              switch (record.status) {
-                                case 'present':
-                                  badgeLabel = 'PRESENT';
-                                  badgeColor = successColor;
-                                case 'in_progress':
-                                  badgeLabel = 'IN PROGRESS';
-                                  badgeColor = warningColor;
-                                case 'absent':
-                                  badgeLabel = 'ABSENT';
-                                  badgeColor = errorColor;
-                                default:
-                                  badgeLabel = record.status.toUpperCase();
-                                  badgeColor = leaveColor;
-                              }
-
-                              return Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: tactileCardShadows,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          record.date, // e.g. "Today, 25 Jul 2024" or similar
-                                          style: GoogleFonts.inter(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w600,
-                                            color: textDark,
-                                          ),
-                                        ),
-                                        // Status badge
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: badgeColor.withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            badgeLabel,
-                                            style: GoogleFonts.inter(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w700,
-                                              color: badgeColor,
-                                              letterSpacing: 0.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const Divider(
-                                      color: Color(0xFFF1F5F9),
-                                      height: 24,
-                                      thickness: 1,
-                                    ),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        // In Time detail
-                                        Row(
-                                          children: [
-                                            Icon(Icons.login_rounded, color: textGrey, size: 16),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'In: ${DateFormatter.time(record.checkIn)}',
-                                              style: GoogleFonts.inter(
-                                                fontSize: 13,
-                                                color: textDark,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        // Out Time detail
-                                        Row(
-                                          children: [
-                                            Icon(Icons.logout_rounded, color: textGrey, size: 16),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'Out: ${DateFormatter.time(record.checkOut)}',
-                                              style: GoogleFonts.inter(
-                                                fontSize: 13,
-                                                color: textDark,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
-                ),
-                // Custom Bottom Navigation Bar
-                _buildBottomNavigationBar(context),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavigationBar(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, -4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildBottomNavItem(
-            context: context,
-            icon: Icons.home_outlined,
-            label: 'HOME',
-            isActive: false,
-            onTap: () => context.go(StaffRoutes.home),
-          ),
-          _buildBottomNavItem(
-            context: context,
-            icon: Icons.people,
-            label: 'STAFF',
-            isActive: true,
-            onTap: () {},
-          ),
-          _buildBottomNavItem(
-            context: context,
-            icon: Icons.payments_outlined,
-            label: 'PAYMENTS',
-            isActive: false,
-            onTap: () => context.go(StaffRoutes.salary),
-          ),
-          _buildBottomNavItem(
-            context: context,
-            icon: Icons.person_outline_rounded,
-            label: 'PROFILE',
-            isActive: false,
-            onTap: () => context.go(StaffRoutes.profile),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomNavItem({
-    required BuildContext context,
-    required IconData icon,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    final activeColor = const Color(0xFF1A56FF);
-    final inactiveColor = const Color(0xFF64748B);
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              decoration: BoxDecoration(
-                color: isActive ? activeColor.withValues(alpha: 0.12) : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Icon(
-                icon,
-                color: isActive ? activeColor : inactiveColor,
-                size: 24,
+          return [
+            DsGradientCard(
+              child: Row(
+                children: [
+                  Expanded(child: DsGlassStat(value: '$present', label: 'Present', icon: Icons.check_circle_rounded)),
+                  const SizedBox(width: 10),
+                  Expanded(child: DsGlassStat(value: '$inProgress', label: 'In progress', icon: Icons.timelapse_rounded)),
+                  const SizedBox(width: 10),
+                  Expanded(child: DsGlassStat(value: '$absent', label: 'Absent', icon: Icons.cancel_rounded)),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                color: isActive ? activeColor : inactiveColor,
-                letterSpacing: 0.5,
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 42,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                itemCount: _filters.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => DsChoiceChip(
+                  label: _filters[i].$1,
+                  selected: _filter == _filters[i].$2,
+                  onTap: () => setState(() => _filter = _filters[i].$2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (shown.isEmpty)
+              const DsEmptyBlock(
+                icon: Icons.history_rounded,
+                title: 'No attendance records',
+                message: 'Your attendance history will appear here.',
+              )
+            else
+              for (var i = 0; i < shown.length; i++)
+                StaffAttendanceTile(record: shown[i])
+                    .animate(delay: (40 * i.clamp(0, 10)).ms)
+                    .fadeIn(duration: 280.ms)
+                    .slideX(begin: 0.05, end: 0),
+          ];
+        },
+      ),
+    );
+  }
+}
+
+/// One day's attendance card (date, status, in/out times).
+class StaffAttendanceTile extends StatelessWidget {
+  const StaffAttendanceTile({super.key, required this.record});
+  final AttendanceRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, icon, label) = staffAttendanceStyle(record.status);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: dsCardDecoration(radius: 20),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 5, color: color),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            record.date,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.lightTextPrimary,
+                            ),
+                          ),
+                        ),
+                        DsPill(label, color: color, icon: icon),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(child: _time(Icons.login_rounded, 'In', DateFormatter.time(record.checkIn))),
+                        Expanded(child: _time(Icons.logout_rounded, 'Out', DateFormatter.time(record.checkOut))),
+                      ],
+                    ),
+                    if (record.location != null && record.location!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on_rounded, size: 14, color: AppColors.iconAccent),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              record.location!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.lightTextSecondary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -390,4 +180,21 @@ class StaffAttendanceHistoryScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _time(IconData icon, String label, String value) => Row(
+        children: [
+          Icon(icon, size: 15, color: AppColors.iconAccent),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              '$label  $value',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.lightTextPrimary,
+              ),
+            ),
+          ),
+        ],
+      );
 }

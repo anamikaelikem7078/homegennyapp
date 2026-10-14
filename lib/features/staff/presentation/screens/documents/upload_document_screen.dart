@@ -1,6 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,13 +11,123 @@ import '../../../../../design_system/design_system.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
 
+const _maxFileBytes = 5 * 1024 * 1024;
+
+/// Opens the picker for PDF / JPG / PNG up to 5 MB.
+Future<List<PlatformFile>?> pickStaffDocument(BuildContext context) async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+    withData: kIsWeb,
+  );
+  if (result == null || !context.mounted) return null;
+  if (result.files.any((f) => f.size > _maxFileBytes)) {
+    context.showDsSnackBar('File is larger than 5 MB. Please choose a smaller file.', type: DsSnackBarType.warning);
+    return null;
+  }
+  return result.files;
+}
+
+/// Dashed drop box showing the picked file.
+class StaffFileDropBox extends StatelessWidget {
+  const StaffFileDropBox({super.key, required this.file, required this.onTap, this.onClear});
+  final PlatformFile? file;
+  final VoidCallback onTap;
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final picked = file != null;
+    final isPdf = file?.extension?.toLowerCase() == 'pdf';
+    final sizeKb = file == null ? 0 : (file!.size / 1024).round();
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: CustomPaint(
+        painter: _DashedRRectPainter(color: picked ? AppColors.primary : const Color(0xFFCBD5E1)),
+        child: AnimatedContainer(
+          duration: 250.ms,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+          decoration: BoxDecoration(
+            color: picked ? AppColors.primary.withValues(alpha: 0.05) : Colors.white,
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: AnimatedSwitcher(
+            duration: 250.ms,
+            child: picked
+                ? Row(
+                    key: const ValueKey('file'),
+                    children: [
+                      DsIconTile(isPdf ? Icons.picture_as_pdf_rounded : Icons.image_rounded, size: 52),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              file!.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.lightTextPrimary,
+                              ),
+                            ),
+                            Text(
+                              '$sizeKb KB · tap to change',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.lightTextSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (onClear != null)
+                        IconButton(
+                          tooltip: 'Remove',
+                          onPressed: onClear,
+                          icon: const Icon(Icons.close_rounded, color: AppColors.lightTextSecondary),
+                        ),
+                    ],
+                  )
+                : Column(
+                    key: const ValueKey('empty'),
+                    children: [
+                      const DsIconTile(Icons.cloud_upload_rounded, size: 60)
+                          .animate(onPlay: (c) => c.repeat(reverse: true))
+                          .moveY(begin: -3, end: 3, duration: 1200.ms, curve: Curves.easeInOut),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Tap to choose a file',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.lightTextPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'PDF, JPG or PNG · max 5 MB',
+                        style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Upload a new staff document.
 class StaffUploadDocumentScreen extends ConsumerStatefulWidget {
   const StaffUploadDocumentScreen({super.key});
 
   @override
-  ConsumerState<StaffUploadDocumentScreen> createState() =>
-      _StaffUploadDocumentScreenState();
+  ConsumerState<StaffUploadDocumentScreen> createState() => _StaffUploadDocumentScreenState();
 }
 
 class _StaffUploadDocumentScreenState extends ConsumerState<StaffUploadDocumentScreen> {
@@ -30,12 +142,12 @@ class _StaffUploadDocumentScreenState extends ConsumerState<StaffUploadDocumentS
   // mandatory-document/onboarding checks don't recognize, and it silently
   // fails to satisfy that document slot anywhere despite uploading fine.
   static const _documentTypes = [
-    'Aadhaar Card',
-    'PAN Card',
-    'Passport Size Photo',
-    'Police Verification Certificate',
-    'Address Proof',
-    'Other',
+    ('Aadhaar Card', Icons.badge_rounded),
+    ('PAN Card', Icons.credit_card_rounded),
+    ('Passport Size Photo', Icons.portrait_rounded),
+    ('Police Verification Certificate', Icons.local_police_rounded),
+    ('Address Proof', Icons.home_rounded),
+    ('Other', Icons.description_rounded),
   ];
 
   @override
@@ -45,369 +157,110 @@ class _StaffUploadDocumentScreenState extends ConsumerState<StaffUploadDocumentS
   }
 
   Future<void> _upload() async {
-    if (_pickedFiles.isEmpty) {
-      context.showDsSnackBar(
-        'Please select a document to upload',
-        type: DsSnackBarType.warning,
-      );
-      return;
-    }
     if (_documentType == null) {
-      context.showDsSnackBar(
-        'Please select a document type',
-        type: DsSnackBarType.warning,
-      );
+      context.showDsSnackBar('Please select a document type', type: DsSnackBarType.warning);
       return;
     }
-
+    if (_pickedFiles.isEmpty) {
+      context.showDsSnackBar('Please select a document to upload', type: DsSnackBarType.warning);
+      return;
+    }
     final file = _pickedFiles.first;
-    final name = _nameController.text.trim().isNotEmpty
-        ? _nameController.text.trim()
-        : _documentType!;
+    final name = _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : _documentType!;
 
     setState(() => _isSubmitting = true);
-    final result = await ref.read(staffRepositoryProvider).uploadDocument(
-          name,
-          _documentType!,
-          file,
-        );
+    final result = await ref.read(staffRepositoryProvider).uploadDocument(name, _documentType!, file);
     if (!mounted) return;
     setState(() => _isSubmitting = false);
-
     result.fold(
       onSuccess: (_) {
         ref.invalidate(staffDocumentsProvider);
-        context.showDsSnackBar(
-          'Document uploaded successfully',
-          type: DsSnackBarType.success,
-        );
+        context.showDsSnackBar('Document uploaded successfully', type: DsSnackBarType.success);
         context.go(StaffRoutes.documents);
       },
-      onError: (failure) {
-        context.showDsSnackBar(failure.message, type: DsSnackBarType.error);
-      },
+      onError: (failure) => context.showDsSnackBar(failure.message, type: DsSnackBarType.error),
     );
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'xls', 'xlsx'],
-      withData: kIsWeb,
-    );
-    if (result != null) {
-      setState(() {
-        _pickedFiles = result.files;
-      });
-    }
+    final files = await pickStaffDocument(context);
+    if (files != null && mounted) setState(() => _pickedFiles = files);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF)),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            }
-          },
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final ready = _documentType != null && _pickedFiles.isNotEmpty;
+
+    return DsPage(
+      title: 'Upload document',
+      subtitle: 'Submit a new file for review',
+      onBack: () => context.canPop() ? context.pop() : context.go(StaffRoutes.documents),
+      bottom: DsGradientButton(
+        label: 'Upload document',
+        icon: Icons.cloud_upload_rounded,
+        isLoading: _isSubmitting,
+        onPressed: _isSubmitting || !ready ? null : _upload,
+      ),
+      body: [
+        const DsSection('1. Document type', top: 4),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            Text(
-              'Upload Document',
-              style: GoogleFonts.libreCaslonText(
-                color: const Color(0xFF1A56FF),
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
+            for (final (type, icon) in _documentTypes)
+              DsChoiceChip(
+                label: type,
+                icon: icon,
+                selected: _documentType == type,
+                onTap: () => setState(() => _documentType = type),
               ),
-            ),
-            Text(
-              'Submit a new file for review',
-              style: GoogleFonts.inter(
-                color: const Color(0xFF64748B),
-                fontSize: 12,
-              ),
-            ),
           ],
         ),
-        centerTitle: false,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              children: [
-                // Input Section
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFF1F5F9)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Document type',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            isExpanded: true,
-                            hint: Text(
-                              'Select type',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: const Color(0xFF0F172A),
-                              ),
-                            ),
-                            value: _documentType,
-                            icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF475569)),
-                            items: _documentTypes.map((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(
-                                  value,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    color: const Color(0xFF0F172A),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (newValue) {
-                              setState(() {
-                                _documentType = newValue;
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Document name (optional)',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: TextField(
-                          controller: _nameController,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            color: const Color(0xFF0F172A),
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'e.g. Aadhaar Card front',
-                            hintStyle: GoogleFonts.inter(
-                              fontSize: 14,
-                              color: const Color(0xFF94A3B8),
-                            ),
-                            prefixIcon: const Icon(Icons.badge_outlined, color: Color(0xFF475569)),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                
-                // Select File Section
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFF1F5F9)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Select file',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      GestureDetector(
-                        onTap: _pickFile,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: CustomPaint(
-                            painter: _DashedRectPainter(color: const Color(0xFFCBD5E1)),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    Icons.upload_file,
-                                    size: 32,
-                                    color: Color(0xFF1A56FF),
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _pickedFiles.isNotEmpty ? _pickedFiles.first.name : 'Upload document',
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.libreCaslonText(
-                                    fontSize: 18,
-                                    color: const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'PDF, DOC, XLS\nsupported (Max 10MB)',
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    color: const Color(0xFF94A3B8),
-                                    height: 1.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 40),
-                
-                // Action Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: _isSubmitting ? null : _upload,
-                    icon: _isSubmitting 
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.cloud_upload_outlined, color: Colors.white, size: 20),
-                    label: Text(
-                      'Upload Document',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1A56FF),
-                      disabledBackgroundColor: const Color(0xFF94A3B8),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                
-                // Footer
-                Text(
-                  'HomeGenny v2.4 • End-to-end Encrypted Submission',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: const Color(0xFF94A3B8),
-                  ),
-                ),
-                const SizedBox(height: 40),
-              ],
-            ),
-          ),
-        ],
-      ),
+        const DsSection('2. Name'),
+        DsLabeledField(
+          label: 'Document name',
+          optional: true,
+          controller: _nameController,
+          icon: Icons.edit_rounded,
+          hint: 'e.g. Aadhaar Card front',
+        ),
+        const DsSection('3. File'),
+        StaffFileDropBox(
+          file: _pickedFiles.isEmpty ? null : _pickedFiles.first,
+          onTap: _pickFile,
+          onClear: () => setState(() => _pickedFiles = []),
+        ),
+        const SizedBox(height: 16),
+        const DsNote(
+          tone: DsNoteTone.success,
+          title: 'Secure upload',
+          text: 'Files are encrypted and only seen by the HomeGenny verification team.',
+        ),
+      ],
     );
   }
 }
 
-class _DashedRectPainter extends CustomPainter {
+class _DashedRRectPainter extends CustomPainter {
+  _DashedRRectPainter({required this.color});
   final Color color;
-  _DashedRectPainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = color
-      ..strokeWidth = 1.5
+      ..strokeWidth = 1.6
       ..style = PaintingStyle.stroke;
-
-    const dashWidth = 6.0;
-    const dashSpace = 4.0;
-    
-    // Top border
-    double startX = 0;
-    while (startX < size.width) {
-      canvas.drawLine(Offset(startX, 0), Offset(startX + dashWidth, 0), paint);
-      startX += dashWidth + dashSpace;
-    }
-    
-    // Right border
-    double startY = 0;
-    while (startY < size.height) {
-      canvas.drawLine(Offset(size.width, startY), Offset(size.width, startY + dashWidth), paint);
-      startY += dashWidth + dashSpace;
-    }
-    
-    // Bottom border
-    startX = size.width;
-    while (startX > 0) {
-      canvas.drawLine(Offset(startX, size.height), Offset(startX - dashWidth, size.height), paint);
-      startX -= dashWidth + dashSpace;
-    }
-    
-    // Left border
-    startY = size.height;
-    while (startY > 0) {
-      canvas.drawLine(Offset(0, startY), Offset(0, startY - dashWidth), paint);
-      startY -= dashWidth + dashSpace;
+    final path = Path()..addRRect(RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(22)));
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        canvas.drawPath(metric.extractPath(d, d + 7), paint);
+        d += 12;
+      }
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DashedRRectPainter old) => old.color != color;
 }

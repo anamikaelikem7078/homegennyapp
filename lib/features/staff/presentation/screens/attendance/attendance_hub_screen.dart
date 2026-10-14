@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,7 +11,9 @@ import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
+import 'attendance_history_screen.dart';
 
+/// Attendance tab.
 class StaffAttendanceHubScreen extends ConsumerWidget {
   const StaffAttendanceHubScreen({super.key});
 
@@ -17,263 +21,209 @@ class StaffAttendanceHubScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final today = ref.watch(staffTodayAttendanceProvider);
     final deployment = ref.watch(staffDeploymentProvider);
+    final history = ref.watch(staffAttendanceHistoryProvider);
+    final records = history.valueOrNull ?? const <AttendanceRecord>[];
     // Attendance can only be marked once the staff member's placement with a
     // client has actually been confirmed — before that there's no work site
     // to check in against. Treat a still-loading/errored deployment as "not
     // confirmed yet" rather than letting the toggle through optimistically.
     final placementConfirmed = deployment.valueOrNull?.hasActivePlacement ?? false;
+    final userName = ref.watch(authProvider).user?.name ?? 'You';
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: true,
-        title: Column(
-          children: [
-            Text(
-              'Attendance',
-              style: GoogleFonts.libreCaslonText(
-                color: const Color(0xFF0F172A),
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Track your daily presence',
-              style: GoogleFonts.libreCaslonText(
-                color: const Color(0xFF64748B),
-                fontSize: 14,
-                fontStyle: FontStyle.italic,
-              ),
+    final worked = records.where((r) => r.status != 'absent').length;
+    final consistency = records.isEmpty ? null : worked / records.length;
+
+    return DsPage(
+      title: 'Attendance',
+      subtitle: 'Track your daily presence',
+      showBack: false,
+      extraBottomPadding: 90,
+      onRefresh: () async {
+        ref.invalidate(staffTodayAttendanceProvider);
+        ref.invalidate(staffAttendanceHistoryProvider);
+        ref.invalidate(staffDeploymentProvider);
+      },
+      actions: [
+        DsPageAction(
+          icon: Icons.calendar_month_rounded,
+          tooltip: 'Monthly view',
+          onPressed: () => context.push(StaffRoutes.monthlyAttendance),
+        ),
+      ],
+      body: [
+        _ConsistencyCard(consistency: consistency, days: records.length),
+        const SizedBox(height: 16),
+        ...dsAsyncBody(
+          today,
+          onRetry: () => ref.invalidate(staffTodayAttendanceProvider),
+          builder: (record) => [
+            _TodayCard(
+              userName: userName,
+              record: record,
+              placementConfirmed: placementConfirmed,
+              onTrigger: () {
+                if (record != null && record.checkIn != null) {
+                  context.push(StaffRoutes.checkOut);
+                } else if (!placementConfirmed) {
+                  context.showDsSnackBar(
+                    'Attendance unlocks once your placement with a client is confirmed.',
+                    type: DsSnackBarType.warning,
+                  );
+                } else {
+                  context.push(StaffRoutes.checkIn);
+                }
+              },
             ),
           ],
         ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const SizedBox(height: 16),
-          // Integrated Performance Hub
-          _PerformanceGaugeCard(),
-          const SizedBox(height: 32),
+        if (records.isNotEmpty) ...[
+          const DsSection('Recent days'),
+          _RecentStrip(records: records.take(7).toList().reversed.toList()),
+        ],
+        DsSection(
+          'History',
+          trailing: TextButton(
+            onPressed: () => context.push(StaffRoutes.attendanceHistory),
+            child: Text('See all', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+          ),
+        ),
+        if (history.isLoading && records.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (records.isEmpty)
+          const DsEmptyBlock(
+            icon: Icons.history_rounded,
+            title: 'No history yet',
+            message: 'Your check-ins will show up here.',
+          )
+        else
+          for (final r in records.take(3)) StaffAttendanceTile(record: r),
+      ],
+    );
+  }
+}
 
-          // Sleek Precision Actions
-          today.when(
-            data: (record) {
-              final authState = ref.watch(authProvider);
-              final userName = authState.user?.name ?? 'Rajesh Kumar';
-              return _TactileAttendanceToggle(
-                userName: userName,
-                record: record,
-                placementConfirmed: placementConfirmed,
-                onTrigger: () {
-                  if (record != null && record.checkIn != null) {
-                    context.push(StaffRoutes.checkOut);
-                  } else if (!placementConfirmed) {
-                    context.showDsSnackBar(
-                      'Attendance unlocks once your placement with a client is confirmed.',
-                      type: DsSnackBarType.warning,
-                    );
-                  } else {
-                    context.push(StaffRoutes.checkIn);
-                  }
-                },
-              );
-            },
-            loading: () => const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: CircularProgressIndicator(),
-              ),
-            ),
-            error: (err, stack) => Center(
-              child: Text(
-                'Failed to load attendance: $err',
-                style: GoogleFonts.inter(color: Colors.red),
+class _ConsistencyCard extends StatelessWidget {
+  const _ConsistencyCard({required this.consistency, required this.days});
+  final double? consistency;
+  final int days;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = consistency;
+    final label = c == null
+        ? 'Start your first shift'
+        : c >= 0.9
+            ? 'Exceptional consistency'
+            : c >= 0.75
+                ? 'Good consistency'
+                : 'Room to improve';
+    return DsGradientCard(
+      child: Row(
+        children: [
+          SizedBox(
+            width: 96,
+            height: 96,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: c ?? 0),
+              duration: 1100.ms,
+              curve: Curves.easeOutCubic,
+              builder: (_, v, _) => Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox.expand(
+                    child: CircularProgressIndicator(
+                      value: v,
+                      strokeWidth: 9,
+                      strokeCap: StrokeCap.round,
+                      backgroundColor: Colors.white.withValues(alpha: 0.2),
+                      color: AppColors.sunYellow,
+                    ),
+                  ),
+                  Text(
+                    c == null ? '—' : '${(v * 100).round()}%',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 32),
-
-          // Tech Highlight Milestone
-          _PerfectWeekCard(),
-          const SizedBox(height: 32),
-
-          // Condensed Activity Log
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'HISTORY',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF64748B),
-                  letterSpacing: 1.5,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const DsGlassPill('CONSISTENCY', icon: Icons.insights_rounded),
+                const SizedBox(height: 10),
+                Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
                 ),
-              ),
-              GestureDetector(
-                onTap: () => context.push(StaffRoutes.attendanceHistory),
-                child: Text(
-                  'Archive',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
+                Text(
+                  days == 0 ? 'No days tracked yet' : 'Across your last $days tracked days',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1A56FF),
+                    color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
-          Consumer(
-            builder: (context, ref, _) {
-              final history = ref.watch(staffAttendanceHistoryProvider);
-              return history.when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-                error: (err, _) => Text(
-                  'Failed to load history',
-                  style: GoogleFonts.inter(color: Colors.red),
-                ),
-                data: (records) {
-                  if (records.isEmpty) {
-                    return Text(
-                      'No attendance history yet',
-                      style: GoogleFonts.inter(color: const Color(0xFF64748B)),
-                    );
-                  }
-                  final recent = records.take(3).toList();
-                  return Column(
-                    children: [
-                      for (var i = 0; i < recent.length; i++) ...[
-                        if (i > 0) const SizedBox(height: 12),
-                        Builder(builder: (context) {
-                          final r = recent[i];
-                          final isPresent = r.status == 'present';
-                          final isInProgress = r.status == 'in_progress';
-                          final subtitle = r.checkOut != null
-                              ? 'In: ${DateFormatter.time(r.checkIn, fallback: '—')} · Out: ${DateFormatter.time(r.checkOut)}'
-                              : r.checkIn != null
-                                  ? 'In: ${DateFormatter.time(r.checkIn)}'
-                                  : 'Absent';
-                          return _HistoryLogItem(
-                            title: r.date,
-                            subtitle: subtitle,
-                            tagLabel: r.status.toUpperCase(),
-                            tagColor: isPresent
-                                ? const Color(0xFF1A56FF)
-                                : isInProgress
-                                    ? const Color(0xFFF59E0B)
-                                    : const Color(0xFFEF4444),
-                            tagBgColor: isPresent
-                                ? const Color(0xFF1A56FF).withOpacity(0.1)
-                                : isInProgress
-                                    ? const Color(0xFFF59E0B).withOpacity(0.1)
-                                    : const Color(0xFFFEE2E2),
-                            icon: Icons.calendar_today_outlined,
-                          );
-                        }),
-                      ],
-                    ],
-                  );
-                },
-              );
-            },
-          ),
-          const SizedBox(height: 32),
-
-          const SizedBox(height: 48),
         ],
       ),
     );
   }
 }
 
-class _PerformanceGaugeCard extends StatelessWidget {
+class _RecentStrip extends StatelessWidget {
+  const _RecentStrip({required this.records});
+  final List<AttendanceRecord> records;
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 200,
-          height: 200,
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A56FF),
-            borderRadius: BorderRadius.circular(32),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1A56FF).withOpacity(0.2),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Center(
-            child: Container(
-              width: 160,
-              height: 160,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '94%',
-                    style: GoogleFonts.libreCaslonText(
-                      fontSize: 48,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF1A56FF),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+      decoration: dsCardDecoration(),
+      child: Row(
+        children: [
+          for (var i = 0; i < records.length; i++)
+            Expanded(
+              child: Builder(builder: (context) {
+                final (color, icon, _) = staffAttendanceStyle(records[i].status);
+                final d = DateTime.tryParse(records[i].date);
+                const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                return Column(
+                  children: [
+                    Text(
+                      d == null ? '${i + 1}' : days[d.weekday - 1],
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.lightTextSecondary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'CONSISTENCY',
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF64748B),
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(color: color.withValues(alpha: 0.14), shape: BoxShape.circle),
+                      child: Icon(icon, size: 18, color: color),
+                    ).animate(delay: (60 * i).ms).scaleXY(begin: 0.4, end: 1, curve: Curves.easeOutBack),
+                  ],
+                );
+              }),
             ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.check_circle_outline,
-              color: Color(0xFF1A56FF),
-              size: 16,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'Exceptional status maintained',
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                color: const Color(0xFF64748B),
-              ),
-            ),
-          ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-class _TactileAttendanceToggle extends StatefulWidget {
-  const _TactileAttendanceToggle({
+class _TodayCard extends StatefulWidget {
+  const _TodayCard({
     required this.userName,
     required this.record,
     required this.placementConfirmed,
@@ -286,489 +236,275 @@ class _TactileAttendanceToggle extends StatefulWidget {
   final VoidCallback onTrigger;
 
   @override
-  State<_TactileAttendanceToggle> createState() =>
-      _TactileAttendanceToggleState();
+  State<_TodayCard> createState() => _TodayCardState();
 }
 
-class _TactileAttendanceToggleState extends State<_TactileAttendanceToggle> {
-  double _dragAlignment = -1.0;
-  bool _isTriggered = false;
+class _TodayCardState extends State<_TodayCard> {
+  double _drag = 0; // 0..1
+  bool _triggered = false;
 
   @override
-  void didUpdateWidget(covariant _TactileAttendanceToggle oldWidget) {
+  void didUpdateWidget(covariant _TodayCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.record != widget.record) {
-      setState(() {
-        _dragAlignment = -1.0;
-        _isTriggered = false;
+    if (oldWidget.record != widget.record) _reset();
+  }
+
+  void _reset() => setState(() {
+        _drag = 0;
+        _triggered = false;
       });
-    }
+
+  void _fire() {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _drag = 1;
+      _triggered = true;
+    });
+    widget.onTrigger();
+    // Slide back if the user returns without finishing.
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (mounted) _reset();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF1A56FF);
-    final textDark = const Color(0xFF0F172A);
-    final textGrey = const Color(0xFF64748B);
-
     final record = widget.record;
-    final isCheckedIn = record != null && record.checkIn != null;
-    final isCheckedOut = record != null && record.checkOut != null;
+    final checkedIn = record != null && record.checkIn != null;
+    final checkedOut = record != null && record.checkOut != null;
+    final locked = !checkedIn && !checkedOut && !widget.placementConfirmed;
 
-    String statusText = 'Checked Out';
-    String actionPrompt = 'Slide right to Check In';
-    IconData actionIcon = Icons.login_rounded;
-    Color statusColor = const Color(0xFFEF4444);
-
-    if (isCheckedIn && !isCheckedOut) {
-      statusText = 'Checked In';
-      actionPrompt = 'Slide right to Check Out';
-      actionIcon = Icons.logout_rounded;
-      statusColor = const Color(0xFF10B981);
-    } else if (isCheckedOut) {
-      statusText = 'Shift Completed';
-      actionPrompt = 'Work Completed';
-      statusColor = const Color(0xFF64748B);
-    }
-
-    final isLocked = !isCheckedIn && !isCheckedOut && !widget.placementConfirmed;
-    if (isLocked) {
-      statusText = 'Placement Pending';
-      actionPrompt = 'Attendance unlocks once placement is confirmed';
-      actionIcon = Icons.lock_outline_rounded;
-      statusColor = const Color(0xFF64748B);
-    }
-
-    final checkInTime = DateFormatter.timestamp(record?.checkIn);
-    final checkOutTime = DateFormatter.timestamp(record?.checkOut);
+    final (statusText, statusColor, prompt, actionIcon) = locked
+        ? ('Placement pending', AppColors.lightTextSecondary, 'Unlocks once placement is confirmed', Icons.lock_rounded)
+        : checkedOut
+            ? ('Shift completed', AppColors.success, 'Work completed', Icons.check_rounded)
+            : checkedIn
+                ? ('Checked in', AppColors.success, 'Slide to check out', Icons.logout_rounded)
+                : ('Not checked in', AppColors.error, 'Slide to check in', Icons.login_rounded);
 
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.01),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.all(16),
+      decoration: dsCardDecoration(radius: 26),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Row 1: Profile details & Status Badge
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              DsInitialsAvatar(name: widget.userName, size: 46),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       widget.userName,
-                      style: GoogleFonts.libreCaslonText(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: textDark,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.lightTextPrimary,
                       ),
                     ),
-                    const SizedBox(height: 4),
                     Text(
-                      'Active Care Specialist',
-                      style: GoogleFonts.inter(fontSize: 12, color: textGrey),
+                      'Today',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
                     ),
                   ],
                 ),
               ),
-              // Status Indicator Badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: statusColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      statusText,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: statusColor,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              DsPill(statusText, color: statusColor),
             ],
           ),
-
-          const SizedBox(height: 24),
-          const Divider(color: Color(0xFFF1F5F9), height: 1),
-          const SizedBox(height: 24),
-
-          // Row 2: Double precision time log metrics
+          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      'CHECK IN',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: textGrey,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      checkInTime,
-                      style: GoogleFonts.robotoMono(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: isCheckedIn ? primaryColor : textGrey,
-                      ),
-                    ),
-                  ],
+                child: _TimeBox(
+                  label: 'Check in',
+                  value: DateFormatter.timestamp(record?.checkIn),
+                  active: checkedIn,
+                  icon: Icons.login_rounded,
                 ),
               ),
-              Container(width: 1.5, height: 40, color: const Color(0xFFF1F5F9)),
+              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  children: [
-                    Text(
-                      'CHECK OUT',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: textGrey,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      checkOutTime,
-                      style: GoogleFonts.robotoMono(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: isCheckedOut ? primaryColor : textGrey,
-                      ),
-                    ),
-                  ],
+                child: _TimeBox(
+                  label: 'Check out',
+                  value: DateFormatter.timestamp(record?.checkOut),
+                  active: checkedOut,
+                  icon: Icons.logout_rounded,
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 32),
-
-          // Row 3: Trending Slide to confirm Toggle Switch
-          if (isCheckedOut) ...[
+          const SizedBox(height: 16),
+          if (checkedOut)
             Container(
-              height: 56,
+              height: 58,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFF10B981),
-                borderRadius: BorderRadius.circular(28),
+                gradient: const LinearGradient(colors: [Color(0xFF34D399), Color(0xFF059669)]),
+                borderRadius: BorderRadius.circular(30),
               ),
-              child: Center(
-                child: Text(
-                  'Shift Completed Today',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.celebration_rounded, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Shift completed today',
+                    style: GoogleFonts.plusJakartaSans(fontSize: 14.5, fontWeight: FontWeight.w800, color: Colors.white),
                   ),
-                ),
+                ],
               ),
-            ),
-          ] else ...[
+            ).animate().fadeIn().scaleXY(begin: 0.95, end: 1)
+          else
             LayoutBuilder(
-              builder: (context, constraints) {
-                final maxDragWidth =
-                    constraints.maxWidth - 56.0; // Subtract toggle button width
-                return Container(
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  child: Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [
-                      // Action Prompt Text
-                      Center(
-                        child: Text(
-                          actionPrompt,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: textGrey,
+              builder: (context, c) {
+                const knob = 52.0;
+                final track = c.maxWidth - knob - 6;
+                return GestureDetector(
+                  onTap: locked ? widget.onTrigger : null,
+                  onHorizontalDragUpdate: locked || _triggered
+                      ? null
+                      : (d) => setState(() => _drag = (_drag + d.primaryDelta! / track).clamp(0.0, 1.0)),
+                  onHorizontalDragEnd: locked || _triggered
+                      ? null
+                      : (_) {
+                          if (_drag > 0.8) {
+                            _fire();
+                          } else {
+                            setState(() => _drag = 0);
+                          }
+                        },
+                  child: Container(
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: locked ? AppColors.lightSurfaceVariant : AppColors.primaryContainer,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.centerLeft,
+                      children: [
+                        // Progress fill.
+                        AnimatedContainer(
+                          duration: _drag == 0 ? 250.ms : Duration.zero,
+                          width: knob + 6 + track * _drag,
+                          decoration: BoxDecoration(
+                            color: locked ? Colors.transparent : AppColors.primary.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(30),
                           ),
                         ),
-                      ),
-                      // The slide target area — locked (placement not yet
-                      // confirmed) disables the drag entirely and a tap just
-                      // surfaces why via widget.onTrigger's snackbar.
-                      GestureDetector(
-                        onTap: isLocked ? widget.onTrigger : null,
-                        onHorizontalDragUpdate: isLocked
-                            ? null
-                            : (details) {
-                                if (_isTriggered) return;
-
-                                // Calculate delta percentage
-                                final delta =
-                                    details.primaryDelta! / maxDragWidth;
-                                setState(() {
-                                  _dragAlignment +=
-                                      delta *
-                                      2.0; // alignment ranges from -1.0 to 1.0
-                                  if (_dragAlignment < -1.0) {
-                                    _dragAlignment = -1.0;
-                                  }
-                                  if (_dragAlignment > 1.0) {
-                                    _dragAlignment = 1.0;
-                                  }
-                                });
-                              },
-                        onHorizontalDragEnd: isLocked
-                            ? null
-                            : (details) {
-                                if (_isTriggered) return;
-
-                                if (_dragAlignment > 0.8) {
-                                  // Successfully completed slide confirm
-                                  setState(() {
-                                    _dragAlignment = 1.0;
-                                    _isTriggered = true;
-                                  });
-                                  widget.onTrigger();
-                                } else {
-                                  // Snap back
-                                  setState(() {
-                                    _dragAlignment = -1.0;
-                                  });
-                                }
-                              },
-                        child: Align(
-                          alignment: Alignment(_dragAlignment, 0.0),
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: knob),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    prompt,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: locked ? AppColors.lightTextSecondary : AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                                if (!locked) ...[
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.keyboard_double_arrow_right_rounded, size: 18, color: AppColors.primary)
+                                      .animate(onPlay: (c) => c.repeat())
+                                      .moveX(begin: -3, end: 4, duration: 900.ms)
+                                      .fadeOut(begin: 1, duration: 900.ms),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        AnimatedPositioned(
+                          duration: _drag == 0 ? 250.ms : Duration.zero,
+                          curve: Curves.easeOutBack,
+                          left: 3 + track * _drag,
                           child: Container(
-                            width: 50,
-                            height: 50,
-                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                            width: knob,
+                            height: knob,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: isLocked
-                                  ? const Color(0xFF94A3B8)
-                                  : primaryColor,
+                              gradient: locked
+                                  ? null
+                                  : const LinearGradient(colors: [AppColors.primaryLight, AppColors.primaryDark]),
+                              color: locked ? const Color(0xFF94A3B8) : null,
                               boxShadow: [
                                 BoxShadow(
-                                  color:
-                                      (isLocked
-                                              ? const Color(0xFF94A3B8)
-                                              : primaryColor)
-                                          .withOpacity(0.3),
-                                  blurRadius: 8,
+                                  color: (locked ? const Color(0xFF94A3B8) : AppColors.primary).withValues(alpha: 0.35),
+                                  blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
                               ],
                             ),
-                            child: Icon(
-                              actionIcon,
-                              color: Colors.white,
-                              size: 20,
-                            ),
+                            child: Icon(actionIcon, color: Colors.white, size: 22),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               },
             ),
-          ],
         ],
       ),
     );
   }
 }
 
-class _PerfectWeekCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B), // Dark container
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1E293B).withOpacity(0.3),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A56FF).withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.stars_rounded,
-                  color: Color(0xFF60A5FA),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Perfect Week',
-                  style: GoogleFonts.libreCaslonText(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.white,
-                  size: 16,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Seamless check-ins across all shifts since Monday.',
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              color: const Color(0xFF94A3B8),
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HistoryLogItem extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String tagLabel;
-  final Color tagColor;
-  final Color tagBgColor;
+class _TimeBox extends StatelessWidget {
+  const _TimeBox({required this.label, required this.value, required this.active, required this.icon});
+  final String label;
+  final String value;
+  final bool active;
   final IconData icon;
 
-  const _HistoryLogItem({
-    required this.title,
-    required this.subtitle,
-    required this.tagLabel,
-    required this.tagColor,
-    required this.tagBgColor,
-    required this.icon,
-  });
-
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: active ? AppColors.primary.withValues(alpha: 0.06) : AppColors.lightBackground,
+        borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: const Color(0xFF64748B), size: 20),
-          ),
-          const SizedBox(width: 16),
+          Icon(icon, size: 18, color: active ? AppColors.iconAccent : AppColors.lightTextHint),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF0F172A),
+                    color: AppColors.lightTextSecondary,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: const Color(0xFF64748B),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: active ? AppColors.lightTextPrimary : AppColors.lightTextHint,
+                    ),
                   ),
                 ),
               ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: tagBgColor,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              tagLabel,
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: tagColor,
-                letterSpacing: 1,
-              ),
             ),
           ),
         ],

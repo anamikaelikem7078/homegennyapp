@@ -1,75 +1,82 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../../../core/di/injection.dart';
+import '../../../../../core/maps/location_service.dart';
 import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
 
-/// Check-out screen with today's attendance summary and Google Maps.
+/// Check-out screen: live map (top) + today's summary and CTA (bottom panel).
 class StaffCheckOutScreen extends ConsumerStatefulWidget {
   const StaffCheckOutScreen({super.key});
 
   @override
-  ConsumerState<StaffCheckOutScreen> createState() =>
-      _StaffCheckOutScreenState();
+  ConsumerState<StaffCheckOutScreen> createState() => _StaffCheckOutScreenState();
 }
 
 class _StaffCheckOutScreenState extends ConsumerState<StaffCheckOutScreen> {
+  static const _fallbackPosition = LatLng(28.6139, 77.2090);
+
   GoogleMapController? _mapController;
   bool _verifyingGps = false;
   bool _gpsVerified = false;
   bool _isSubmitting = false;
-  String _selectedAddress = 'Green Park, Delhi';
-  LatLng _markerPosition = const LatLng(28.6139, 77.2090);
+  String _selectedAddress = 'Locating…';
+  LatLng _markerPosition = _fallbackPosition;
 
   @override
   void initState() {
     super.initState();
-    _simulateGpsVerification();
+    _verifyLocation();
   }
 
-  Future<void> _simulateGpsVerification() async {
+  Future<void> _verifyLocation() async {
     setState(() => _verifyingGps = true);
-    await Future<void>.delayed(const Duration(seconds: 1));
+    try {
+      final position = await ref.read(locationServiceProvider).getCurrentPosition();
+      if (!mounted) return;
+      final latLng = LatLng(position.latitude, position.longitude);
+      setState(() {
+        _markerPosition = latLng;
+        _verifyingGps = false;
+        _gpsVerified = true;
+      });
+      _mapController?.animateCamera(CameraUpdate.newLatLngZoom(latLng, 16));
+      await _updateAddressFromLatLng(latLng);
+    } on LocationServiceException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _verifyingGps = false;
+        _gpsVerified = false;
+        _selectedAddress = e.message;
+      });
+    }
+  }
+
+  // The check-out location is always the device's real GPS fix — the map is
+  // for looking only, so a tap can't move where attendance is recorded.
+  Future<void> _updateAddressFromLatLng(LatLng latLng) async {
+    setState(() => _selectedAddress = 'Finding the address…');
+    final label = await ref.read(locationServiceProvider).reverseGeocodeAddress(
+          latitude: latLng.latitude,
+          longitude: latLng.longitude,
+        );
     if (!mounted) return;
     setState(() {
-      _verifyingGps = false;
-      _gpsVerified = true;
-    });
-  }
-
-  void _onMapTap(LatLng latLng) {
-    setState(() {
-      _markerPosition = latLng;
-    });
-    _mapController?.animateCamera(CameraUpdate.newLatLng(latLng));
-    _updateAddressFromLatLng(latLng);
-  }
-
-  void _updateAddressFromLatLng(LatLng latLng) {
-    // Determine quadrant relative to Delhi center (28.6139, 77.2090)
-    String selectedAddress = 'Green Park, Delhi';
-    if (latLng.latitude > 28.6139 && latLng.longitude < 77.2090) {
-      selectedAddress = 'Safdarjung Enclave, Delhi';
-    } else if (latLng.latitude <= 28.6139 && latLng.longitude >= 77.2090) {
-      selectedAddress = 'Hauz Khas, Delhi';
-    } else if (latLng.latitude > 28.6139 && latLng.longitude >= 77.2090) {
-      selectedAddress = 'AIIMS Campus, Delhi';
-    } else if (latLng.latitude <= 28.6139 && latLng.longitude < 77.2090) {
-      selectedAddress = 'Deer Park, Delhi';
-    }
-    setState(() {
-      _selectedAddress = selectedAddress;
+      _selectedAddress = label ?? '${latLng.latitude.toStringAsFixed(5)}, ${latLng.longitude.toStringAsFixed(5)}';
     });
   }
 
   Future<void> _checkOut() async {
     if (!_gpsVerified) return;
-
+    HapticFeedback.mediumImpact();
     setState(() => _isSubmitting = true);
     final result = await ref.read(staffRepositoryProvider).checkOut(
           latitude: _markerPosition.latitude,
@@ -77,7 +84,6 @@ class _StaffCheckOutScreenState extends ConsumerState<StaffCheckOutScreen> {
         );
     if (!mounted) return;
     setState(() => _isSubmitting = false);
-
     result.fold(
       onSuccess: (data) {
         ref.invalidate(staffTodayAttendanceProvider);
@@ -86,459 +92,335 @@ class _StaffCheckOutScreenState extends ConsumerState<StaffCheckOutScreen> {
         context.showDsSnackBar('Checked out successfully', type: DsSnackBarType.success);
         context.go(StaffRoutes.attendance);
       },
-      onError: (failure) {
-        context.showDsSnackBar(failure.message, type: DsSnackBarType.error);
-      },
+      onError: (failure) => context.showDsSnackBar(failure.message, type: DsSnackBarType.error),
     );
   }
+
+  void _back() => context.canPop() ? context.pop() : context.go(StaffRoutes.attendance);
 
   @override
   Widget build(BuildContext context) {
     final today = ref.watch(staffTodayAttendanceProvider);
-    final primaryColor = const Color(0xFF1A56FF);
-    final textDark = const Color(0xFF0F172A);
-    final textGrey = const Color(0xFF64748B);
 
-    final floatCardShadows = [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.06),
-        blurRadius: 20,
-        offset: const Offset(0, 10),
-      ),
-      BoxShadow(
-        color: Colors.black.withOpacity(0.02),
-        blurRadius: 4,
-        offset: const Offset(0, 2),
-      ),
-    ];
+    // Loading / error / nothing-to-check-out states use the standard page.
+    final record = today.valueOrNull;
+    if (!today.hasValue || record == null || record.checkOut != null) {
+      return DsPage(
+        title: 'Check out',
+        subtitle: 'End your work day',
+        onBack: _back,
+        body: dsAsyncBody(
+          today,
+          onRetry: () => ref.invalidate(staffTodayAttendanceProvider),
+          builder: (r) => [
+            if (r == null)
+              const DsEmptyBlock(
+                icon: Icons.schedule_rounded,
+                title: 'No check-in found',
+                message: 'You need to check in before checking out.',
+              )
+            else
+              DsEmptyBlock(
+                icon: Icons.check_circle_rounded,
+                color: AppColors.success,
+                title: 'Already checked out',
+                message: 'You checked out at ${DateFormatter.timestamp(r.checkOut)}',
+                action: DsGradientButton(
+                  label: 'Back to attendance',
+                  isExpanded: false,
+                  onPressed: () => context.go(StaffRoutes.attendance),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final checkInTime = record.checkIn != null ? DateFormatter.timestamp(record.checkIn) : '—';
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      body: today.when(
-        loading: () => const Center(child: DsLoadingWidget(message: 'Loading...')),
-        error: (e, _) => DsErrorState(
-          title: 'Failed to load',
-          message: e.toString(),
-          onRetry: () => ref.invalidate(staffTodayAttendanceProvider),
-        ),
-        data: (record) {
-          if (record == null) {
-            return const DsEmptyState(
-              title: 'No check-in found',
-              message: 'You need to check in before checking out.',
-              icon: Icons.schedule_rounded,
-            );
-          }
-          if (record.checkOut != null) {
-            return DsEmptyState(
-              title: 'Already checked out',
-              message: 'You checked out at ${DateFormatter.timestamp(record.checkOut)}',
-              icon: Icons.check_circle_outline_rounded,
-              actionLabel: 'Back to attendance',
-              onAction: () => context.go(StaffRoutes.attendance),
-            );
-          }
-
-          final checkInTime = record.checkIn != null ? DateFormatter.timestamp(record.checkIn) : '09:02 AM';
-
-          return Stack(
-            children: [
-              // 1. Live Immersive Google Map background
-              Positioned.fill(
-                child: GoogleMap(
-                  initialCameraPosition: const CameraPosition(
-                    target: LatLng(28.6139, 77.2090),
-                    zoom: 14.5,
-                  ),
-                  onMapCreated: (controller) {
-                    _mapController = controller;
-                  },
-                  onTap: _onMapTap,
-                  zoomControlsEnabled: false,
-                  myLocationButtonEnabled: false,
-                  myLocationEnabled: false,
-                ),
-              ),
-
-              // 2. Translucent overlay or visual depth elements
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white.withOpacity(0.4),
-                        Colors.transparent,
-                        Colors.transparent,
-                        Colors.black.withOpacity(0.1),
-                      ],
-                      stops: const [0.0, 0.25, 0.75, 1.0],
-                    ),
+      backgroundColor: AppColors.lightBackground,
+      body: Column(
+        children: [
+          // ── Map area ────────────────────────────────────────────────
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: GoogleMap(
+                    initialCameraPosition: CameraPosition(target: _markerPosition, zoom: 16),
+                    onMapCreated: (controller) {
+                      _mapController = controller;
+                      if (_gpsVerified) {
+                        controller.animateCamera(CameraUpdate.newLatLngZoom(_markerPosition, 16));
+                      }
+                    },
+                    zoomControlsEnabled: false,
+                    myLocationButtonEnabled: false,
+                    myLocationEnabled: true,
                   ),
                 ),
-              ),
-
-              // 3. Fixed center marker tag bubble & location pin pointer
-              Positioned(
-                left: 0,
-                right: 0,
-                top: MediaQuery.of(context).size.height * 0.46 - 62,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: floatCardShadows,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.location_on_outlined, color: primaryColor, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          _selectedAddress,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: textDark,
-                          ),
+                // Top fade for legibility of the header.
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: topInset + 90,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.white.withValues(alpha: 0.85), Colors.white.withValues(alpha: 0)],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-
-              // Center Marker Pin Pointer
-              Positioned(
-                left: 0,
-                right: 0,
-                top: MediaQuery.of(context).size.height * 0.46 - 18,
-                child: Center(
-                  child: Icon(
-                    Icons.location_pin,
-                    color: primaryColor,
-                    size: 38,
-                  ),
-                ),
-              ),
-
-              // 4. Transparent Header App Bar
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 8, bottom: 8),
-                  color: Colors.transparent,
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: Icon(Icons.arrow_back_ios_new_rounded, color: primaryColor, size: 20),
-                        onPressed: () => Navigator.of(context).pop(),
-                      ),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Check Out',
-                              style: GoogleFonts.libreCaslonText(
-                                color: primaryColor,
-                                fontSize: 24,
+                // Center pin (always the map's center, any screen size).
+                IgnorePointer(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 40),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            constraints: const BoxConstraints(maxWidth: 260),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: dsCardShadow,
+                            ),
+                            child: Text(
+                              _selectedAddress,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
+                                color: AppColors.lightTextPrimary,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                          ),
+                          const Icon(Icons.location_pin, color: AppColors.iconAccent, size: 40)
+                              .animate(onPlay: (c) => c.repeat(reverse: true))
+                              .moveY(begin: -4, end: 0, duration: 700.ms, curve: Curves.easeInOut),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // Header.
+                Positioned(
+                  top: topInset + 8,
+                  left: dsGutter(context),
+                  right: dsGutter(context),
+                  child: Row(
+                    children: [
+                      DsBackButton(onPressed: _back),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Check out',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.lightTextPrimary,
+                              ),
+                            ),
                             Text(
                               'End your work day',
-                              style: GoogleFonts.inter(
-                                color: textGrey,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 48), // Balancing back button
                     ],
                   ),
                 ),
-              ),
-
-              // 5. Floating high-depth "3D" status cards
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 72,
-                left: 20,
-                right: 20,
-                child: Column(
-                  children: [
-                    // Card 1: Today Status Info
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: floatCardShadows,
-                        border: Border.all(color: Colors.white.withOpacity(0.8), width: 1),
+                // Map controls.
+                Positioned(
+                  right: dsGutter(context),
+                  bottom: 16,
+                  child: Column(
+                    children: [
+                      _MapButton(
+                        icon: Icons.my_location_rounded,
+                        onTap: _verifyingGps ? null : _verifyLocation,
+                        loading: _verifyingGps,
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: primaryColor,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.check_circle_outline,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Today',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: textDark,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'In: $checkInTime',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    color: textGrey,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'PRESENT',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: textDark,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Card 2: Location verified status
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: floatCardShadows,
-                        border: Border.all(color: Colors.white.withOpacity(0.8), width: 1),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: primaryColor.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.verified_user_outlined,
-                                color: primaryColor,
-                                size: 22,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              _verifyingGps
-                                  ? 'Verifying your location...'
-                                  : 'Location verified for check-out',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: textDark,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'READY',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: textDark,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Subtitle: Address info floating above map
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: floatCardShadows,
-                      ),
-                      child: Text(
-                        'Work location: $_selectedAddress',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: textDark,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 6. Floating Google Map navigation controls (Bottom right)
-              Positioned(
-                right: 20,
-                bottom: MediaQuery.of(context).padding.bottom + 96,
-                child: Column(
-                  children: [
-                    // Locate GPS Button
-                    GestureDetector(
-                      onTap: () {
-                        _mapController?.animateCamera(
-                          CameraUpdate.newLatLngZoom(const LatLng(28.6139, 77.2090), 15),
-                        );
-                        setState(() {
-                          _markerPosition = const LatLng(28.6139, 77.2090);
-                          _selectedAddress = 'Green Park, Delhi';
-                        });
-                      },
-                      child: Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: floatCardShadows,
-                        ),
-                        child: Icon(Icons.my_location, color: primaryColor, size: 22),
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 12),
-
-                    // Zoom Panel
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: floatCardShadows,
-                      ),
-                      child: Column(
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.add, color: textDark, size: 20),
-                            onPressed: () {
-                              _mapController?.animateCamera(CameraUpdate.zoomIn());
-                            },
-                          ),
-                          Container(width: 24, height: 1, color: const Color(0xFFF1F5F9)),
-                          IconButton(
-                            icon: Icon(Icons.remove, color: textDark, size: 20),
-                            onPressed: () {
-                              _mapController?.animateCamera(CameraUpdate.zoomOut());
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 7. Dynamic Brand Electric Blue Check Out Button
-              Positioned(
-                left: 20,
-                right: 20,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
-                child: ElevatedButton(
-                  onPressed: _gpsVerified && !_isSubmitting ? _checkOut : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor, // Signature Electric Blue
-                    foregroundColor: Colors.white,
-                    elevation: 10,
-                    shadowColor: primaryColor.withOpacity(0.3),
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    disabledBackgroundColor: primaryColor.withOpacity(0.5),
+                      const SizedBox(height: 10),
+                      _MapButton(icon: Icons.add_rounded, onTap: () => _mapController?.animateCamera(CameraUpdate.zoomIn())),
+                      const SizedBox(height: 6),
+                      _MapButton(icon: Icons.remove_rounded, onTap: () => _mapController?.animateCamera(CameraUpdate.zoomOut())),
+                    ],
                   ),
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.logout_rounded, size: 22, color: Colors.white),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Check Out Now',
-                              style: GoogleFonts.inter(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
                 ),
+              ],
+            ),
+          ),
+
+          // ── Bottom panel ───────────────────────────────────────────
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              boxShadow: [
+                BoxShadow(color: AppColors.navy.withValues(alpha: 0.1), blurRadius: 24, offset: const Offset(0, -6)),
+              ],
+            ),
+            padding: EdgeInsets.fromLTRB(dsGutter(context), 10, dsGutter(context), 12),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(color: AppColors.lightBorder, borderRadius: BorderRadius.circular(3)),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _PanelStat(icon: Icons.login_rounded, label: 'Checked in', value: checkInTime),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _PanelStat(
+                          icon: _gpsVerified ? Icons.verified_rounded : Icons.gps_not_fixed_rounded,
+                          label: 'Location',
+                          value: _verifyingGps ? 'Checking…' : (_gpsVerified ? 'Verified' : 'Not verified'),
+                          valueColor: _gpsVerified ? AppColors.success : AppColors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        _gpsVerified ? Icons.location_on_rounded : Icons.gps_not_fixed_rounded,
+                        size: 18,
+                        color: _gpsVerified ? AppColors.success : AppColors.warning,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _selectedAddress,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            height: 1.35,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.lightTextPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DsGradientButton(
+                    label: 'Check out now',
+                    icon: Icons.logout_rounded,
+                    isLoading: _isSubmitting,
+                    onPressed: _gpsVerified && !_isSubmitting ? _checkOut : null,
+                  ),
+                ],
               ),
-            ],
-          );
-        },
+            ),
+          ).animate().slideY(begin: 1, end: 0, duration: 450.ms, curve: Curves.easeOutCubic),
+        ],
+      ),
+    );
+  }
+}
+
+class _PanelStat extends StatelessWidget {
+  const _PanelStat({required this.icon, required this.label, required this.value, this.valueColor});
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: AppColors.lightBackground, borderRadius: BorderRadius.circular(18)),
+      child: Row(
+        children: [
+          DsIconTile(icon, size: 38),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.lightTextSecondary,
+                  ),
+                ),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: valueColor ?? AppColors.lightTextPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapButton extends StatelessWidget {
+  const _MapButton({required this.icon, required this.onTap, this.loading = false});
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 3,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: loading
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                )
+              : Icon(icon, color: AppColors.iconAccent, size: 22),
+        ),
       ),
     );
   }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../core/extensions/context_extensions.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../design_system/widgets/buttons/ds_buttons.dart';
 
-/// Primary gradient action button used across auth screens.
+/// Primary gradient action button used across auth / status screens.
 class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
@@ -20,36 +20,16 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
-        child: isLoading
-            ? SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: context.theme.cardColor,
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 20),
-                    SizedBox(width: 8),
-                  ],
-                  Text(label),
-                ],
-              ),
-      ),
+    return DsGradientButton(
+      label: label,
+      icon: icon,
+      isLoading: isLoading,
+      onPressed: isLoading ? null : onPressed,
     );
   }
 }
 
-/// Outlined secondary button.
+/// Outlined secondary pill button.
 class AppOutlinedButton extends StatelessWidget {
   const AppOutlinedButton({
     super.key,
@@ -64,23 +44,7 @@ class AppOutlinedButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 20),
-              SizedBox(width: 8),
-            ],
-            Text(label),
-          ],
-        ),
-      ),
-    );
+    return DsOutlineButton(label: label, icon: icon, onPressed: onPressed);
   }
 }
 
@@ -117,18 +81,20 @@ class AppTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? AppColors.darkTextSecondary
-                : AppColors.lightTextSecondary,
-          ),
+                fontWeight: FontWeight.w700,
+                color: isDark
+                    ? AppColors.darkTextPrimary
+                    : AppColors.lightTextPrimary,
+              ),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         TextFormField(
           controller: controller,
           obscureText: obscureText,
@@ -148,8 +114,4 @@ class AppTextField extends StatelessWidget {
       ],
     );
   }
-}
-
-extension _TextThemeX on BuildContext {
-  TextTheme get textTheme => Theme.of(this).textTheme;
 }

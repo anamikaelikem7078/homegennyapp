@@ -103,6 +103,14 @@ final staffVideoCertProvider =
 final staffVideoCertLocalRecordingsProvider =
     StateProvider<Map<String, XFile>>((ref) => {});
 
+/// Device-clock timestamp of the most recent successful upload for each
+/// prompt (keyed by prompt id). The server response for a completed upload
+/// carries no submission timestamp, so the Approval Status screen relies on
+/// this — the time actually shown to the staff member — being captured
+/// locally the moment the upload finishes.
+final staffVideoCertSubmittedAtProvider =
+    StateProvider<Map<String, DateTime>>((ref) => {});
+
 final staffAgreementProvider = FutureProvider<StaffAgreement>((ref) async {
   final result = await ref.watch(staffRepositoryProvider).getAgreement();
   return result.fold(

@@ -12,8 +12,20 @@ abstract final class PipelineStages {
   static const deferred = 'DEFERRED';
   static const terminal = 'TERMINAL';
 
-  /// Forward-flow order — excludes the two exception states.
+  /// Forward-flow order — excludes the two exception states. S2_5_ASSESS is
+  /// not in it: Stage 2.5 is switched off (`stage_2_5_enabled: false` on
+  /// `GET /meta/series`), so S2 goes straight to S3.
   static const List<String> order = [
+    s1Intake,
+    s2Verify,
+    s3Train,
+    s4Agreements,
+    s5Deploy,
+  ];
+
+  /// The flow with S2_5_ASSESS — only for a staff member still sitting in
+  /// S2.5, or if the backend switches it back on.
+  static const List<String> orderWithS25 = [
     s1Intake,
     s2Verify,
     s25Assess,
@@ -22,14 +34,30 @@ abstract final class PipelineStages {
     s5Deploy,
   ];
 
-  static const List<String> all = [...order, deferred, terminal];
+  static const List<String> all = [...orderWithS25, deferred, terminal];
+
+  /// The flow to draw for a staff member at [stage]: includes S2.5 only when
+  /// it is switched on or the staff member is in it.
+  static List<String> flowFor(String stage, {bool stage25Enabled = false}) =>
+      stage25Enabled || stage == s25Assess ? orderWithS25 : order;
+
+  /// The forward stages to show as columns/chips for `GET /rm/kanban`
+  /// [columns]: S2.5 only when it is switched on or someone is in it.
+  static List<String> visibleStages(
+    Map<String, List<Object?>> columns, {
+    bool stage25Enabled = false,
+  }) =>
+      stage25Enabled || (columns[s25Assess]?.isNotEmpty ?? false)
+          ? orderWithS25
+          : order;
 
   /// The next stage in the forward flow, or null if [current] is the last
   /// forward stage or an exception state with no automatic "next".
-  static String? nextStage(String current) {
-    final i = order.indexOf(current);
-    if (i == -1 || i == order.length - 1) return null;
-    return order[i + 1];
+  static String? nextStage(String current, {bool stage25Enabled = false}) {
+    final flow = flowFor(current, stage25Enabled: stage25Enabled);
+    final i = flow.indexOf(current);
+    if (i == -1 || i == flow.length - 1) return null;
+    return flow[i + 1];
   }
 
   /// Whether advancing from [from] to [to] is a legal client-side
@@ -38,14 +66,14 @@ abstract final class PipelineStages {
   /// backend's own FSM validation so the RM app can reject an illegal
   /// transition with a clear message instead of a raw 400.
   ///
-  /// One deliberate exception: `S2_VERIFY → S3_TRAIN` is also legal — the
-  /// backend FSM allows skipping S2_5_ASSESS entirely for non-DR series
-  /// (the driver practical road test only applies to DR), so this is not a
-  /// "skip a step" violation for those staff.
-  static bool canAdvance(String from, String to) {
-    if (to == deferred || to == terminal) return order.contains(from);
+  /// `S2_VERIFY → S3_TRAIN` is always legal. Entering S2_5_ASSESS is legal
+  /// only while Stage 2.5 is switched on; a staff member already in it can
+  /// still move out (→ S3_TRAIN / DEFERRED / TERMINAL).
+  static bool canAdvance(String from, String to, {bool stage25Enabled = false}) {
+    if (to == deferred || to == terminal) return orderWithS25.contains(from);
+    if (to == s25Assess && !stage25Enabled) return false;
     if (from == s2Verify && to == s3Train) return true;
-    return nextStage(from) == to;
+    return nextStage(from, stage25Enabled: stage25Enabled) == to;
   }
 
   static String label(String stage) => switch (stage) {
@@ -93,20 +121,27 @@ abstract final class TerminalOutcomes {
   ];
 }
 
-/// Staff series short codes — the only 4 values `POST /rm/intake`,
-/// `POST /video-cert/upload-url`, and the kanban `series` filter accept.
+/// Staff series short codes — what `POST /rm/intake`,
+/// `POST /video-cert/upload-url`, and the kanban `series` filter take.
+///
+/// Only UC / SC / CK are taken on for new staff; MAID and DR are paused but
+/// their staff still exist. Pickers read the active list from
+/// `seriesCatalogProvider` (`GET /meta/series`), never from [all].
 abstract final class StaffSeries {
   static const driver = 'DR';
   static const skilledCare = 'SC';
   static const unskilledCare = 'UC';
+  static const cook = 'CK';
   static const maid = 'MAID';
 
-  static const List<String> all = [driver, skilledCare, unskilledCare, maid];
+  /// Every series a staff member can have — for filters and lookups only.
+  static const List<String> all = [unskilledCare, skilledCare, cook, maid, driver];
 
   static String label(String series) => switch (series) {
         driver => 'Driver (DR)',
         skilledCare => 'Skilled Care (SC)',
         unskilledCare => 'Unskilled Care (UC)',
+        cook => 'Cook (CK)',
         maid => 'Maid (MAID)',
         _ => series,
       };
@@ -117,6 +152,7 @@ abstract final class StaffSeries {
         driver => 2000,
         skilledCare => 1500,
         unskilledCare => 1000,
+        cook => 1000,
         maid => 500,
         _ => 0,
       };

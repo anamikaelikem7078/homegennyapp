@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:homegennyapp/core/theme/app_fonts.dart';
 
 import '../../../../core/utils/result.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
@@ -75,7 +76,7 @@ class _RmTrack5MedicalScreenState extends ConsumerState<RmTrack5MedicalScreen> {
         // ── Form Label ──
         Text(
           'Select Result Verdict',
-          style: GoogleFonts.libreCaslonText(
+          style: AppFonts.display(
             fontSize: 15,
             fontWeight: FontWeight.bold,
             color: RmTheme.textPrimary,
@@ -219,7 +220,7 @@ class _ResultChoiceTile extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   label,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     color: selected ? color : RmTheme.textPrimary,
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
@@ -230,7 +231,7 @@ class _ResultChoiceTile extends StatelessWidget {
                 Text(
                   subtitle,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     color: RmTheme.textSecondary,
                     fontWeight: FontWeight.w500,
                     fontSize: 10.5,

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../../../core/extensions/context_extensions.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,129 +8,123 @@ import '../../../../../design_system/design_system.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
 
-/// Notifications tab.
-class ClientNotificationsTabScreen extends ConsumerWidget {
+/// Notifications screen.
+class ClientNotificationsTabScreen extends ConsumerStatefulWidget {
   const ClientNotificationsTabScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ClientNotificationsTabScreen> createState() => _ClientNotificationsTabScreenState();
+}
+
+const _filters = [
+  ('All', null),
+  ('Payments', 'payment'),
+  ('Attendance', 'attendance'),
+  ('Service', 'service'),
+];
+
+(IconData, Color) _typeStyle(String type) => switch (type) {
+      'payment' => (Icons.payments_rounded, AppColors.error),
+      'attendance' => (Icons.door_front_door_rounded, AppColors.primary),
+      'service' => (Icons.event_rounded, AppColors.secondary),
+      _ => (Icons.notifications_rounded, AppColors.iconAccent),
+    };
+
+class _ClientNotificationsTabScreenState extends ConsumerState<ClientNotificationsTabScreen> {
+  String? _filter;
+
+  @override
+  Widget build(BuildContext context) {
     final notifications = ref.watch(clientNotificationsProvider);
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        
-        toolbarHeight: 0,
-
-        // We will build a custom header in the body
-      ),
-      body: notifications.when(
-        loading: () =>
-            Center(child: CircularProgressIndicator(color: Color(0xFF1A56FF))),
-        error: (_, __) => Center(child: Text('Error loading notifications')),
-        data: (list) {
-          return ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            children: [
-              // Header
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+    return DsPage(
+      title: 'Notifications',
+      subtitle: 'Keep track of your home\'s heartbeat',
+      onBack: () => context.pop(),
+      onRefresh: () async => ref.invalidate(clientNotificationsProvider),
+      body: dsAsyncBody(
+        notifications,
+        onRetry: () => ref.invalidate(clientNotificationsProvider),
+        builder: (list) {
+          final payments = list.where((n) => n.type == 'payment').length;
+          final shown = _filter == null ? list : list.where((n) => n.type == _filter).toList();
+          return [
+            DsGradientCard(
+              child: Row(
                 children: [
-                  IconButton(
-                    icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.colors.onSurface),
-                    onPressed: () => context.pop(),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    splashRadius: 24,
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    'Notifications',
-                    style: GoogleFonts.libreCaslonText(
-                      fontSize: 32,
-                      color: context.colors.onSurface,
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const DsGlassPill('LIVE UPDATES', icon: Icons.bolt_rounded),
+                        const SizedBox(height: 12),
+                        Text(
+                          '${list.length} ${list.length == 1 ? 'update' : 'updates'}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          payments > 0
+                              ? '$payments payment ${payments == 1 ? 'needs' : 'need'} your attention'
+                              : 'You\'re all caught up',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  const DsFloatingIconTile(icon: Icons.notifications_active_rounded),
                 ],
               ),
-              SizedBox(height: 8),
-              Text(
-                "Keep track of your home's heartbeat.",
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: context.colors.onSurfaceVariant,
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              height: 42,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                itemCount: _filters.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, i) => DsChoiceChip(
+                  label: _filters[i].$1,
+                  selected: _filter == _filters[i].$2,
+                  onTap: () => setState(() => _filter = _filters[i].$2),
                 ),
               ),
-              SizedBox(height: 24),
-
-              // Weekly Summary Banner
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFBCC6CC), Color(0xFF98A4AB)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'LIVE UPDATES',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.5,
-                        color: context.theme.cardColor.withOpacity(0.8),
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Your Weekly Summary',
-                      style: GoogleFonts.libreCaslonText(
-                        fontSize: 24,
-                        color: context.theme.cardColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 24),
-
-              // Notification List
-              ...list.map((n) {
-                return _NotificationCard(
-                  title: n.title,
-                  message: n.message,
-                  time: n.time,
-                  type: n.type,
+            ),
+            const SizedBox(height: 16),
+            if (shown.isEmpty)
+              const DsEmptyBlock(
+                icon: Icons.notifications_off_rounded,
+                title: 'Nothing here',
+                message: 'No notifications in this category yet.',
+              )
+            else
+              for (var i = 0; i < shown.length; i++)
+                _NotificationCard(
+                  key: ValueKey('${shown[i].title}-$i'),
+                  title: shown[i].title,
+                  message: shown[i].message,
+                  time: shown[i].time,
+                  type: shown[i].type,
                   onTap: () {
-                    if (n.type == 'payment') {
+                    if (shown[i].type == 'payment') {
                       context.push(ClientRoutes.pendingPayment);
-                    } else if (n.type == 'attendance') {
+                    } else if (shown[i].type == 'attendance') {
                       context.push(ClientRoutes.attendanceToday);
                     }
                   },
-                );
-              }),
-
-              // Bottom spacing for nav bar
-              SizedBox(height: 100),
-            ],
-          );
+                ).animate(delay: (50 * i.clamp(0, 8)).ms).fadeIn(duration: 300.ms).slideX(begin: 0.05, end: 0),
+          ];
         },
       ),
     );
@@ -138,13 +132,8 @@ class ClientNotificationsTabScreen extends ConsumerWidget {
 }
 
 class _NotificationCard extends StatelessWidget {
-  final String title;
-  final String message;
-  final String time;
-  final String type;
-  final VoidCallback onTap;
-
   const _NotificationCard({
+    super.key,
     required this.title,
     required this.message,
     required this.time,
@@ -152,195 +141,152 @@ class _NotificationCard extends StatelessWidget {
     required this.onTap,
   });
 
-  IconData _getIcon() {
-    switch (type) {
-      case 'payment':
-        return Icons.payments_outlined;
-      case 'attendance':
-        return Icons.door_front_door_outlined;
-      case 'service':
-        return Icons.calendar_today_outlined;
-      default:
-        return Icons.notifications_none_outlined;
-    }
-  }
-
-  Color _getIconBgColor() {
-    switch (type) {
-      case 'payment':
-        return const Color(0xFFFFF0F0); // Light red
-      case 'attendance':
-        return const Color(0xFFF0F4FF); // Light blue
-      case 'service':
-        return const Color(0xFFF5F5F0); // Light warm gray
-      default:
-        return const Color(0xFFF5F5F5);
-    }
-  }
-
-  Color _getIconColor() {
-    switch (type) {
-      case 'payment':
-        return const Color(0xFFE53935);
-      case 'attendance':
-        return const Color(0xFF1A56FF);
-      case 'service':
-        return const Color(0xFF424242);
-      default:
-        return Colors.black54;
-    }
-  }
+  final String title;
+  final String message;
+  final String time;
+  final String type;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: context.theme.cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: context.theme.dividerColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _getIconBgColor(),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(_getIcon(), color: _getIconColor(), size: 20),
-              ),
-              SizedBox(width: 16),
-              Expanded(
-                child: Column(
+    final (icon, color) = _typeStyle(type);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          child: Ink(
+            padding: const EdgeInsets.all(14),
+            decoration: dsCardDecoration(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          title,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: context.colors.onSurface,
+                    DsIconTile(icon, color: color),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  title,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.lightTextPrimary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                time,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.lightTextSecondary,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        Text(
-                          time,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: context.colors.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
+                          const SizedBox(height: 3),
+                          Text(
+                            message,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              height: 1.45,
+                              color: const Color(0xFF374151),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      message,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: context.colors.onSurface,
-                        height: 1.5,
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          if (type == 'payment') ...[
-            SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.only(left: 56), // align with text
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  ElevatedButton(
-                    onPressed: () => context.push(ClientRoutes.paymentGateway),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1A56FF),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 0,
-                      ),
-                      minimumSize: const Size(0, 36),
-                    ),
-                    child: Text(
-                      'Pay Now',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  OutlinedButton(
-                    onPressed: () => context.push(ClientRoutes.invoice),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.black87,
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 0,
-                      ),
-                      minimumSize: const Size(0, 36),
-                    ),
-                    child: Text(
-                      'View Invoice',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
+                if (type == 'payment') ...[
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 56),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _SmallButton(
+                          label: 'Pay now',
+                          filled: true,
+                          onTap: () => context.push(ClientRoutes.paymentGateway),
+                        ),
+                        _SmallButton(
+                          label: 'View invoice',
+                          onTap: () => context.push(ClientRoutes.invoice),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-              ),
-            ),
-          ],
-          if (type == 'service') ...[
-            SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.only(left: 56), // align with text
-              child: GestureDetector(
-                onTap: () => context.showDsSnackBar(
-                  'Added to Calendar',
-                  type: DsSnackBarType.success,
-                ),
-                child: Text(
-                  'Add to Calendar',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF1A56FF),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                if (type == 'service') ...[
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 56),
+                    child: _SmallButton(
+                      label: 'Add to calendar',
+                      icon: Icons.event_available_rounded,
+                      onTap: () => context.showDsSnackBar('Added to calendar', type: DsSnackBarType.success),
+                    ),
                   ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SmallButton extends StatelessWidget {
+  const _SmallButton({required this.label, required this.onTap, this.filled = false, this.icon});
+  final String label;
+  final VoidCallback onTap;
+  final bool filled;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: filled ? AppColors.primary : AppColors.primary.withValues(alpha: 0.08),
+      shape: const StadiumBorder(),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 15, color: filled ? Colors.white : AppColors.iconAccent),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: filled ? Colors.white : AppColors.primary,
                 ),
               ),
-            ),
-          ],
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

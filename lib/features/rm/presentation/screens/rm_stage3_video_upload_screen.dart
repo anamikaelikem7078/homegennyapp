@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/presentation/async_value_widget.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
+import '../../domain/models/pipeline_stage.dart';
 import '../../domain/models/rm_models.dart';
 import '../providers/rm_providers.dart';
+import '../widgets/rm_stage_ui.dart';
 
 /// Video certification — prompts view. `POST /video-cert/upload-url` and
 /// `/finalize` are STAFF/ADMIN-only (verified against live Swagger role
@@ -19,44 +20,54 @@ class RmStage3VideoUploadScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final staffAsync = ref.watch(staffByIdProvider(staffId));
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(backgroundColor: RmTheme.offWhite, elevation: 0, title: const Text('Video Certification Prompts')),
-      body: AsyncValueWidget<StaffRow?>(
-        value: staffAsync,
+    return RmStageScaffold(
+      title: 'Video prompts',
+      stageCode: 'S3',
+      stageColor: rmStageColor(PipelineStages.s3Train),
+      body: rmAsyncBody<StaffRow?>(
+        staffAsync,
         onRetry: () => ref.invalidate(staffByIdProvider(staffId)),
         builder: (staff) {
-          if (staff == null) return const Center(child: Text('Staff not found'));
+          if (staff == null) {
+            return const [
+              RmEmptyBlock(
+                icon: Icons.person_off_rounded,
+                title: 'Staff not found',
+                message: 'This staff record could not be loaded.',
+              ),
+            ];
+          }
           final promptsAsync = ref.watch(rmVideoCertPromptsProvider(staff.series));
-          return Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${staff.fullName} · ${staff.series}', style: RmTheme.headline(context).copyWith(fontSize: 20)),
-                const SizedBox(height: 8),
-                const Text('RM cannot upload on the staff member\'s behalf — this is a read-only view of what is required.'),
-                const SizedBox(height: 20),
-                Expanded(
-                  child: AsyncValueWidget<VideoCertPrompts>(
-                    value: promptsAsync,
-                    onRetry: () => ref.invalidate(rmVideoCertPromptsProvider(staff.series)),
-                    builder: (prompts) => ListView(
-                      children: [
-                        Text('${prompts.count} prompts · min ${prompts.minDuration}s each', style: RmTheme.body(context)),
-                        const SizedBox(height: 12),
-                        for (final p in prompts.prompts)
-                          ListTile(
-                            leading: const Icon(Icons.play_circle_outline),
-                            title: Text(p),
-                          ),
-                      ],
-                    ),
+          return [
+            RmStaffBanner(staff: staff, showTracker: false),
+            const SizedBox(height: 14),
+            const RmNote(
+              title: 'Read-only view',
+              text: 'Staff record these videos themselves — RM can\'t upload on '
+                  'their behalf. This shows what they need to submit.',
+            ),
+            ...rmAsyncBody<VideoCertPrompts>(
+              promptsAsync,
+              onRetry: () => ref.invalidate(rmVideoCertPromptsProvider(staff.series)),
+              builder: (prompts) => [
+                RmSectionTitle(
+                  title: 'Required prompts',
+                  trailing: RmStatusPill(
+                    label: '${prompts.count} · min ${prompts.minDuration}s',
+                    color: RmTheme.electricBlue,
                   ),
                 ),
+                for (var i = 0; i < prompts.prompts.length; i++)
+                  RmStepTile(
+                    code: '${i + 1}',
+                    icon: Icons.videocam_rounded,
+                    title: rmTitleCase(prompts.prompts[i]),
+                    subtitle: 'At least ${prompts.minDuration} seconds',
+                    state: RmStepState.pending,
+                  ),
               ],
             ),
-          );
+          ];
         },
       ),
     );

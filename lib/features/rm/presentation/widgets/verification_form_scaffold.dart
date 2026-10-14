@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../design_system/foundations/rm_theme.dart';
+import '../../../../design_system/widgets/buttons/ds_buttons.dart';
 import '../../domain/models/pipeline_stage.dart';
 import '../providers/rm_providers.dart';
+import 'rm_stage_ui.dart';
 
 /// Shared scaffold for the 5 verification-track screens: shows the staff
-/// header, then whatever form/result widgets the track passes in.
+/// banner, then whatever form/result widgets the track passes in.
 class VerificationFormScaffold extends ConsumerWidget {
   const VerificationFormScaffold({
     super.key,
@@ -25,117 +27,34 @@ class VerificationFormScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final staffAsync = ref.watch(staffByIdProvider(staffId));
-    final staffName = staffAsync.maybeWhen(data: (s) => s?.fullName, orElse: () => null);
-    final staffCode = staffAsync.maybeWhen(data: (s) => s?.staffCode, orElse: () => null);
-    final staffSeries = staffAsync.maybeWhen(
-      data: (s) => s == null ? null : StaffSeries.label(s.series).toUpperCase(),
-      orElse: () => null,
-    );
+    final staff = ref.watch(staffByIdProvider(staffId)).valueOrNull;
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(
-        backgroundColor: RmTheme.offWhite,
-        elevation: 0,
-        title: Text(
-          title,
-          style: RmTheme.headline(context).copyWith(fontSize: 20),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: RmTheme.textPrimary),
-          onPressed: onBack,
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Premium Profile Summary Header ──
-            if (staffName != null)
-              _buildStaffProfileHeader(staffName, staffCode, staffSeries)
-            else
-              _buildStaffProfileHeader(staffId, null, null),
-
-            const SizedBox(height: 24),
-
-            // ── Children Content Form Fields & Results ──
-            ...children,
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStaffProfileHeader(String name, String? code, String? series) {
-    final firstLetter = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: RmTheme.borderSubtle.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: RmTheme.electricBlue.withValues(alpha: 0.1),
-            child: Text(
-              firstLetter,
-              style: GoogleFonts.inter(
-                color: RmTheme.electricBlue,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
+    return RmStageScaffold(
+      title: title,
+      stageCode: 'S2',
+      stageColor: rmStageColor(PipelineStages.s2Verify),
+      onBack: onBack,
+      body: [
+        if (staff != null)
+          RmStaffBanner(staff: staff, showTracker: false)
+        else
+          Container(
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(26),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
-                    color: RmTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${code ?? "..."}${series != null ? " • $series" : ""}',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: RmTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideX(begin: -0.02, end: 0, duration: 400.ms);
+          )
+              .animate(onPlay: (c) => c.repeat())
+              .shimmer(duration: 1200.ms, color: RmTheme.surfaceSecondary),
+        const SizedBox(height: 20),
+        ...children,
+      ],
+    );
   }
 }
 
-/// Text field styled consistently for the verification forms.
+/// Labelled, filled text field for the verification forms.
 class VerificationTextField extends StatelessWidget {
   const VerificationTextField({
     super.key,
@@ -145,6 +64,7 @@ class VerificationTextField extends StatelessWidget {
     this.maxLength,
     this.validator,
     this.hint,
+    this.icon,
   });
 
   final String label;
@@ -153,67 +73,68 @@ class VerificationTextField extends StatelessWidget {
   final int? maxLength;
   final String? Function(String?)? validator;
   final String? hint;
+  final IconData? icon;
+
+  IconData get _icon {
+    if (icon != null) return icon!;
+    final l = label.toLowerCase();
+    if (l.contains('otp')) return Icons.sms_rounded;
+    if (l.contains('aadhaar')) return Icons.badge_rounded;
+    if (l.contains('licen')) return Icons.directions_car_rounded;
+    if (l.contains('vehicle') || l.contains('registration')) {
+      return Icons.local_shipping_rounded;
+    }
+    if (l.contains('date') || l.contains('dob')) return Icons.event_rounded;
+    if (l.contains('phone') || l.contains('mobile')) return Icons.phone_rounded;
+    if (l.contains('name')) return Icons.person_rounded;
+    if (l.contains('remark') || l.contains('note')) return Icons.notes_rounded;
+    return Icons.edit_rounded;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      maxLength: maxLength,
-      validator: validator,
-      style: GoogleFonts.inter(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: RmTheme.textPrimary,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.inter(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          color: RmTheme.textSecondary,
-        ),
-        hintText: hint,
-        hintStyle: GoogleFonts.inter(
-          fontSize: 14,
-          color: RmTheme.textSecondary.withValues(alpha: 0.6),
-        ),
-        filled: true,
-        fillColor: RmTheme.cardSurface,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(
-            color: RmTheme.borderSubtle.withValues(alpha: 0.5),
-            width: 1.2,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 8),
+          child: Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: RmTheme.textPrimary,
+            ),
           ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(
-            color: RmTheme.borderSubtle.withValues(alpha: 0.5),
-            width: 1.2,
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLength: maxLength,
+          validator: validator,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15.5,
+            fontWeight: FontWeight.w700,
+            color: RmTheme.textPrimary,
+          ),
+          decoration: InputDecoration(
+            hintText: hint ?? label,
+            fillColor: Colors.white,
+            prefixIcon: Icon(_icon, color: RmTheme.iconAccent, size: 20),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: RmTheme.borderSubtle),
+            ),
+            counterText: '',
           ),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: RmTheme.electricBlue, width: 1.8),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: RmTheme.crimsonDanger, width: 1.2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-        counterText: '',
-      ),
+      ],
     );
   }
 }
 
-/// Primary submit button with an in-flight spinner, matching
-/// `AdvanceStageButton`'s look.
+/// Primary submit button — gradient pill, or a locked grey pill when
+/// disabled (matches `AdvanceStageButton`).
 class VerificationSubmitButton extends StatelessWidget {
   const VerificationSubmitButton({
     super.key,
@@ -230,37 +151,39 @@ class VerificationSubmitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: FilledButton(
-        onPressed: (!enabled || submitting) ? null : onPressed,
-        style: FilledButton.styleFrom(
-          backgroundColor: RmTheme.electricBlue,
-          disabledBackgroundColor: RmTheme.borderSubtle.withValues(alpha: 0.8),
-          disabledForegroundColor: RmTheme.textSecondary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          elevation: 2,
+    if (!enabled) {
+      return Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: RmTheme.surfaceSecondary,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: RmTheme.borderSubtle),
         ),
-        child: submitting
-            ? const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: Colors.white,
-                ),
-              )
-            : Text(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.lock_rounded, size: 17, color: RmTheme.textSecondary),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
                 label,
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: RmTheme.textSecondary,
                 ),
               ),
-      ),
+            ),
+          ],
+        ),
+      );
+    }
+    return DsGradientButton(
+      label: label,
+      isLoading: submitting,
+      onPressed: submitting ? null : onPressed,
     );
   }
 }
@@ -286,13 +209,18 @@ class VerificationResultCard extends StatelessWidget {
     final color = pending
         ? RmTheme.amberWarning
         : (success ? RmTheme.emeraldGreen : RmTheme.crimsonDanger);
+    final icon = pending
+        ? Icons.hourglass_top_rounded
+        : (success ? Icons.verified_rounded : Icons.gpp_bad_rounded);
+    final title = headline ??
+        (pending ? 'Pending' : (success ? 'Cleared' : 'Not cleared'));
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.25), width: 1.2),
+        color: color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.3),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,65 +228,106 @@ class VerificationResultCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  pending
-                      ? Icons.hourglass_top_rounded
-                      : (success ? Icons.check_rounded : Icons.close_rounded),
                   color: color,
-                  size: 16,
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                headline ?? (success ? 'PASSED' : 'NOT CLEARED'),
-                style: GoogleFonts.inter(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ],
-          ),
-          if (rows.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            for (final entry in rows.entries) ...[
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Icon(icon, color: Colors.white, size: 24),
+              ).animate().scaleXY(
+                    begin: 0.3,
+                    end: 1,
+                    duration: 600.ms,
+                    curve: Curves.elasticOut,
+                  ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      entry.key,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: RmTheme.textSecondary,
+                      rmTitleCase(title),
+                      style: GoogleFonts.plusJakartaSans(
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
                       ),
                     ),
-                    Flexible(
-                      child: Text(
-                        entry.value,
-                        textAlign: TextAlign.right,
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13.5,
-                          color: RmTheme.textPrimary,
-                        ),
+                    Text(
+                      'Verification result',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: RmTheme.textSecondary,
                       ),
                     ),
                   ],
                 ),
               ),
             ],
+          ),
+          if (rows.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  for (var i = 0; i < rows.length; i++)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        border: i == rows.length - 1
+                            ? null
+                            : const Border(
+                                bottom: BorderSide(color: RmTheme.surfaceSecondary),
+                              ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              rows.keys.elementAt(i),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: RmTheme.textSecondary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Text(
+                              rows.values.elementAt(i),
+                              textAlign: TextAlign.right,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13.5,
+                                color: RmTheme.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ],
         ],
       ),
-    ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.04, end: 0, duration: 300.ms);
+    ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.06, end: 0, duration: 350.ms);
   }
 }

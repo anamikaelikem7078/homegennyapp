@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:homegennyapp/core/theme/app_fonts.dart';
 
 import '../../extensions/context_extensions.dart';
 import '../../localization/locale_provider.dart';
@@ -39,7 +40,7 @@ class _AppLanguageSettingsScreenState
         centerTitle: true,
         title: Text(
           context.l10n.settings,
-          style: GoogleFonts.libreCaslonText(
+          style: AppFonts.display(
             color: context.colors.onSurface,
             fontSize: 22,
             fontWeight: FontWeight.w700,
@@ -80,7 +81,7 @@ class _AppLanguageSettingsScreenState
                     const SizedBox(height: 32),
                     Text(
                       context.l10n.chooseLanguage,
-                      style: GoogleFonts.libreCaslonText(
+                      style: AppFonts.display(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
                         color: context.colors.primary,
@@ -89,7 +90,7 @@ class _AppLanguageSettingsScreenState
                     const SizedBox(height: 12),
                     Text(
                       context.l10n.selectPreferredLanguage,
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         color: context.colors.onSurfaceVariant,
                         height: 1.5,
@@ -131,13 +132,11 @@ class _AppLanguageSettingsScreenState
                     foregroundColor: Colors.white,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: const StadiumBorder(),
                   ),
                   child: Text(
                     context.l10n.saveChanges,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.0,
@@ -192,7 +191,7 @@ class _AppLanguageSettingsScreenState
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: context.colors.onSurface,
@@ -201,7 +200,7 @@ class _AppLanguageSettingsScreenState
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
                       color: context.colors.onSurfaceVariant,
                     ),
@@ -264,7 +263,7 @@ class _AppThemeSettingsScreenState
         centerTitle: true,
         title: Text(
           'HomeGenny',
-          style: GoogleFonts.libreCaslonText(
+          style: AppFonts.display(
             color: context.colors.onSurface,
             fontSize: 22,
             fontWeight: FontWeight.w700,
@@ -279,7 +278,7 @@ class _AppThemeSettingsScreenState
             children: [
               Text(
                 'VISUAL IDENTITY',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.5,
@@ -289,7 +288,7 @@ class _AppThemeSettingsScreenState
               const SizedBox(height: 8),
               Text(
                 'Appearance',
-                style: GoogleFonts.libreCaslonText(
+                style: AppFonts.display(
                   fontSize: 32,
                   color: context.colors.onSurface,
                   fontWeight: FontWeight.w600,
@@ -298,7 +297,7 @@ class _AppThemeSettingsScreenState
               const SizedBox(height: 16),
               Text(
                 'Personalize your digital environment. Select a theme that aligns with your creative flow and visual comfort.',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
                   color: context.colors.onSurfaceVariant,
                   height: 1.5,
@@ -331,7 +330,7 @@ class _AppThemeSettingsScreenState
 
               Text(
                 'All settings are saved automatically to your HomeGenny profile across devices.',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   color: context.colors.onSurfaceVariant,
                   fontStyle: FontStyle.italic,
@@ -355,13 +354,11 @@ class _AppThemeSettingsScreenState
                     foregroundColor: Colors.white,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: const StadiumBorder(),
                   ),
                   child: Text(
                     'Apply Selection',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5,
@@ -422,7 +419,7 @@ class _AppThemeSettingsScreenState
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: context.colors.onSurface,
@@ -431,7 +428,7 @@ class _AppThemeSettingsScreenState
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
                       color: context.colors.onSurfaceVariant,
                     ),

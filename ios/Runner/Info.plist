@@ -4,6 +4,16 @@
 <dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>This app requires Face ID permission to authenticate using face recognition.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>HomeGenny needs your location to verify your attendance at the work site.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>HomeGenny needs your location to verify your attendance at the work site.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>HomeGenny uses the microphone to record voice instructions for your staff.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>HomeGenny uses the camera to take photos of meals, care tasks and prescriptions.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>HomeGenny lets you choose photos of meals, care tasks and prescriptions.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

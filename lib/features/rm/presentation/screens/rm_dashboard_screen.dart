@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../design_system/foundations/rm_theme.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import '../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../core/presentation/async_value_widget.dart';
+import '../../../../core/series/series_catalog.dart';
+import '../../../../design_system/foundations/rm_theme.dart';
+import '../../../../design_system/widgets/layout/ds_hero_header.dart';
 import '../../domain/models/rm_models.dart';
 import '../navigation/rm_routes.dart';
 import '../providers/rm_providers.dart';
@@ -14,15 +20,13 @@ class RmDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isTablet = MediaQuery.of(context).size.width > 600;
     final dashboard = ref.watch(rmDashboardProvider);
-    final authState = ref.watch(authProvider);
-    final user = authState.user;
+    final user = ref.watch(authProvider).user;
 
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
-      appBar: _buildAppBar(user?.name),
       body: RefreshIndicator(
+        color: RmTheme.electricBlue,
         onRefresh: () async => ref.invalidate(rmDashboardProvider),
         child: AsyncValueWidget<RmDashboard>(
           value: dashboard,
@@ -30,20 +34,51 @@ class RmDashboardScreen extends ConsumerWidget {
           errorTitle: 'Could not load dashboard',
           builder: (data) => SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.only(bottom: 120),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildStatsGrid(isTablet, data.kpis),
-                const SizedBox(height: 24),
-                _buildPipelineDistribution(data.funnel),
-                const SizedBox(height: 24),
-                _buildActionButtons(context),
-                const SizedBox(height: 16),
-                _buildToolsRow(context),
-                const SizedBox(height: 24),
-                if (data.seriesDistribution.isNotEmpty)
-                  _buildSeriesBreakdown(data.seriesDistribution),
+                _buildHero(context, user?.name, data.kpis),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _SectionTitle(
+                        title: 'At a glance',
+                        subtitle: 'Your key numbers today',
+                      ),
+                      _FocusGrid(kpis: data.kpis),
+                      const SizedBox(height: 12),
+                      _MetricStrip(kpis: data.kpis),
+                      const SizedBox(height: 26),
+                      const _SectionTitle(
+                        title: 'Quick actions',
+                        subtitle: 'Jump straight into work',
+                      ),
+                      const _QuickActions(),
+                      const SizedBox(height: 26),
+                      _SectionTitle(
+                        title: 'Pipeline funnel',
+                        subtitle: 'Staff at each stage',
+                        actionLabel: 'Open',
+                        onAction: () => context.go(RmRoutes.pipeline),
+                      ),
+                      _FunnelCard(funnel: data.funnel),
+                      if (data.seriesDistribution.isNotEmpty) ...[
+                        const SizedBox(height: 26),
+                        const _SectionTitle(
+                          title: 'Series mix',
+                          subtitle: 'Who is in your pool',
+                        ),
+                        _SeriesCard(series: data.seriesDistribution),
+                      ],
+                    ]
+                        .animate(interval: 60.ms)
+                        .fadeIn(duration: 380.ms)
+                        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic),
+                  ),
+                ),
               ],
             ),
           ),
@@ -53,487 +88,1022 @@ class RmDashboardScreen extends ConsumerWidget {
     );
   }
 
-  AppBar _buildAppBar(String? userName) {
-    return AppBar(
-      backgroundColor: RmTheme.offWhite,
-      elevation: 0,
-      title: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: RmTheme.electricBlue.withOpacity(0.1),
-            child: Text(
-              (userName?.trim().isNotEmpty ?? false)
-                  ? userName!.trim()[0].toUpperCase()
-                  : 'R',
-              style: const TextStyle(
-                color: RmTheme.electricBlue,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Hello, ${userName ?? 'RM'}',
-                style: RmTheme.headline(null).copyWith(fontSize: 18),
-              ),
-              Text(
-                'RM Dashboard',
-                style: RmTheme.body(null).copyWith(fontSize: 12),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsGrid(bool isTablet, RmDashboardKpis kpis) {
-    return SizedBox(
-      height: 280, // Fixed height for 2 rows of cards
-      child: GridView.count(
-        scrollDirection: Axis.horizontal,
-        crossAxisCount: 2,
-        shrinkWrap: false,
-        physics: const BouncingScrollPhysics(),
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.85, // Adjust width of the cards
-        children: [
-          _buildStatCard(
-            'Total Staff',
-            '${kpis.totalStaff}',
-            Icons.people_outline,
-            RmTheme.textPrimary,
-          ),
-          _buildStatCard(
-            'Active Pipeline',
-            '${kpis.activePipeline}',
-            Icons.trending_up,
-            RmTheme.electricBlue,
-          ),
-          _buildStatCard(
-            'Pending Verification',
-            '${kpis.pendingVerification}',
-            Icons.fact_check_outlined,
-            RmTheme.amberWarning,
-          ),
-          _buildStatCard(
-            'Trials Active',
-            '${kpis.trialPlacements}',
-            Icons.play_circle_outline,
-            RmTheme.emeraldGreen,
-          ),
-          _buildStatCard(
-            'Deployed',
-            '${kpis.activePlacements}',
-            Icons.check_circle_outline,
-            RmTheme.emeraldGreen,
-          ),
-          _buildStatCard(
-            'Training Queue',
-            '${kpis.trainingQueue}',
-            Icons.school_outlined,
-            RmTheme.electricBlueLight,
-          ),
-          _buildStatCard(
-            'Deployment Ready',
-            '${kpis.deploymentQueue}',
-            Icons.local_shipping_outlined,
-            RmTheme.electricBlue,
-          ),
-          _buildStatCard(
-            'Deferred',
-            '${kpis.deferredCases}',
-            Icons.pause_circle_outline,
-            RmTheme.textSecondary,
-          ),
-          _buildStatCard(
-            'Open Incidents',
-            '${kpis.openIncidents}',
-            Icons.report_problem_outlined,
-            RmTheme.crimsonDanger,
-          ),
-          _buildStatCard(
-            'Pending Shifts',
-            '${kpis.pendingShifts}',
-            Icons.pending_actions,
-            RmTheme.amberWarning,
-          ),
-          _buildStatCard(
-            'Pending Video',
-            '${kpis.pendingVideo}',
-            Icons.videocam_outlined,
-            RmTheme.electricBlueLight,
-          ),
-          _buildStatCard(
-            'Monthly Placements',
-            '${kpis.monthlyPlacements}',
-            Icons.insights_outlined,
-            RmTheme.textPrimary,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
+  Widget _buildHero(
+    BuildContext context,
+    String? userName,
+    RmDashboardKpis kpis,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        gradient: LinearGradient(
-          colors: [RmTheme.cardSurface, color.withOpacity(0.05)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final name =
+        (userName?.trim().isNotEmpty ?? false) ? userName!.trim() : 'RM';
+    return DsHeroHeader(
+      leading: DsRingAvatar(
+        name: name,
+        onTap: () => context.go(RmRoutes.profile),
+      ),
+      actions: [
+        DsHeroIconButton(
+          icon: Icons.notifications_none_rounded,
+          tooltip: 'Incidents',
+          badgeCount: kpis.openIncidents,
+          onPressed: () => context.go(RmRoutes.alerts),
         ),
-        border: Border.all(color: color.withOpacity(0.15), width: 1.5),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+      ],
+      eyebrow: dsGreeting(),
+      eyebrowIcon: Icons.wb_sunny_rounded,
+      title: 'Hello, ${name.split(' ').first}',
+      subtitle: "Here's your placement pipeline today.",
+      floatingIcons: const [
+        Icons.groups_rounded,
+        Icons.trending_up_rounded,
+        Icons.verified_user_rounded,
+      ],
+      bottom: Row(
+        children: [
+          Expanded(
+            child: DsHeroStat(
+              label: 'Active pipeline',
+              value: '${kpis.activePipeline}',
+              icon: Icons.view_kanban_rounded,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: DsHeroStat(
+              label: 'Deployed',
+              value: '${kpis.activePlacements}',
+              icon: Icons.check_circle_rounded,
+            ),
           ),
         ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared bits
+// ---------------------------------------------------------------------------
+
+const _stageOrder = [
+  'S1_INTAKE',
+  'S2_VERIFY',
+  'S2_5_ASSESS',
+  'S3_TRAIN',
+  'S4_AGREEMENTS',
+  'S5_DEPLOY',
+  'DEFERRED',
+  'TERMINAL',
+];
+
+(String, String, Color, IconData) _stageInfo(String stage) => switch (stage) {
+      'S1_INTAKE' => ('S1', 'Intake', const Color(0xFF6366F1), Icons.person_add_alt_rounded),
+      'S2_VERIFY' => ('S2', 'Verification', const Color(0xFF0D9488), Icons.fact_check_rounded),
+      'S2_5_ASSESS' => ('S2.5', 'Assessment', const Color(0xFFD97706), Icons.assignment_turned_in_rounded),
+      'S3_TRAIN' => ('S3', 'Training', const Color(0xFF8B5CF6), Icons.school_rounded),
+      'S4_AGREEMENTS' => ('S4', 'Agreements', const Color(0xFF1A56FF), Icons.edit_document),
+      'S5_DEPLOY' => ('S5', 'Deploy', const Color(0xFF10B981), Icons.rocket_launch_rounded),
+      'DEFERRED' => ('—', 'Deferred', RmTheme.amberWarning, Icons.pause_circle_rounded),
+      'TERMINAL' => ('—', 'Exited', RmTheme.crimsonDanger, Icons.block_rounded),
+      _ => ('', stage, RmTheme.textSecondary, Icons.circle_rounded),
+    };
+
+BoxDecoration _card() => BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: RmTheme.borderSubtle.withValues(alpha: 0.7)),
+      boxShadow: RmTheme.subtleShadow,
+    );
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Watermark icon in the background
-          Positioned(
-            right: -16,
-            bottom: -16,
-            child: Icon(
-              icon,
-              size: 80,
-              color: color.withOpacity(0.06),
+          Container(
+            width: 4,
+            height: 34,
+            decoration: BoxDecoration(
+              color: RmTheme.iconAccent,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-          // Foreground content
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: RmTheme.label(null).copyWith(
-                        color: RmTheme.textSecondary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        height: 1.2,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                    color: RmTheme.textPrimary,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: RmTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (actionLabel != null)
+            GestureDetector(
+              onTap: onAction,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8EEFF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      actionLabel!,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color: RmTheme.electricBlue,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
+                    const SizedBox(width: 2),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 14,
+                      color: RmTheme.electricBlue,
                     ),
-                    child: Icon(icon, size: 18, color: color),
-                  ),
-                ],
-              ),
-              Text(
-                value,
-                style: RmTheme.headline(null).copyWith(
-                  color: RmTheme.textPrimary,
-                  fontSize: 34,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildPipelineDistribution(List<PipelineFunnelEntry> funnel) {
-    final total = funnel.fold<int>(0, (sum, e) => sum + e.count);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: RmTheme.sophisticatedShadow,
+/// Count-up integer text.
+class _CountUp extends StatelessWidget {
+  const _CountUp({required this.value, required this.style});
+  final int value;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: value.toDouble()),
+      duration: 900.ms,
+      curve: Curves.easeOutCubic,
+      builder: (_, v, _) => Text('${v.round()}', style: style),
+    );
+  }
+}
+
+/// Press-to-shrink wrapper.
+class _Pressable extends StatefulWidget {
+  const _Pressable({required this.onTap, required this.child});
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  State<_Pressable> createState() => _PressableState();
+}
+
+class _PressableState extends State<_Pressable> {
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _down = true),
+      onTapUp: (_) => setState(() => _down = false),
+      onTapCancel: () => setState(() => _down = false),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        widget.onTap();
+      },
+      child: AnimatedScale(
+        scale: _down ? 0.96 : 1,
+        duration: 120.ms,
+        child: widget.child,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Pipeline Distribution',
-            style: RmTheme.title(null).copyWith(color: RmTheme.textPrimary),
-          ),
-          const SizedBox(height: 4),
-          Text('Current staff across all stages', style: RmTheme.body(null)),
-          const SizedBox(height: 24),
-          if (total == 0)
-            Text(
-              'No staff in the pipeline yet.',
-              style: RmTheme.body(null).copyWith(color: RmTheme.textSecondary),
-            )
-          else ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Row(
-                children: [
-                  for (final entry in funnel)
-                    if (entry.count > 0)
-                      Expanded(
-                        flex: entry.count,
-                        child: Container(
-                          height: 12,
-                          color: _stageColor(entry.stage),
-                        ),
-                      ),
-                ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// At a glance
+// ---------------------------------------------------------------------------
+
+class _FocusGrid extends StatelessWidget {
+  const _FocusGrid({required this.kpis});
+  final RmDashboardKpis kpis;
+
+  @override
+  Widget build(BuildContext context) {
+    final tiles = [
+      _FocusTile(
+        label: 'Total staff',
+        value: kpis.totalStaff,
+        icon: Icons.groups_rounded,
+        hint: 'In your pool',
+        onTap: () => context.go(RmRoutes.pipeline),
+      ),
+      _FocusTile(
+        label: 'To verify',
+        value: kpis.pendingVerification,
+        icon: Icons.fact_check_rounded,
+        hint: 'Awaiting checks',
+        alert: kpis.pendingVerification > 0,
+        onTap: () => context.go(RmRoutes.pipeline),
+      ),
+      _FocusTile(
+        label: 'Active pipeline',
+        value: kpis.activePipeline,
+        icon: Icons.trending_up_rounded,
+        hint: 'Moving forward',
+        onTap: () => context.go(RmRoutes.pipeline),
+      ),
+      _FocusTile(
+        label: 'Trials live',
+        value: kpis.trialPlacements,
+        icon: Icons.play_circle_rounded,
+        hint: 'With clients now',
+        onTap: () => context.push(RmRoutes.trials),
+      ),
+    ];
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: tiles[0]),
+            const SizedBox(width: 12),
+            Expanded(child: tiles[1]),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: tiles[2]),
+            const SizedBox(width: 12),
+            Expanded(child: tiles[3]),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _FocusTile extends StatelessWidget {
+  const _FocusTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.hint,
+    required this.onTap,
+    this.alert = false,
+  });
+
+  final String label;
+  final int value;
+  final IconData icon;
+  final String hint;
+  final VoidCallback onTap;
+  final bool alert;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Pressable(
+      onTap: onTap,
+      child: Container(
+        height: 140,
+        padding: const EdgeInsets.all(14),
+        decoration: _card(),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            // Oversized watermark icon.
+            Positioned(
+              right: -18,
+              bottom: -18,
+              child: Icon(
+                icon,
+                size: 86,
+                color: RmTheme.iconAccent.withValues(alpha: 0.07),
               ),
             ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final entry in funnel)
-                  _buildLegend(
-                    '${_shortStage(entry.stage)} (${entry.count})',
-                    _stageColor(entry.stage),
+                Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: RmTheme.iconAccentSoft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(icon, size: 20, color: RmTheme.iconAccent),
+                    ),
+                    const Spacer(),
+                    if (alert)
+                      Container(
+                        width: 9,
+                        height: 9,
+                        decoration: const BoxDecoration(
+                          color: RmTheme.crimsonDanger,
+                          shape: BoxShape.circle,
+                        ),
+                      )
+                          .animate(onPlay: (c) => c.repeat(reverse: true))
+                          .scaleXY(begin: 0.8, end: 1.3, duration: 700.ms),
+                  ],
+                ),
+                const Spacer(),
+                _CountUp(
+                  value: value,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.8,
+                    height: 1,
+                    color: RmTheme.textPrimary,
                   ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: RmTheme.textPrimary,
+                  ),
+                ),
+                Text(
+                  hint,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: RmTheme.textSecondary,
+                  ),
+                ),
               ],
             ),
           ],
-        ],
+        ),
       ),
     );
   }
+}
 
-  String _shortStage(String stage) {
-    const labels = {
-      'S1_INTAKE': 'S1',
-      'S2_VERIFY': 'S2',
-      'S2_5_ASSESS': 'S2.5',
-      'S3_TRAIN': 'S3',
-      'S4_AGREEMENTS': 'S4',
-      'S5_DEPLOY': 'S5',
-      'DEFERRED': 'Deferred',
-      'TERMINAL': 'Terminal',
-    };
-    return labels[stage] ?? stage;
-  }
+/// Horizontally scrolling compact metrics for the remaining KPIs.
+class _MetricStrip extends StatelessWidget {
+  const _MetricStrip({required this.kpis});
+  final RmDashboardKpis kpis;
 
-  Color _stageColor(String stage) {
-    const colors = {
-      'S1_INTAKE': Color(0xFFE5E7EB),
-      'S2_VERIFY': Color(0xFF9CA3AF),
-      'S2_5_ASSESS': Color(0xFF6B7280),
-      'S3_TRAIN': Color(0xFFD1D5DB),
-      'S4_AGREEMENTS': RmTheme.electricBlueLight,
-      'S5_DEPLOY': RmTheme.electricBlue,
-      'DEFERRED': RmTheme.amberWarning,
-      'TERMINAL': RmTheme.crimsonDanger,
-    };
-    return colors[stage] ?? RmTheme.textSecondary;
-  }
+  @override
+  Widget build(BuildContext context) {
+    final items = <(String, int, IconData, Color)>[
+      ('Training', kpis.trainingQueue, Icons.school_rounded, const Color(0xFF8B5CF6)),
+      ('Deploy ready', kpis.deploymentQueue, Icons.rocket_launch_rounded, const Color(0xFF10B981)),
+      ('Pending video', kpis.pendingVideo, Icons.videocam_rounded, const Color(0xFF0D9488)),
+      ('Pending shifts', kpis.pendingShifts, Icons.pending_actions_rounded, RmTheme.amberWarning),
+      ('Incidents', kpis.openIncidents, Icons.report_rounded, RmTheme.crimsonDanger),
+      ('Deferred', kpis.deferredCases, Icons.pause_circle_rounded, RmTheme.amberWarning),
+      ('This month', kpis.monthlyPlacements, Icons.insights_rounded, RmTheme.electricBlue),
+    ];
 
-  Widget _buildLegend(String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: RmTheme.label(
-            null,
-          ).copyWith(fontSize: 10, color: RmTheme.textSecondary),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButtons(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildActionButton(
-            'Add New\nStaff',
-            Icons.person_add_alt,
-            () => context.push(RmRoutes.staffIntake),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildActionButton(
-            'View\nPipeline',
-            Icons.view_kanban_outlined,
-            () => context.push(RmRoutes.pipeline),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButton(String label, IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        decoration: BoxDecoration(
-          color: RmTheme.cardSurface,
-          border: Border.all(
-            color: RmTheme.electricBlue.withOpacity(0.15),
-            width: 1.5,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: RmTheme.electricBlue.withOpacity(0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
+    return SizedBox(
+      height: 64,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
+          final (label, value, icon, color) = items[i];
+          return Container(
+            padding: const EdgeInsets.fromLTRB(8, 8, 14, 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: RmTheme.borderSubtle.withValues(alpha: 0.7)),
             ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    RmTheme.electricBlue.withOpacity(0.15),
-                    RmTheme.electricBlue.withOpacity(0.05),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, size: 20, color: color),
                 ),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: RmTheme.electricBlue, size: 28),
+                const SizedBox(width: 10),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _CountUp(
+                      value: value,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        height: 1.1,
+                        color: RmTheme.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      label,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: RmTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: RmTheme.label(null).copyWith(
-                fontWeight: FontWeight.w700,
-                color: RmTheme.textPrimary,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
+          )
+              .animate(delay: (50 * i).ms)
+              .fadeIn(duration: 300.ms)
+              .slideX(begin: 0.2, end: 0);
+        },
       ),
     );
   }
+}
 
-  Widget _buildToolsRow(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+// ---------------------------------------------------------------------------
+// Quick actions
+// ---------------------------------------------------------------------------
+
+class _QuickActions extends StatelessWidget {
+  const _QuickActions();
+
+  @override
+  Widget build(BuildContext context) {
+    final tools = <(String, IconData, VoidCallback)>[
+      ('Pipeline', Icons.view_kanban_rounded, () => context.go(RmRoutes.pipeline)),
+      ('Attendance', Icons.event_available_rounded, () => context.push(RmRoutes.attendance)),
+      ('Locations', Icons.place_rounded, () => context.push(RmRoutes.locations)),
+      ('Upgrades', Icons.trending_up_rounded, () => context.push(RmRoutes.upgrades)),
+    ];
+
+    return Column(
+      children: [
+        // Primary action banner.
+        _Pressable(
+          onTap: () => context.push(RmRoutes.staffIntake),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [RmTheme.navy, Color(0xFF1238B8), RmTheme.electricBlue],
+              ),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: RmTheme.electricBlue.withValues(alpha: 0.3),
+                  blurRadius: 22,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  right: -40,
+                  top: -50,
+                  child: Container(
+                    width: 130,
+                    height: 130,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFFFD84D).withValues(alpha: 0.15),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.person_add_alt_1_rounded,
+                        color: RmTheme.iconAccent,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Add new staff',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            'Start an intake in under 2 minutes',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white.withValues(alpha: 0.78),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Colors.white,
+                        size: 19,
+                      ),
+                    )
+                        .animate(onPlay: (c) => c.repeat(reverse: true))
+                        .moveX(begin: 0, end: 4, duration: 700.ms),
+                  ],
+                ),
+              ],
+            ),
+          )
+              .animate(onPlay: (c) => c.repeat())
+              .shimmer(
+                delay: 2500.ms,
+                duration: 1500.ms,
+                color: Colors.white.withValues(alpha: 0.18),
+              ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            for (var i = 0; i < tools.length; i++) ...[
+              if (i > 0) const SizedBox(width: 10),
+              Expanded(
+                child: _Pressable(
+                  onTap: tools[i].$3,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: _card(),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: RmTheme.iconAccentSoft,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            tools[i].$2,
+                            size: 21,
+                            color: RmTheme.iconAccent,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          tools[i].$1,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: RmTheme.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Funnel
+// ---------------------------------------------------------------------------
+
+class _FunnelCard extends StatelessWidget {
+  const _FunnelCard({required this.funnel});
+  final List<PipelineFunnelEntry> funnel;
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = {for (final e in funnel) e.stage: e.count};
+    // S2.5 is switched off — show its chip only if someone is still in it.
+    final stages = _stageOrder
+        .where(counts.containsKey)
+        .where((s) => s != 'S2_5_ASSESS' || (counts[s] ?? 0) > 0)
+        .toList();
+    final total = counts.values.fold<int>(0, (a, b) => a + b);
+    final max = counts.values.fold<int>(0, (a, b) => b > a ? b : a);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: _card(),
+      child: total == 0
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                'No staff in the pipeline yet.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w600,
+                  color: RmTheme.textSecondary,
+                ),
+              ),
+            )
+          : Column(
+              children: [
+                // Overview bar.
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    height: 12,
+                    child: Row(
+                      children: [
+                        for (final s in stages)
+                          if (counts[s]! > 0)
+                            Expanded(
+                              flex: counts[s]!,
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 2),
+                                color: _stageInfo(s).$3,
+                              ),
+                            ),
+                      ],
+                    ),
+                  ),
+                )
+                    .animate()
+                    .scaleX(
+                      begin: 0,
+                      end: 1,
+                      alignment: Alignment.centerLeft,
+                      duration: 900.ms,
+                      curve: Curves.easeOutCubic,
+                    ),
+                const SizedBox(height: 14),
+                for (var i = 0; i < stages.length; i++)
+                  _FunnelRow(
+                    stage: stages[i],
+                    count: counts[stages[i]]!,
+                    max: max,
+                    total: total,
+                    index: i,
+                  ),
+              ],
+            ),
+    );
+  }
+}
+
+class _FunnelRow extends StatelessWidget {
+  const _FunnelRow({
+    required this.stage,
+    required this.count,
+    required this.max,
+    required this.total,
+    required this.index,
+  });
+
+  final String stage;
+  final int count;
+  final int max;
+  final int total;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final (code, name, color, icon) = _stageInfo(stage);
+    final frac = max == 0 ? 0.0 : count / max;
+    final pct = total == 0 ? 0 : (count / total * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          _buildToolChip(
-            context,
-            'Attendance',
-            Icons.event_available_outlined,
-            () => context.push(RmRoutes.attendance),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 17, color: color),
           ),
-          const SizedBox(width: 8),
-          _buildToolChip(
-            context,
-            'Locations',
-            Icons.place_outlined,
-            () => context.push(RmRoutes.locations),
-          ),
-          const SizedBox(width: 8),
-          _buildToolChip(
-            context,
-            'Upgrades',
-            Icons.trending_up,
-            () => context.push(RmRoutes.upgrades),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToolChip(
-    BuildContext context,
-    String label,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return ActionChip(
-      avatar: Icon(icon, size: 16, color: RmTheme.electricBlue),
-      label: Text(label),
-      onPressed: onTap,
-      backgroundColor: RmTheme.cardSurface,
-      side: BorderSide(color: RmTheme.electricBlue.withOpacity(0.2)),
-    );
-  }
-
-  Widget _buildSeriesBreakdown(List<SeriesDistributionEntry> series) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: RmTheme.sophisticatedShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Series Breakdown',
-            style: RmTheme.title(null).copyWith(color: RmTheme.textPrimary),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              for (final s in series)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: RmTheme.offWhite,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: RmTheme.borderSubtle),
-                  ),
-                  child: Text(
-                    '${s.series}: ${s.count}',
-                    style: RmTheme.label(
-                      null,
-                    ).copyWith(fontWeight: FontWeight.w600),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (code != '—') ...[
+                      Text(
+                        code,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: color,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: RmTheme.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '$count',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: RmTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    SizedBox(
+                      width: 34,
+                      child: Text(
+                        '$pct%',
+                        textAlign: TextAlign.right,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: RmTheme.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Stack(
+                    children: [
+                      Container(height: 6, color: RmTheme.surfaceSecondary),
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: frac),
+                        duration: Duration(milliseconds: 700 + index * 80),
+                        curve: Curves.easeOutCubic,
+                        builder: (_, v, _) => FractionallySizedBox(
+                          widthFactor: v,
+                          child: Container(height: 6, color: color),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Series mix
+// ---------------------------------------------------------------------------
+
+(String, IconData, Color) _seriesInfo(String raw) {
+  // Exact match on either series form (UC / UNSKILLED_CARE …), incl. CK.
+  if (SeriesCatalog.fallback.find(raw) != null) {
+    return (SeriesDisplay.label(raw), SeriesDisplay.icon(raw), SeriesDisplay.color(raw));
+  }
+  final pretty = raw.toUpperCase().replaceAll('_', ' ').toLowerCase();
+  return (
+    pretty.isEmpty ? raw : pretty[0].toUpperCase() + pretty.substring(1),
+    Icons.person_rounded,
+    RmTheme.textSecondary,
+  );
+}
+
+class _SeriesCard extends StatelessWidget {
+  const _SeriesCard({required this.series});
+  final List<SeriesDistributionEntry> series;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = series.fold<int>(0, (a, b) => a + b.count);
+    final sorted = [...series]..sort((a, b) => b.count.compareTo(a.count));
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _card(),
+      child: Row(
+        children: [
+          // Donut ring of the mix.
+          SizedBox(
+            width: 104,
+            height: 104,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: 1000.ms,
+              curve: Curves.easeOutCubic,
+              builder: (_, t, _) => CustomPaint(
+                painter: _DonutPainter(
+                  values: [for (final s in sorted) s.count.toDouble()],
+                  colors: [for (final s in sorted) _seriesInfo(s.series).$3],
+                  progress: t,
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$total',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          height: 1,
+                          color: RmTheme.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'staff',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: RmTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              children: [
+                for (final s in sorted)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: _seriesInfo(s.series).$3.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: Icon(
+                            _seriesInfo(s.series).$2,
+                            size: 15,
+                            color: _seriesInfo(s.series).$3,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _seriesInfo(s.series).$1,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: RmTheme.textPrimary,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${s.count}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: RmTheme.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DonutPainter extends CustomPainter {
+  _DonutPainter({
+    required this.values,
+    required this.colors,
+    required this.progress,
+  });
+
+  final List<double> values;
+  final List<Color> colors;
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const stroke = 13.0;
+    final rect = Offset.zero & size;
+    final arcRect = rect.deflate(stroke / 2);
+    final total = values.fold<double>(0, (a, b) => a + b);
+
+    canvas.drawArc(
+      arcRect,
+      0,
+      6.2832,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..color = RmTheme.surfaceSecondary,
+    );
+    if (total == 0) return;
+
+    var start = -1.5708; // 12 o'clock
+    final sweepTotal = 6.2832 * progress;
+    const gap = 0.06;
+    for (var i = 0; i < values.length; i++) {
+      final sweep = values[i] / total * sweepTotal;
+      if (sweep > gap) {
+        canvas.drawArc(
+          arcRect,
+          start,
+          sweep - gap,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = stroke
+            ..strokeCap = StrokeCap.round
+            ..color = colors[i],
+        );
+      }
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DonutPainter old) =>
+      old.progress != progress || old.values != values;
 }

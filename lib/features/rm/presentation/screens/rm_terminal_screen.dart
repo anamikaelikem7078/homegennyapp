@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/presentation/async_value_widget.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
+import '../../domain/models/pipeline_stage.dart';
 import '../../domain/models/rm_models.dart';
 import '../providers/rm_providers.dart';
+import '../widgets/rm_stage_ui.dart';
 
 /// Terminal outcome staff — read-only. Swagger exposes no explicit action
 /// on this list, so none is offered (per §23: don't provide unsupported
@@ -16,33 +17,40 @@ class RmTerminalScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final terminalAsync = ref.watch(rmTerminalProvider);
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(backgroundColor: RmTheme.offWhite, elevation: 0, title: const Text('Terminal')),
-      body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(rmTerminalProvider),
-        child: AsyncValueWidget<List<StaffRow>>(
-          value: terminalAsync,
-          onRetry: () => ref.invalidate(rmTerminalProvider),
-          builder: (rows) {
-            if (rows.isEmpty) return const Center(child: Text('No terminal-outcome staff.'));
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: rows.length,
-              itemBuilder: (context, index) {
-                final s = rows[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: const Icon(Icons.block, color: RmTheme.crimsonDanger),
-                    title: Text(s.fullName),
-                    subtitle: Text('${s.staffCode} · Outcome: ${s.terminalOutcome ?? 'unspecified'}'),
-                  ),
-                );
-              },
-            );
-          },
-        ),
+    return RmStageScaffold(
+      title: 'Exited',
+      stageColor: RmTheme.crimsonDanger,
+      stageCode: terminalAsync.valueOrNull == null
+          ? null
+          : '${terminalAsync.valueOrNull!.length}',
+      onRefresh: () async => ref.invalidate(rmTerminalProvider),
+      body: rmAsyncBody<List<StaffRow>>(
+        terminalAsync,
+        onRetry: () => ref.invalidate(rmTerminalProvider),
+        builder: (rows) => [
+          const RmNote(
+            tone: RmNoteTone.danger,
+            title: 'Exited the pipeline',
+            text: 'Staff with a terminal outcome. This list is read-only.',
+          ),
+          const RmSectionTitle(title: 'Staff'),
+          if (rows.isEmpty)
+            const RmEmptyBlock(
+              icon: Icons.verified_user_rounded,
+              color: RmTheme.emeraldGreen,
+              title: 'Nobody has exited',
+              message: 'Staff moved to a terminal outcome will be listed here.',
+            )
+          else
+            for (final s in rows)
+              RmStepTile(
+                icon: Icons.block_rounded,
+                title: s.fullName,
+                subtitle: '${s.staffCode} · ${StaffSeries.label(s.series)}',
+                state: RmStepState.failed,
+                statusLabel: rmTitleCase(s.terminalOutcome ?? 'Unspecified'),
+              ),
+        ],
       ),
     );
   }

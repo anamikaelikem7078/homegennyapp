@@ -19,7 +19,8 @@ import '../data/datasources/json_asset_loader.dart';
 import '../data/repository_executor.dart';
 import '../firebase/firebase_service.dart';
 import '../maps/google_maps_service.dart';
-import '../network/api_service.dart';
+import '../maps/location_address_service.dart';
+import '../maps/location_service.dart';
 import '../network/auth_interceptor.dart';
 import '../network/dio_client.dart';
 import '../network/network_info.dart';
@@ -66,10 +67,6 @@ final dioClientProvider = Provider<DioClient>((ref) {
   return DioClient(authInterceptor: ref.watch(authInterceptorProvider));
 });
 
-final multipartUploadServiceProvider = Provider<MultipartUploadService>((ref) {
-  return MultipartUploadService(ref.watch(dioClientProvider));
-});
-
 final repositoryExecutorProvider = Provider<RepositoryExecutor>((ref) {
   return RepositoryExecutor(networkInfo: ref.watch(networkInfoProvider));
 });
@@ -94,6 +91,14 @@ final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) 
 // ── Maps ──
 final googleMapsServiceProvider = Provider<GoogleMapsService>((ref) {
   return GoogleMapsService(dioClient: ref.watch(dioClientProvider));
+});
+
+final locationServiceProvider = Provider<LocationService>((ref) {
+  return LocationService(maps: ref.watch(googleMapsServiceProvider));
+});
+
+final locationAddressServiceProvider = Provider<LocationAddressService>((ref) {
+  return LocationAddressService(locationService: ref.watch(locationServiceProvider));
 });
 
 // ── Auth datasources ──

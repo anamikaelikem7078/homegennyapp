@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
 
 /// Digital signature screen with draw or typed confirmation.
+///
+/// Not a scrolling page on purpose: the drawing pad needs every pan gesture.
 class DigitalSignatureScreen extends ConsumerStatefulWidget {
   const DigitalSignatureScreen({super.key});
 
   @override
-  ConsumerState<DigitalSignatureScreen> createState() =>
-      _DigitalSignatureScreenState();
+  ConsumerState<DigitalSignatureScreen> createState() => _DigitalSignatureScreenState();
 }
 
 class _DigitalSignatureScreenState extends ConsumerState<DigitalSignatureScreen> {
@@ -23,18 +25,16 @@ class _DigitalSignatureScreenState extends ConsumerState<DigitalSignatureScreen>
   bool _useDrawMode = true;
   bool _isSubmitting = false;
 
-  static const Color _electricBlue = Color(0xFF1A56FF);
-
   @override
   void dispose() {
     _nameController.dispose();
     super.dispose();
   }
 
-  bool get _hasSignature =>
-      _useDrawMode ? _points.length > 4 : _nameController.text.trim().isNotEmpty;
+  bool get _hasSignature => _useDrawMode ? _points.length > 4 : _nameController.text.trim().isNotEmpty;
 
   void _clear() {
+    HapticFeedback.lightImpact();
     setState(() {
       _points.clear();
       _nameController.clear();
@@ -43,121 +43,98 @@ class _DigitalSignatureScreenState extends ConsumerState<DigitalSignatureScreen>
 
   Future<void> _submit() async {
     if (!_hasSignature) {
-      context.showDsSnackBar(
-        'Please provide your signature',
-        type: DsSnackBarType.warning,
-      );
+      context.showDsSnackBar('Please provide your signature', type: DsSnackBarType.warning);
       return;
     }
-
     setState(() => _isSubmitting = true);
-
-    final signature = _useDrawMode
-        ? 'draw:${_points.length}'
-        : _nameController.text.trim();
-
-    final result =
-        await ref.read(staffRepositoryProvider).signAgreement(signature);
-
+    final signature = _useDrawMode ? 'draw:${_points.length}' : _nameController.text.trim();
+    final result = await ref.read(staffRepositoryProvider).signAgreement(signature);
     if (!mounted) return;
     setState(() => _isSubmitting = false);
-
     result.fold(
       onSuccess: (_) {
         ref.invalidate(staffAgreementProvider);
-        context.showDsSnackBar(
-          'Agreement signed successfully',
-          type: DsSnackBarType.success,
-        );
+        context.showDsSnackBar('Agreement signed successfully', type: DsSnackBarType.success);
         context.go(StaffRoutes.agreementStatus);
       },
-      onError: (f) {
-        context.showDsSnackBar(f.message, type: DsSnackBarType.error);
-      },
+      onError: (f) => context.showDsSnackBar(f.message, type: DsSnackBarType.error),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary;
-    final subtitleColor = isDark ? AppColors.darkTextHint : AppColors.lightTextHint;
+    final gutter = dsGutter(context);
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : const Color(0xFFF9FAFB),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: textColor),
-          onPressed: () => context.pop(),
-        ),
-        titleSpacing: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Digital Signature',
-              style: GoogleFonts.libreCaslonText(
-                fontSize: 26,
-                fontWeight: FontWeight.w700,
-                color: textColor,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'SIGN TO ACCEPT THE AGREEMENT',
-              style: TextStyle(
-                fontSize: 10,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w600,
-                color: subtitleColor,
-              ),
-            ),
-          ],
-        ),
+      backgroundColor: AppColors.lightBackground,
+      appBar: DsAppBar(
+        title: 'Digital signature',
+        subtitle: 'Sign to accept the agreement',
+        showBack: true,
+        onBack: () => context.canPop() ? context.pop() : context.go(StaffRoutes.agreement),
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: EdgeInsets.fromLTRB(gutter, 8, gutter, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Choose how you would like to sign',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontStyle: FontStyle.italic,
-                  color: subtitleColor,
-                ),
+              _ModeToggle(
+                drawMode: _useDrawMode,
+                onChanged: (v) {
+                  HapticFeedback.selectionClick();
+                  setState(() => _useDrawMode = v);
+                },
               ),
-              const SizedBox(height: 16),
-              _buildCustomSegmentedControl(isDark),
-              const SizedBox(height: 24),
+              const SizedBox(height: 14),
               Expanded(
-                child: _useDrawMode ? _buildDrawPad(isDark) : _buildTypePad(isDark),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'LEGAL VALIDITY ENSURED BY DIGITAL ENCRYPTION',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 0.8,
-                  fontWeight: FontWeight.w700,
-                  color: subtitleColor,
+                child: AnimatedSwitcher(
+                  duration: 280.ms,
+                  child: _useDrawMode ? _buildDrawPad() : _buildTypePad(),
                 ),
               ),
-              const SizedBox(height: 24),
-              _buildOutlineButton('CLEAR', onPressed: _isSubmitting ? null : _clear),
               const SizedBox(height: 12),
-              _buildPrimaryButton(
-                'SUBMIT SIGNATURE',
-                isLoading: _isSubmitting,
-                onPressed: _hasSignature && !_isSubmitting ? _submit : null,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.lock_rounded, size: 14, color: AppColors.iconAccent),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Legally valid, secured with digital encryption',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.lightTextSecondary,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: DsOutlineButton(
+                      label: 'Clear',
+                      icon: Icons.refresh_rounded,
+                      onPressed: _isSubmitting ? null : _clear,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 3,
+                    child: DsGradientButton(
+                      label: 'Submit',
+                      icon: Icons.check_rounded,
+                      isLoading: _isSubmitting,
+                      onPressed: _hasSignature && !_isSubmitting ? _submit : null,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -165,57 +142,109 @@ class _DigitalSignatureScreenState extends ConsumerState<DigitalSignatureScreen>
     );
   }
 
-  Widget _buildCustomSegmentedControl(bool isDark) {
+  Widget _buildDrawPad() {
     return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceVariant : const Color(0xFFF3F4F6),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.all(4),
-      child: Row(
-        children: [
-          Expanded(child: _buildSegmentButton(true, 'Draw', Icons.edit_rounded, isDark)),
-          Expanded(child: _buildSegmentButton(false, 'Type', Icons.text_fields_rounded, isDark)),
-        ],
+      key: const ValueKey('draw'),
+      decoration: dsCardDecoration(radius: 26),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: GestureDetector(
+          onPanStart: (d) => setState(() => _points.add(d.localPosition)),
+          onPanUpdate: (d) => setState(() => _points.add(d.localPosition)),
+          onPanEnd: (_) => setState(() => _points.add(Offset.zero)),
+          child: CustomPaint(
+            painter: _SignaturePainter(List.of(_points), AppColors.primary),
+            size: Size.infinite,
+            child: Stack(
+              children: [
+                // Signature baseline.
+                Positioned(
+                  left: 24,
+                  right: 24,
+                  bottom: 48,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.close_rounded, size: 16, color: AppColors.lightTextHint),
+                      const SizedBox(width: 6),
+                      Expanded(child: Container(height: 1.5, color: AppColors.lightBorder)),
+                    ],
+                  ),
+                ),
+                if (_points.isEmpty)
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const DsIconTile(Icons.gesture_rounded, size: 60)
+                            .animate(onPlay: (c) => c.repeat(reverse: true))
+                            .moveX(begin: -4, end: 4, duration: 1200.ms, curve: Curves.easeInOut),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Draw your signature here',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.lightTextSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildSegmentButton(bool isDraw, String label, IconData icon, bool isDark) {
-    final isSelected = _useDrawMode == isDraw;
-
-    return GestureDetector(
-      onTap: () => setState(() => _useDrawMode = isDraw),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? _electricBlue : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: _electricBlue.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  )
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildTypePad() {
+    final name = _nameController.text.trim();
+    return SingleChildScrollView(
+      key: const ValueKey('type'),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: dsCardDecoration(radius: 26),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : (isDark ? AppColors.darkTextHint : AppColors.lightTextHint),
+            DsLabeledField(
+              label: 'Type your full legal name',
+              controller: _nameController,
+              icon: Icons.person_rounded,
+              hint: 'Enter your legal name',
+              textCapitalization: TextCapitalization.words,
+              onChanged: (_) => setState(() {}),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(height: 18),
             Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.white : (isDark ? AppColors.darkTextHint : AppColors.lightTextHint),
+              'Preview',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.lightTextSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              height: 90,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.lightBackground,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: AnimatedSwitcher(
+                duration: 200.ms,
+                child: Text(
+                  name.isEmpty ? 'Your signature' : name,
+                  key: ValueKey(name),
+                  style: GoogleFonts.dancingScript(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w700,
+                    color: name.isEmpty ? AppColors.lightTextHint : AppColors.primary,
+                  ),
+                ),
               ),
             ),
           ],
@@ -223,174 +252,62 @@ class _DigitalSignatureScreenState extends ConsumerState<DigitalSignatureScreen>
       ),
     );
   }
+}
 
-  Widget _buildDrawPad(bool isDark) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: isDark
-            ? []
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+class _ModeToggle extends StatelessWidget {
+  const _ModeToggle({required this.drawMode, required this.onChanged});
+  final bool drawMode;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget seg(bool v, String label, IconData icon) {
+      final on = drawMode == v;
+      return Expanded(
         child: GestureDetector(
-          onPanUpdate: (details) {
-            setState(() => _points.add(details.localPosition));
-          },
-          onPanEnd: (_) => setState(() => _points.add(Offset.zero)),
-          child: CustomPaint(
-            painter: _SignaturePainter(_points, _electricBlue),
-            size: Size.infinite,
-            child: _points.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: isDark ? AppColors.darkSurfaceVariant : const Color(0xFFF9FAFB),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.edit_outlined,
-                            size: 32,
-                            color: isDark ? AppColors.darkTextHint : const Color(0xFFD1D5DB),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Draw your signature here',
-                          style: TextStyle(
-                            color: isDark ? AppColors.darkTextHint : const Color(0xFF9CA3AF),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : null,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTypePad(bool isDark) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(AppSpacing.xl),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurface : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: isDark
-            ? []
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
+          onTap: () => onChanged(v),
+          child: AnimatedContainer(
+            duration: 220.ms,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: on ? AppColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: on
+                  ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 17, color: on ? Colors.white : AppColors.iconAccent),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: on ? Colors.white : AppColors.lightTextPrimary,
+                  ),
                 ),
               ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(34),
+        border: Border.all(color: AppColors.lightBorder),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            'Type your full name to confirm',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          SizedBox(height: AppSpacing.md),
-          DsTextField(
-            controller: _nameController,
-            label: 'Full Name',
-            hint: 'Enter your legal name',
-            prefixIcon: Icons.person_outline,
-            textInputAction: TextInputAction.done,
-            onChanged: (_) => setState(() {}),
-          ),
+          seg(true, 'Draw', Icons.draw_rounded),
+          seg(false, 'Type', Icons.keyboard_rounded),
         ],
-      ),
-    );
-  }
-
-  Widget _buildOutlineButton(String label, {VoidCallback? onPressed}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: isDark ? AppColors.darkBorder : const Color(0xFFE5E7EB), width: 1.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          foregroundColor: isDark ? AppColors.darkTextSecondary : const Color(0xFF4B5563),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPrimaryButton(String label, {VoidCallback? onPressed, bool isLoading = false}) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _electricBlue,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          disabledBackgroundColor: _electricBlue.withValues(alpha: 0.5),
-        ),
-        child: isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2.5,
-                ),
-              )
-            : Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
-              ),
       ),
     );
   }
@@ -407,7 +324,8 @@ class _SignaturePainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = 3.0
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 3.2
       ..style = PaintingStyle.stroke;
 
     for (var i = 0; i < points.length - 1; i++) {
@@ -417,7 +335,5 @@ class _SignaturePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _SignaturePainter oldDelegate) =>
-      oldDelegate.points != points;
+  bool shouldRepaint(covariant _SignaturePainter oldDelegate) => oldDelegate.points.length != points.length;
 }
-

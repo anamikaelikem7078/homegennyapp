@@ -121,7 +121,7 @@ abstract class BaseRemoteDataSource {
   }
 
   // Requesting `Map<String, dynamic>` as Dio's response generic makes Dio
-  // cast the decoded JSON body to that exact type internally — but on
+  // cast the decoded JSON body to that exact type internally â€” but on
   // Flutter Web, the JSON decoder (via the XHR path) produces untyped
   // maps at every level of the tree, including nested objects, and that
   // internal cast throws a TypeError instead of the intended DioException.
@@ -147,64 +147,5 @@ abstract class BaseRemoteDataSource {
       return {'items': body['data']};
     }
     return body;
-  }
-}
-
-/// Multipart upload service for images, videos, and documents.
-class MultipartUploadService extends BaseRemoteDataSource {
-  MultipartUploadService(super.dio);
-
-  Future<Map<String, dynamic>> uploadImage({
-    required String path,
-    required String filePath,
-    String fieldName = 'file',
-    Map<String, dynamic>? fields,
-    void Function(int sent, int total)? onProgress,
-  }) async {
-    final formData = FormData.fromMap({
-      ...?fields,
-      fieldName: await MultipartFile.fromFile(filePath),
-    });
-    return uploadMultipart(
-      path.isEmpty ? ApiConstants.uploadImage : path,
-      formData: formData,
-      onProgress: onProgress,
-    );
-  }
-
-  Future<Map<String, dynamic>> uploadVideo({
-    required String path,
-    required String filePath,
-    String fieldName = 'file',
-    Map<String, dynamic>? fields,
-    void Function(int sent, int total)? onProgress,
-  }) async {
-    final formData = FormData.fromMap({
-      ...?fields,
-      fieldName: await MultipartFile.fromFile(filePath),
-    });
-    return uploadMultipart(
-      path.isEmpty ? ApiConstants.uploadVideo : path,
-      formData: formData,
-      onProgress: onProgress,
-    );
-  }
-
-  Future<Map<String, dynamic>> uploadDocument({
-    required String path,
-    required String filePath,
-    String fieldName = 'file',
-    Map<String, dynamic>? fields,
-    void Function(int sent, int total)? onProgress,
-  }) async {
-    final formData = FormData.fromMap({
-      ...?fields,
-      fieldName: await MultipartFile.fromFile(filePath),
-    });
-    return uploadMultipart(
-      path.isEmpty ? ApiConstants.uploadDocument : path,
-      formData: formData,
-      onProgress: onProgress,
-    );
   }
 }

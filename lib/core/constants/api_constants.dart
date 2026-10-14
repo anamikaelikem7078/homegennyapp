@@ -18,11 +18,6 @@ abstract final class ApiConstants {
   static const String userProfile = '/user/profile';
   static const String appVersion = '/app/version';
 
-  // Uploads
-  static const String uploadImage = '/upload/image';
-  static const String uploadVideo = '/upload/video';
-  static const String uploadDocument = '/upload/document';
-
   // Staff
   static const String staffDashboard = '/staff/dashboard';
   static const String staffTasks = '/staff/tasks/today';
@@ -143,6 +138,13 @@ abstract final class ApiConstants {
   static const String clientReplacements = '/client/replacements';
   static const String clientNotifications = '/client/notifications';
   static const String clientProfile = '/client/profile';
+  // Staff requests: GET lists the client's own, POST raises a new one.
+  static const String clientStaffRequests = '/client/staff-requests';
+  static String clientStaffRequest(String id) => '/client/staff-requests/$id';
+  static String clientStaffRequestSelect(String id) => '/client/staff-requests/$id/select';
+  static String clientStaffRequestRejectShortlist(String id) =>
+      '/client/staff-requests/$id/reject-shortlist';
+  static String clientStaffRequestCancel(String id) => '/client/staff-requests/$id/cancel';
 
   // Maps
   static const String mapsGeocode = '/maps/geocode';

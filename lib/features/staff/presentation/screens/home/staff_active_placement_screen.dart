@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../rm/presentation/navigation/rm_routes.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../../design_system/foundations/rm_theme.dart';
+import '../../../../../design_system/widgets/buttons/ds_buttons.dart';
+import '../../../../../design_system/widgets/feedback/ds_feedback.dart';
+import '../../../../rm/domain/models/pipeline_stage.dart';
+import '../../../../rm/presentation/navigation/rm_routes.dart';
+import '../../../../rm/presentation/widgets/rm_stage_ui.dart';
+
+/// Demo of the staff-side S5 "active placement" view (trial countdown,
+/// client and today's shift with check-out).
 class StaffActivePlacementScreen extends StatefulWidget {
   const StaffActivePlacementScreen({super.key});
 
@@ -11,421 +21,362 @@ class StaffActivePlacementScreen extends StatefulWidget {
 }
 
 class _StaffActivePlacementScreenState extends State<StaffActivePlacementScreen> {
+  static const _trialDays = 7;
+  static const _daysLeft = 4;
+
   bool _isCheckedOut = false;
   String _checkOutTime = '';
 
+  void _checkOut() {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isCheckedOut = true;
+      _checkOutTime = TimeOfDay.now().format(context);
+    });
+    DsSnackBar.show(context, message: 'Checked out successfully', type: DsSnackBarType.success);
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) context.go(RmRoutes.dashboard);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      extendBody: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A56FF)),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          'HomeGenny',
-          style: GoogleFonts.libreCaslonText(
-            color: const Color(0xFF111827),
-            fontSize: 24,
-            fontWeight: FontWeight.w600,
-            fontStyle: FontStyle.italic,
-            letterSpacing: -0.5,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle_outlined, color: Color(0xFF1A56FF)),
-            onPressed: () {},
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(left: 24, right: 24, top: 16, bottom: 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE5E7EB),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                'CURRENT STAGE',
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF4B5563),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Active Placement',
-              style: GoogleFonts.libreCaslonText(
-                color: const Color(0xFF111827),
-                fontSize: 32,
-                fontWeight: FontWeight.w600,
-                height: 1.2,
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildStageInfoCard(),
-            const SizedBox(height: 24),
-            _buildTrialCountdownCard(),
-            const SizedBox(height: 24),
-            _buildClientInfoCard(),
-            const SizedBox(height: 24),
-            _buildShiftActionCard(context),
-          ],
-        ),
-      ),
-      // bottomNavigationBar removed as requested
-    );
-  }
+    final stageColor = rmStageColor(PipelineStages.s5Deploy);
 
-  Widget _buildStageInfoCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F6FF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'S5 - DEPLOYMENT STAGE',
-            style: GoogleFonts.inter(
-              color: const Color(0xFF4B5563),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
+    return RmStageScaffold(
+      title: 'Active placement',
+      stageCode: 'S5',
+      stageColor: stageColor,
+      onBack: () => context.pop(),
+      bottom: _isCheckedOut
+          ? RmHint(text: 'Checked out at $_checkOutTime', done: true)
+          : DsGradientButton(
+              label: 'Check out now',
+              icon: Icons.logout_rounded,
+              onPressed: _checkOut,
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Trial, Confirmation &\nPayroll',
-            style: GoogleFonts.libreCaslonText(
-              color: const Color(0xFF111827),
-              fontSize: 22,
-              fontWeight: FontWeight.w500,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'The active employment phase. Starts with a series-specific trial period. All exits are logged.',
-            style: GoogleFonts.inter(
-              color: const Color(0xFF4B5563),
-              fontSize: 14,
-              height: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTrialCountdownCard() {
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.topCenter,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.only(top: 40, bottom: 24, left: 24, right: 24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0A000000),
-                blurRadius: 24,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Text(
-                'DAYS REMAINING',
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF4B5563),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.0,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    '4',
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFFE25611),
-                      fontSize: 48,
-                      fontWeight: FontWeight.w700,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'of',
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFF4B5563),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '7',
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFF111827),
-                      fontSize: 48,
-                      fontWeight: FontWeight.w700,
-                      height: 1,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'DR Series · 7-day trial',
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF6B7280),
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
+      body: [
+        _StageHero(color: stageColor),
+        const SizedBox(height: 14),
+        _TrialCard(daysLeft: _daysLeft, totalDays: _trialDays),
+        const RmSectionTitle(title: 'Client'),
+        const _InfoCard(
+          icon: Icons.home_work_rounded,
+          title: 'Sharma Household',
+          subtitle: 'Bandra West, Mumbai',
+          trailing: RmStatusPill(label: 'Trial', color: RmTheme.amberWarning),
         ),
-        Positioned(
-          top: -12,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.hourglass_bottom, color: Color(0xFFF59E0B), size: 14),
-                const SizedBox(width: 6),
-                Text(
-                  'TRIAL PERIOD',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFFF59E0B),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        const RmSectionTitle(title: 'Today\'s shift'),
+        _InfoCard(
+          icon: _isCheckedOut ? Icons.logout_rounded : Icons.login_rounded,
+          title: _isCheckedOut ? 'Checked out' : 'Checked in',
+          subtitle: _isCheckedOut ? 'At $_checkOutTime' : 'At 7:42 AM · shift in progress',
+          trailing: _LiveDot(active: !_isCheckedOut),
         ),
       ],
     );
   }
+}
 
-  Widget _buildClientInfoCard() {
+class _StageHero extends StatelessWidget {
+  const _StageHero({required this.color});
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 24,
-            offset: Offset(0, 4),
-          ),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF064E3B), Color(0xFF059669), Color(0xFF34D399)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 24, offset: const Offset(0, 12)),
         ],
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'CLIENT',
-            style: GoogleFonts.inter(
-              color: const Color(0xFF6B7280),
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Sharma Household — Bandra West',
-            style: GoogleFonts.inter(
-              color: const Color(0xFF111827),
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildShiftActionCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 24,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'TODAY\'S SHIFT',
-            style: GoogleFonts.inter(
-              color: const Color(0xFF6B7280),
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: _isCheckedOut 
-                  ? const Color(0xFFE25611).withOpacity(0.15) 
-                  : const Color(0xFF22C55E).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  _isCheckedOut ? Icons.logout : Icons.check_circle_outline, 
-                  color: _isCheckedOut ? const Color(0xFFE25611) : const Color(0xFF15803D), 
-                  size: 16
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'S5 · DEPLOYMENT',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(height: 12),
                 Text(
-                  _isCheckedOut ? 'CHECKED OUT · $_checkOutTime' : 'CHECKED IN · 7:42 AM',
-                  style: GoogleFonts.inter(
-                    color: _isCheckedOut ? const Color(0xFFE25611) : const Color(0xFF15803D),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
+                  'Trial, confirmation & payroll',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 21,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'The active employment phase. Starts with a series-specific trial period. '
+                  'All exits are logged.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: 0.85),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          if (!_isCheckedOut)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _isCheckedOut = true;
-                    _checkOutTime = TimeOfDay.now().format(context);
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Checked out successfully')),
-                  );
-                  Future.delayed(const Duration(seconds: 1), () {
-                    if (mounted) {
-                      context.go(RmRoutes.dashboard);
-                    }
-                  });
-                },
-                icon: const Icon(Icons.logout, size: 20),
-                label: Text(
-                  'Check Out Now',
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE25611),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  elevation: 4,
-                  shadowColor: const Color(0xFFE25611).withOpacity(0.4),
-                ),
-              ),
-            ),
+          const SizedBox(width: 12),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(17)),
+            child: const Icon(Icons.rocket_launch_rounded, color: RmTheme.iconAccent, size: 26),
+          )
+              .animate(onPlay: (c) => c.repeat(reverse: true))
+              .moveY(begin: -3, end: 3, duration: 1400.ms, curve: Curves.easeInOut),
         ],
       ),
     );
   }
+}
 
-  Widget _buildStaffBottomNav(int currentIndex) {
-    return SafeArea(
-      child: Container(
-        margin: const EdgeInsets.only(left: 24, right: 24, bottom: 24),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF3F4F6), // Slightly darker than white to match screenshot
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0A000000),
-              blurRadius: 24,
-              offset: Offset(0, 8),
+class _TrialCard extends StatelessWidget {
+  const _TrialCard({required this.daysLeft, required this.totalDays});
+  final int daysLeft;
+  final int totalDays;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = (totalDays - daysLeft) / totalDays;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: RmTheme.borderSubtle.withValues(alpha: 0.7)),
+        boxShadow: RmTheme.subtleShadow,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 92,
+            height: 92,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: progress),
+              duration: 1100.ms,
+              curve: Curves.easeOutCubic,
+              builder: (context, v, _) => Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox.expand(
+                    child: CircularProgressIndicator(
+                      value: v,
+                      strokeWidth: 8,
+                      strokeCap: StrokeCap.round,
+                      backgroundColor: RmTheme.amberWarning.withValues(alpha: 0.12),
+                      color: RmTheme.amberWarning,
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$daysLeft',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 28,
+                          height: 1,
+                          fontWeight: FontWeight.w800,
+                          color: RmTheme.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'of $totalDays days',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: RmTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ],
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _buildNavItem(Icons.home_outlined, currentIndex == 0),
-            _buildNavItem(Icons.badge_outlined, currentIndex == 1),
-            _buildNavItem(Icons.payments_outlined, currentIndex == 2),
-            _buildNavItem(Icons.person_outline, currentIndex == 3),
-          ],
-        ),
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const RmStatusPill(label: 'Trial period', color: RmTheme.amberWarning),
+                const SizedBox(height: 10),
+                Text(
+                  '$daysLeft days remaining',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: RmTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$totalDays-day trial',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: RmTheme.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    for (var i = 0; i < totalDays; i++) ...[
+                      if (i > 0) const SizedBox(width: 4),
+                      Expanded(
+                        child: Container(
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: i < totalDays - daysLeft
+                                ? RmTheme.amberWarning
+                                : RmTheme.amberWarning.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ).animate(delay: (80 * i).ms).fadeIn().scaleX(begin: 0, end: 1),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildNavItem(IconData icon, bool isActive) {
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+  });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isActive ? const Color(0xFF1A56FF).withOpacity(0.1) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: RmTheme.borderSubtle.withValues(alpha: 0.7)),
+        boxShadow: RmTheme.subtleShadow,
       ),
-      child: Icon(
-        icon,
-        color: isActive ? const Color(0xFF1A56FF) : const Color(0xFF374151),
-        size: 24,
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: RmTheme.iconAccentSoft,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Icon(icon, color: RmTheme.iconAccent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: RmTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: RmTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveDot extends StatelessWidget {
+  const _LiveDot({required this.active});
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? RmTheme.emeraldGreen : RmTheme.textSecondary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          )
+              .animate(onPlay: (c) => active ? c.repeat(reverse: true) : null)
+              .fade(begin: 0.3, end: 1, duration: 800.ms),
+          const SizedBox(width: 6),
+          Text(
+            active ? 'Live' : 'Done',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w800,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

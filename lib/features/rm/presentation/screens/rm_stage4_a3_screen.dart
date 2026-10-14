@@ -10,6 +10,7 @@ import '../../../../design_system/foundations/rm_theme.dart';
 import '../../domain/models/pipeline_stage.dart';
 import '../../domain/models/rm_models.dart';
 import '../providers/rm_providers.dart';
+import '../widgets/rm_stage_ui.dart';
 
 /// A3 — Client Indemnity. Placement-scoped (`POST /indemnity`), tied to the
 /// TRIAL placement created right after A1 is signed. Unlike SOW, sending
@@ -73,149 +74,40 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
 
   @override
   Widget build(BuildContext context) {
-    final indemnityAsync = ref.watch(rmIndemnityListProvider(widget.placementId));
-    final staffAsync = ref.watch(staffByIdProvider(widget.staffId));
+    final listAsync = ref.watch(rmIndemnityListProvider(widget.placementId));
+    final staff = ref.watch(staffByIdProvider(widget.staffId)).valueOrNull;
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(
-        backgroundColor: RmTheme.offWhite,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: RmTheme.textPrimary),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          'A3 · Client Indemnity',
-          style: RmTheme.headline(context).copyWith(fontSize: 18),
-        ),
-      ),
-      body: staffAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (staff) {
-          final staffName = staff?.fullName ?? widget.staffId;
-          final staffCode = staff?.staffCode;
-          final staffSeries = staff != null ? StaffSeries.label(staff.series).toUpperCase() : null;
-
-          return indemnityAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('$e')),
-            data: (items) {
-              final indemnity = _latest(items);
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Premium Staff Header Card
-                    _buildStaffHeader(staffName, staffCode, staffSeries),
-                    const SizedBox(height: 20),
-
-                    // Document detail or creation form
-                    if (indemnity == null)
-                      _buildCreateCard()
-                    else
-                      _buildDocumentDetailCard(indemnity),
-
-                    if (_error != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: RmTheme.crimsonDanger.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: RmTheme.crimsonDanger.withOpacity(0.2)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline, color: RmTheme.crimsonDanger, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _error!,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: RmTheme.crimsonDanger,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ).animate().shake(duration: 400.ms),
-                    ],
-                  ],
-                ),
-              );
-            },
-          );
+    return RmStageScaffold(
+      title: 'A3 · Client indemnity',
+      stageCode: 'S5',
+      stageColor: rmStageColor(PipelineStages.s5Deploy),
+      onBack: () => context.pop(),
+      onRefresh: () async => ref.invalidate(rmIndemnityListProvider(widget.placementId)),
+      body: rmAsyncBody(
+        listAsync,
+        onRetry: () => ref.invalidate(rmIndemnityListProvider(widget.placementId)),
+        builder: (items) {
+          final doc = _latest(items);
+          return [
+            if (staff != null)
+              RmStaffBanner(staff: staff, showTracker: false)
+            else
+              const SizedBox(
+                height: 80,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            RmSectionTitle(title: doc == null ? 'Create document' : 'Document'),
+            if (doc == null) _buildCreateCard() else _buildDocumentDetailCard(doc),
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              RmNote(tone: RmNoteTone.danger, title: 'Something went wrong', text: _error!)
+                  .animate()
+                  .shake(duration: 400.ms),
+            ],
+          ];
         },
       ),
     );
-  }
-
-  Widget _buildStaffHeader(String name, String? code, String? series) {
-    final firstLetter = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: RmTheme.borderSubtle.withOpacity(0.5),
-          width: 1.5,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: RmTheme.electricBlue.withOpacity(0.1),
-            child: Text(
-              firstLetter,
-              style: GoogleFonts.inter(
-                color: RmTheme.electricBlue,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: RmTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${code ?? "ID: " + widget.staffId}${series != null ? " • $series" : ""}',
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: RmTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.02, end: 0, duration: 400.ms);
   }
 
   Widget _buildCreateCard() {
@@ -238,7 +130,7 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
         children: [
           Text(
             'Send Indemnity Clause',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontWeight: FontWeight.w700,
               fontSize: 15.5,
               color: RmTheme.textPrimary,
@@ -256,7 +148,7 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
           const SizedBox(height: 14),
           Text(
             'Send the client indemnity clause to set contract terms and safeguard liability requirements.',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               color: RmTheme.textSecondary,
               fontSize: 13,
               height: 1.4,
@@ -265,10 +157,10 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
           const SizedBox(height: 18),
           TextField(
             controller: _versionController,
-            style: GoogleFonts.inter(fontSize: 14.5, color: RmTheme.textPrimary),
+            style: GoogleFonts.plusJakartaSans(fontSize: 14.5, color: RmTheme.textPrimary),
             decoration: InputDecoration(
               labelText: 'Clause version',
-              labelStyle: GoogleFonts.inter(color: RmTheme.textSecondary, fontSize: 13.5),
+              labelStyle: GoogleFonts.plusJakartaSans(color: RmTheme.textSecondary, fontSize: 13.5),
               filled: true,
               fillColor: RmTheme.offWhite,
               border: OutlineInputBorder(
@@ -290,10 +182,10 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
           TextField(
             controller: _textController,
             maxLines: 5,
-            style: GoogleFonts.inter(fontSize: 14.5, color: RmTheme.textPrimary),
+            style: GoogleFonts.plusJakartaSans(fontSize: 14.5, color: RmTheme.textPrimary),
             decoration: InputDecoration(
               hintText: 'Enter clause text detailing liabilities, indemnification terms, and exclusions...',
-              hintStyle: GoogleFonts.inter(color: RmTheme.textSecondary.withOpacity(0.5), fontSize: 13.5),
+              hintStyle: GoogleFonts.plusJakartaSans(color: RmTheme.textSecondary.withOpacity(0.5), fontSize: 13.5),
               filled: true,
               fillColor: RmTheme.offWhite,
               alignLabelWithHint: true,
@@ -320,9 +212,7 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
               onPressed: _busy ? null : _send,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: const StadiumBorder(),
               ),
               child: _busy
                   ? const SizedBox(
@@ -332,7 +222,7 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
                     )
                   : Text(
                       'Send Indemnity Clause',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14.5),
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14.5),
                     ),
             ),
           ),
@@ -372,7 +262,7 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
             children: [
               Text(
                 'Indemnity Clause',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontWeight: FontWeight.w700,
                   fontSize: 15.5,
                   color: RmTheme.textPrimary,
@@ -386,7 +276,7 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
                 ),
                 child: Text(
                   statusText,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     color: statusColor,
                     fontWeight: FontWeight.bold,
                     fontSize: 11,
@@ -401,7 +291,7 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
             children: [
               Text(
                 'Version: ${indemnity.clauseVersion}',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 12.5,
                   fontWeight: FontWeight.bold,
                   color: RmTheme.textPrimary,
@@ -433,7 +323,7 @@ class _RmStage4A3ScreenState extends ConsumerState<RmStage4A3Screen> {
             ),
             child: Text(
               indemnity.clauseText,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 color: RmTheme.textPrimary,
                 height: 1.45,

@@ -1,75 +1,131 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../rm/presentation/navigation/rm_routes.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../../design_system/foundations/rm_theme.dart';
+import '../../../../../design_system/widgets/buttons/ds_buttons.dart';
+import '../../../../rm/presentation/navigation/rm_routes.dart';
+import '../../../../rm/presentation/widgets/rm_stage_ui.dart';
+
+/// Demo of the staff daily shift log: check-in with GPS verification,
+/// check-out and this week's attendance strip.
 class StaffDailyShiftScreen extends StatelessWidget {
   const StaffDailyShiftScreen({super.key});
 
+  static const _week = [
+    ('Mon', DayStatus.completed),
+    ('Tue', DayStatus.completed),
+    ('Wed', DayStatus.current),
+    ('Thu', DayStatus.future),
+    ('Fri', DayStatus.future),
+    ('Sat', DayStatus.off),
+    ('Sun', DayStatus.off),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      extendBody: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF6B7280)),
-          onPressed: () {},
+    return RmStageScaffold(
+      title: 'Daily shift log',
+      onBack: () => context.pop(),
+      bottom: DsGradientButton(
+        label: 'Tap to check out',
+        icon: Icons.logout_rounded,
+        onPressed: () => context.push(RmRoutes.staffPayslip('demo')),
+      ),
+      body: [
+        const _CheckInHero(),
+        const RmSectionTitle(title: 'Check-out'),
+        const _PendingCheckOut(),
+        RmSectionTitle(
+          title: 'This week',
+          trailing: RmStatusPill(label: '2 of 5 days', color: RmTheme.emeraldGreen),
         ),
-        title: Text(
-          'BACK',
-          style: GoogleFonts.inter(
-            color: const Color(0xFF6B7280),
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
+        Container(
+          padding: const EdgeInsets.fromLTRB(10, 16, 10, 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: RmTheme.borderSubtle.withValues(alpha: 0.7)),
+            boxShadow: RmTheme.subtleShadow,
+          ),
+          child: Row(
+            children: [
+              for (var i = 0; i < _week.length; i++)
+                Expanded(
+                  child: _DayColumn(label: _week[i].$1, status: _week[i].$2)
+                      .animate(delay: (70 * i).ms)
+                      .fadeIn(duration: 300.ms)
+                      .slideY(begin: 0.3, end: 0, curve: Curves.easeOutBack),
+                ),
+            ],
           ),
         ),
-        titleSpacing: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.only(left: 24, right: 24, top: 8, bottom: 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 14,
+          runSpacing: 8,
           children: [
-            Text(
-              'Daily Shift Log',
-              style: GoogleFonts.libreCaslonText(
-                color: const Color(0xFF111827),
-                fontSize: 32,
-                fontWeight: FontWeight.w500,
-                height: 1.2,
+            for (final s in DayStatus.values)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(color: _dayColor(s), shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _dayLabel(s),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: RmTheme.textSecondary,
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 32),
-            _buildCheckInCard(),
-            const SizedBox(height: 24),
-            _buildCheckOutCard(context),
-            const SizedBox(height: 24),
-            _buildWeeklyCalendarCard(),
           ],
         ),
-      ),
-      bottomNavigationBar: _buildStaffBottomNav(1), // Assuming ID badge tab is active
+      ],
     );
   }
+}
 
-  Widget _buildCheckInCard() {
+Color _dayColor(DayStatus s) => switch (s) {
+      DayStatus.completed => RmTheme.emeraldGreen,
+      DayStatus.current => RmTheme.electricBlue,
+      DayStatus.future => RmTheme.borderSubtle,
+      DayStatus.off => RmTheme.amberWarning,
+    };
+
+String _dayLabel(DayStatus s) => switch (s) {
+      DayStatus.completed => 'Worked',
+      DayStatus.current => 'Today',
+      DayStatus.future => 'Upcoming',
+      DayStatus.off => 'Off',
+    };
+
+class _CheckInHero extends StatelessWidget {
+  const _CheckInHero();
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-        boxShadow: const [
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [RmTheme.navy, Color(0xFF1238B8), RmTheme.electricBlue],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x0A000000),
+            color: RmTheme.electricBlue.withValues(alpha: 0.28),
             blurRadius: 24,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 12),
           ),
         ],
       ),
@@ -77,60 +133,71 @@ class StaffDailyShiftScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'CHECK-IN',
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFF6B7280),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.0,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CHECKED IN',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                        color: Colors.white.withValues(alpha: 0.75),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '07:42 AM',
-                    style: GoogleFonts.libreCaslonText(
-                      color: const Color(0xFF111827),
-                      fontSize: 40,
-                      fontWeight: FontWeight.w500,
+                    const SizedBox(height: 4),
+                    Text(
+                      '07:42 AM',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 36,
+                        height: 1.1,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const Icon(
-                Icons.login, // or similar arrow-entry icon
-                color: Color(0xFFE5E7EB),
-                size: 48,
-              ),
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+                child: const Icon(Icons.login_rounded, color: RmTheme.iconAccent, size: 28),
+              ).animate().scaleXY(begin: 0.5, end: 1, duration: 600.ms, curve: Curves.elasticOut),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFF22C55E).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFF22C55E).withOpacity(0.3), width: 1),
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.location_on_outlined, color: Color(0xFF15803D), size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  'GPS Verified: Bandra West, Mumbai ✓',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF15803D),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: const BoxDecoration(color: Color(0xFF34D399), shape: BoxShape.circle),
+                  child: const Icon(Icons.gps_fixed_rounded, size: 15, color: Colors.white),
+                )
+                    .animate(onPlay: (c) => c.repeat(reverse: true))
+                    .scaleXY(begin: 1, end: 1.12, duration: 900.ms),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'GPS verified · Bandra West, Mumbai',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
+                const Icon(Icons.verified_rounded, size: 18, color: Color(0xFF6EE7B7)),
               ],
             ),
           ),
@@ -138,214 +205,109 @@ class StaffDailyShiftScreen extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildCheckOutCard(BuildContext context) {
+class _PendingCheckOut extends StatelessWidget {
+  const _PendingCheckOut();
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 24,
-            offset: Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: RmTheme.borderSubtle.withValues(alpha: 0.7)),
+        boxShadow: RmTheme.subtleShadow,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            'CHECK-OUT',
-            style: GoogleFonts.inter(
-              color: const Color(0xFF6B7280),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: RmTheme.iconAccentSoft,
+              borderRadius: BorderRadius.circular(15),
             ),
+            child: const Icon(Icons.schedule_rounded, color: RmTheme.iconAccent),
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => context.push(RmRoutes.staffPayslip('demo')),
-              icon: const Icon(Icons.logout, size: 20),
-              label: Text(
-                'Tap to Check Out',
-                style: GoogleFonts.inter(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Not checked out yet',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: RmTheme.textPrimary,
+                  ),
                 ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A56FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                elevation: 4,
-                shadowColor: const Color(0xFF1A56FF).withOpacity(0.4),
-              ),
+                Text(
+                  'Check out when today\'s shift ends',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    color: RmTheme.textSecondary,
+                  ),
+                ),
+              ],
             ),
           ),
+          const RmStatusPill(label: 'In progress', color: RmTheme.electricBlue),
         ],
       ),
     );
   }
+}
 
-  Widget _buildWeeklyCalendarCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 24,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'THIS WEEK',
-            style: GoogleFonts.inter(
-              color: const Color(0xFF6B7280),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              _buildDayColumn('Mon', status: DayStatus.completed),
-              _buildDayColumn('Tue', status: DayStatus.completed),
-              _buildDayColumn('Wed', status: DayStatus.current),
-              _buildDayColumn('Thu', status: DayStatus.future),
-              _buildDayColumn('Fri', status: DayStatus.future),
-              _buildDayColumn('Sat', status: DayStatus.off),
-              _buildDayColumn('Sun', status: DayStatus.off),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+class _DayColumn extends StatelessWidget {
+  const _DayColumn({required this.label, required this.status});
+  final String label;
+  final DayStatus status;
 
-  Widget _buildDayColumn(String label, {required DayStatus status}) {
-    Color boxColor;
-    Color borderColor = Colors.transparent;
-    Widget? innerText;
-    double width = 36;
-    double height = 36;
-
-    switch (status) {
-      case DayStatus.completed:
-        boxColor = const Color(0xFF10B981); // Emerald 500
-        break;
-      case DayStatus.current:
-        boxColor = const Color(0xFFF97316); // Orange 500
-        borderColor = const Color(0xFFFDBA74); // Orange 300
-        height = 42; // slightly taller to highlight
-        break;
-      case DayStatus.future:
-        boxColor = const Color(0xFFE5E7EB); // Gray 200
-        break;
-      case DayStatus.off:
-        boxColor = const Color(0xFFF3F4F6); // Gray 100
-        innerText = Center(
-          child: Text(
-            'OFF',
-            style: GoogleFonts.inter(
-              color: const Color(0xFF9CA3AF),
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        );
-        break;
-    }
+  @override
+  Widget build(BuildContext context) {
+    final color = _dayColor(status);
+    final current = status == DayStatus.current;
+    final icon = switch (status) {
+      DayStatus.completed => Icons.check_rounded,
+      DayStatus.current => Icons.circle,
+      DayStatus.future => null,
+      DayStatus.off => Icons.bedtime_rounded,
+    };
 
     return Column(
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(
-            color: status == DayStatus.current ? const Color(0xFF111827) : const Color(0xFF6B7280),
-            fontSize: 11,
-            fontWeight: status == DayStatus.current ? FontWeight.w700 : FontWeight.w500,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11.5,
+            fontWeight: current ? FontWeight.w800 : FontWeight.w600,
+            color: current ? RmTheme.electricBlue : RmTheme.textSecondary,
           ),
         ),
         const SizedBox(height: 8),
         Container(
-          width: width,
-          height: height,
+          width: 34,
+          height: 34,
           decoration: BoxDecoration(
-            color: boxColor,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: borderColor,
-              width: status == DayStatus.current ? 2 : 0,
-            ),
+            color: status == DayStatus.future ? RmTheme.offWhite : color.withValues(alpha: current ? 1 : 0.14),
+            shape: BoxShape.circle,
+            border: status == DayStatus.future ? Border.all(color: RmTheme.borderSubtle, width: 1.5) : null,
+            boxShadow: current
+                ? [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 10, offset: const Offset(0, 4))]
+                : null,
           ),
-          child: innerText,
+          child: icon == null
+              ? null
+              : Icon(
+                  icon,
+                  size: current ? 10 : 17,
+                  color: current ? Colors.white : color,
+                ),
         ),
       ],
-    );
-  }
-
-  Widget _buildStaffBottomNav(int currentIndex) {
-    return SafeArea(
-      child: Container(
-        margin: const EdgeInsets.only(left: 24, right: 24, bottom: 24),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF3F4F6),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0A000000),
-              blurRadius: 24,
-              offset: Offset(0, 8),
-            ),
-          ],
-          border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _buildNavItem(Icons.home_outlined, currentIndex == 0),
-            _buildNavItem(Icons.badge_outlined, currentIndex == 1),
-            _buildNavItem(Icons.payments_outlined, currentIndex == 2),
-            _buildNavItem(Icons.person_outline, currentIndex == 3),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, bool isActive) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isActive ? const Color(0xFF1A56FF).withOpacity(0.1) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Icon(
-        icon,
-        color: isActive ? const Color(0xFF1A56FF) : const Color(0xFF374151),
-        size: 24,
-      ),
     );
   }
 }

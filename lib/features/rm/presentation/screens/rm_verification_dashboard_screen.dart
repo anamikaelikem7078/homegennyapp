@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/presentation/async_value_widget.dart';
+import '../../../../core/series/series_catalog.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../../domain/models/pipeline_stage.dart';
 import '../../domain/models/rm_models.dart';
 import '../navigation/rm_routes.dart';
 import '../providers/rm_providers.dart';
 import '../widgets/advance_stage_action.dart';
+import '../widgets/rm_stage_ui.dart';
 
 /// S2 Verification hub — Aadhaar / DL / eChallan / police-verification /
 /// medical, each backed by a real endpoint (see `RmRemoteDataSource`'s
@@ -26,35 +28,35 @@ class RmVerificationDashboardScreen extends ConsumerWidget {
       key: 'aadhaar',
       label: 'Aadhaar eKYC',
       subtitle: 'Identity verification via UIDAI OTP',
-      icon: Icons.badge_outlined,
+      icon: Icons.badge_rounded,
       route: RmRoutes.track1,
     ),
     _TrackDef(
       key: 'dl',
-      label: 'Driving License',
-      subtitle: 'License validity & vehicle authorization',
-      icon: Icons.directions_car_outlined,
+      label: 'Driving licence',
+      subtitle: 'Licence validity & vehicle authorisation',
+      icon: Icons.directions_car_rounded,
       route: RmRoutes.track2,
     ),
     _TrackDef(
       key: 'echallan',
-      label: 'eChallan Check',
-      subtitle: 'Traffic violations & offense history',
-      icon: Icons.receipt_long_outlined,
+      label: 'eChallan check',
+      subtitle: 'Traffic violations & offence history',
+      icon: Icons.receipt_long_rounded,
       route: RmRoutes.track3,
     ),
     _TrackDef(
       key: 'pv',
-      label: 'Police Verification',
+      label: 'Police verification',
       subtitle: 'Criminal background screening',
-      icon: Icons.local_police_outlined,
+      icon: Icons.local_police_rounded,
       route: RmRoutes.track4,
     ),
     _TrackDef(
       key: 'medical',
-      label: 'Medical Screening',
+      label: 'Medical screening',
       subtitle: 'General health & sobriety check',
-      icon: Icons.health_and_safety_outlined,
+      icon: Icons.health_and_safety_rounded,
       route: RmRoutes.track5,
     ),
   ];
@@ -65,207 +67,169 @@ class RmVerificationDashboardScreen extends ConsumerWidget {
     final statusAsync = ref.watch(rmVerificationStatusProvider(staffId));
     final sessionAttempted = ref.watch(verificationSessionProvider(staffId));
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(
+    final staff = staffAsync.valueOrNull;
+    if (staff == null) {
+      return Scaffold(
         backgroundColor: RmTheme.offWhite,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: RmTheme.textPrimary),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'Verification (S2)',
-          style: RmTheme.headline(context).copyWith(fontSize: 20),
-        ),
-      ),
-      body: AsyncValueWidget<StaffRow?>(
-        value: staffAsync,
-        onRetry: () => ref.invalidate(staffByIdProvider(staffId)),
-        builder: (staff) {
-          if (staff == null) {
-            return Center(
-              child: Text(
-                'Staff not found',
-                style: GoogleFonts.inter(color: RmTheme.textSecondary),
-              ),
-            );
-          }
-          final isDriver = staff.series == StaffSeries.driver;
-
-          return RefreshIndicator(
-            color: RmTheme.electricBlue,
-            onRefresh: () async =>
-                ref.invalidate(rmVerificationStatusProvider(staffId)),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Staff Profile Card Header ──
-                  _buildProfileHeader(staff),
-
-                  const SizedBox(height: 20),
-
-                  // ── Loading Bar ──
-                  statusAsync.when(
-                    loading: () => const Padding(
-                      padding: EdgeInsets.only(bottom: 16),
-                      child: LinearProgressIndicator(
-                        color: RmTheme.electricBlue,
-                        backgroundColor: RmTheme.offWhite,
-                      ),
-                    ),
-                    error: (_, __) => const SizedBox.shrink(),
-                    data: (_) => const SizedBox.shrink(),
-                  ),
-
-                  // ── Verification Track Cards ──
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _tracks.length,
-                    itemBuilder: (context, index) {
-                      final track = _tracks[index];
-                      if ((track.key == 'dl' || track.key == 'echallan') &&
-                          !isDriver) {
-                        return const SizedBox.shrink();
-                      }
-
-                      return _TrackTile(
-                        track: track,
-                        staffId: staffId,
-                        status: statusAsync.maybeWhen(
-                          data: (m) => m[track.key],
-                          orElse: () => null,
-                        ),
-                        attempted: sessionAttempted.contains(track.key),
-                        pvStatusOverride:
-                            track.key == 'pv' ? staff.pvStatus : null,
-                        index: index,
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // ── Advanced Footer Actions ──
-                  Builder(
-                    builder: (context) {
-                      final status = statusAsync.maybeWhen(
-                        data: (m) => m,
-                        orElse: () => const <String, String>{},
-                      );
-
-                      final serverVerdict = status['__all_required_clear__'];
-                      final bool allDone;
-                      if (serverVerdict != null) {
-                        allDone = serverVerdict == 'true';
-                      } else {
-                        final isMaid = staff.series == StaffSeries.maid;
-                        final aadhaarOk =
-                            (status['aadhaar'] ?? '').toUpperCase() == 'VERIFIED' ||
-                                (status['aadhaar'] ?? '').toUpperCase() == 'CLEAR';
-                        final medicalOk =
-                            (status['medical'] ?? '').toUpperCase() == 'CLEAR';
-                        final dlOk = !isDriver ||
-                            (status['dl'] ?? '').toUpperCase() == 'VALID';
-                        final pvValue =
-                            (status['pv'] ?? staff.pvStatus ?? '').toUpperCase();
-                        final pvOk = isMaid
-                            ? pvValue != 'ADVERSE' && pvValue != 'FAILED'
-                            : pvValue == 'CLEAR' || pvValue == 'VERIFIED';
-                        allDone = aadhaarOk && medicalOk && dlOk && pvOk;
-                      }
-
-                      final nextStage = isDriver
-                          ? PipelineStages.s25Assess
-                          : PipelineStages.s3Train;
-                      final nextLabel = isDriver
-                          ? 'Advance to Assessment (S2.5)'
-                          : 'Advance to Training (S3)';
-
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AdvanceStageButton(
-                            staffId: staffId,
-                            fromStage: staff.pipelineStage,
-                            toStage: nextStage,
-                            label: nextLabel,
-                            reasonCode: 'VERIFICATION_COMPLETE',
-                            enabled: allDone,
-                          ),
-                          if (!allDone)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 10, left: 4),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.info_outline_rounded,
-                                    color: RmTheme.textSecondary,
-                                    size: 14,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      'All tracks required for this series must clear before advancing.',
-                                      style: GoogleFonts.inter(
-                                        color: RmTheme.textSecondary,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ).animate().fadeIn(delay: 250.ms, duration: 350.ms);
-                    },
-                  ),
-                ],
-              ),
+        appBar: AppBar(title: const Text('Verification')),
+        body: AsyncValueWidget<StaffRow?>(
+          value: staffAsync,
+          onRetry: () => ref.invalidate(staffByIdProvider(staffId)),
+          builder: (_) => Center(
+            child: Text(
+              'Staff not found',
+              style: GoogleFonts.plusJakartaSans(color: RmTheme.textSecondary),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader(StaffRow staff) {
-    final firstLetter =
-        staff.fullName.isNotEmpty ? staff.fullName[0].toUpperCase() : '?';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: RmTheme.borderSubtle.withValues(alpha: 0.5),
-          width: 1.5,
+          ),
         ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
+      );
+    }
+
+    final isDriver = staff.series == StaffSeries.driver;
+    final visible = _tracks
+        .where((t) => isDriver || (t.key != 'dl' && t.key != 'echallan'))
+        .toList();
+    final status = statusAsync.maybeWhen(
+      data: (m) => m,
+      orElse: () => const <String, String>{},
+    );
+
+    String? effective(_TrackDef t) =>
+        status[t.key] ?? (t.key == 'pv' ? staff.pvStatus : null);
+    final cleared = visible
+        .where((t) => _isClear(effective(t) ?? ''))
+        .length;
+
+    final serverVerdict = status['__all_required_clear__'];
+    final bool allDone;
+    if (serverVerdict != null) {
+      allDone = serverVerdict == 'true';
+    } else {
+      final isMaid = staff.series == StaffSeries.maid;
+      final aadhaarOk = (status['aadhaar'] ?? '').toUpperCase() == 'VERIFIED' ||
+          (status['aadhaar'] ?? '').toUpperCase() == 'CLEAR';
+      final medicalOk = (status['medical'] ?? '').toUpperCase() == 'CLEAR';
+      final dlOk = !isDriver || (status['dl'] ?? '').toUpperCase() == 'VALID';
+      final pvValue = (status['pv'] ?? staff.pvStatus ?? '').toUpperCase();
+      final pvOk = isMaid
+          ? pvValue != 'ADVERSE' && pvValue != 'FAILED'
+          : pvValue == 'CLEAR' || pvValue == 'VERIFIED';
+      allDone = aadhaarOk && medicalOk && dlOk && pvOk;
+    }
+
+    // S2.5 (the Driver practical) only while the backend has it switched on;
+    // otherwise S2 goes straight to S3 for every series.
+    final toS25 = isDriver && ref.watch(seriesCatalogProvider).stage25Enabled;
+    final nextStage = toS25 ? PipelineStages.s25Assess : PipelineStages.s3Train;
+    final nextLabel =
+        toS25 ? 'Advance to Assessment (S2.5)' : 'Advance to Training (S3)';
+
+    return RmStageScaffold(
+      title: 'Verification',
+      stageCode: 'S2',
+      stageColor: rmStageColor(PipelineStages.s2Verify),
+      onRefresh: () async => ref.invalidate(rmVerificationStatusProvider(staffId)),
+      bottom: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AdvanceStageButton(
+            staffId: staffId,
+            fromStage: staff.pipelineStage,
+            toStage: nextStage,
+            label: nextLabel,
+            reasonCode: 'VERIFICATION_COMPLETE',
+            enabled: allDone,
+          ),
+          RmHint(
+            done: allDone,
+            text: allDone
+                ? 'All required checks cleared — ready to advance.'
+                : 'All checks required for this series must clear first.',
           ),
         ],
       ),
+      body: [
+        RmStaffBanner(staff: staff, showTracker: false),
+        const SizedBox(height: 14),
+        _ProgressCard(
+          cleared: cleared,
+          total: visible.length,
+          loading: statusAsync.isLoading,
+        ),
+        const RmSectionTitle(title: 'Verification checks'),
+        for (final track in visible)
+          _TrackTile(
+            track: track,
+            staffId: staffId,
+            status: statusAsync.maybeWhen(
+              data: (m) => m[track.key],
+              orElse: () => null,
+            ),
+            attempted: sessionAttempted.contains(track.key),
+            pvStatusOverride: track.key == 'pv' ? staff.pvStatus : null,
+          ),
+      ],
+    );
+  }
+}
+
+bool _isClear(String s) {
+  final u = s.toUpperCase();
+  return u == 'VERIFIED' || u == 'VALID' || u == 'CLEAR';
+}
+
+class _ProgressCard extends StatelessWidget {
+  const _ProgressCard({
+    required this.cleared,
+    required this.total,
+    required this.loading,
+  });
+
+  final int cleared;
+  final int total;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final frac = total == 0 ? 0.0 : cleared / total;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: RmTheme.borderSubtle.withValues(alpha: 0.7)),
+        boxShadow: RmTheme.subtleShadow,
+      ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: RmTheme.electricBlue.withValues(alpha: 0.1),
-            child: Text(
-              firstLetter,
-              style: GoogleFonts.inter(
-                color: RmTheme.electricBlue,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
+          SizedBox(
+            width: 60,
+            height: 60,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: frac),
+              duration: 900.ms,
+              curve: Curves.easeOutCubic,
+              builder: (_, v, _) => Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox.expand(
+                    child: CircularProgressIndicator(
+                      value: v,
+                      strokeWidth: 6,
+                      strokeCap: StrokeCap.round,
+                      color: RmTheme.emeraldGreen,
+                      backgroundColor: RmTheme.surfaceSecondary,
+                    ),
+                  ),
+                  Text(
+                    '$cleared/$total',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: RmTheme.textPrimary,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -275,18 +239,22 @@ class RmVerificationDashboardScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  staff.fullName,
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
+                  cleared == total && total > 0
+                      ? 'All checks cleared'
+                      : '$cleared of $total checks cleared',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
                     color: RmTheme.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${staff.staffCode} • ${StaffSeries.label(staff.series).toUpperCase()}',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
+                  loading
+                      ? 'Refreshing status…'
+                      : 'Tap a check below to start or review it.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w500,
                     color: RmTheme.textSecondary,
                   ),
@@ -296,10 +264,7 @@ class RmVerificationDashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideX(begin: -0.02, end: 0, duration: 400.ms);
+    );
   }
 }
 
@@ -325,7 +290,6 @@ class _TrackTile extends ConsumerWidget {
     required this.status,
     required this.attempted,
     this.pvStatusOverride,
-    required this.index,
   });
 
   final _TrackDef track;
@@ -333,7 +297,6 @@ class _TrackTile extends ConsumerWidget {
   final String? status;
   final bool attempted;
   final String? pvStatusOverride;
-  final int index;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -343,143 +306,37 @@ class _TrackTile extends ConsumerWidget {
     // it can lag behind right after a PV action, so it's only a fallback
     // for when the live call hasn't resolved yet, never the primary source.
     final effectiveStatus = status ?? pvStatusOverride;
-    final display =
-        effectiveStatus ?? (attempted ? 'ATTEMPTED' : 'NOT STARTED');
-    final displayFormatted = display.replaceAll('_', ' ').toUpperCase();
+    final display = effectiveStatus ?? (attempted ? 'ATTEMPTED' : 'NOT STARTED');
 
-    final statusColor = _colorFor(display);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: RmTheme.borderSubtle.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x03000000),
-            blurRadius: 8,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          onTap: () async {
-            ref
-                .read(verificationSessionProvider(staffId).notifier)
-                .update((s) => {...s, track.key});
-            await context.push<void>(track.route(staffId));
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              ref.invalidate(rmVerificationStatusProvider(staffId));
-              ref.invalidate(rmKanbanProvider);
-              ref.invalidate(staffByIdProvider(staffId));
-            });
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // ── Circle Lead Icon ──
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(track.icon, color: statusColor, size: 22),
-                ),
-                const SizedBox(width: 14),
-
-                // ── Title & Helper Details ──
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        track.label,
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                          color: RmTheme.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        track.subtitle,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: RmTheme.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                // ── Pill Status ──
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: statusColor.withValues(alpha: 0.2),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    displayFormatted,
-                    style: GoogleFonts.inter(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: statusColor,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: RmTheme.textSecondary,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    )
-        .animate()
-        .fadeIn(
-          delay: Duration(milliseconds: 50 * index),
-          duration: 400.ms,
-        )
-        .slideY(
-          begin: 0.04,
-          end: 0,
-          delay: Duration(milliseconds: 50 * index),
-          duration: 400.ms,
-        );
+    return RmStepTile(
+      icon: track.icon,
+      title: track.label,
+      subtitle: track.subtitle,
+      state: _stateFor(display),
+      statusLabel: rmTitleCase(display),
+      onTap: () async {
+        ref
+            .read(verificationSessionProvider(staffId).notifier)
+            .update((s) => {...s, track.key});
+        await context.push<void>(track.route(staffId));
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.invalidate(rmVerificationStatusProvider(staffId));
+          ref.invalidate(rmKanbanProvider);
+          ref.invalidate(staffByIdProvider(staffId));
+        });
+      },
+    );
   }
 
-  Color _colorFor(String display) {
+  RmStepState _stateFor(String display) {
     final upper = display.toUpperCase();
-    if (upper == 'VERIFIED' || upper == 'VALID' || upper == 'CLEAR') {
-      return RmTheme.emeraldGreen;
-    }
+    if (_isClear(upper)) return RmStepState.done;
     if (upper == 'PENDING' || upper == 'ATTEMPTED' || upper == 'IN_PROGRESS') {
-      return RmTheme.amberWarning;
+      return RmStepState.warning;
     }
     if (upper == 'NOT STARTED' || upper == 'NOT_INITIATED') {
-      return RmTheme.textSecondary;
+      return RmStepState.pending;
     }
-    return RmTheme.crimsonDanger;
+    return RmStepState.failed;
   }
 }

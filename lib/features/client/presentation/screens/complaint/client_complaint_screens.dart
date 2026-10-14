@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../../../../core/extensions/context_extensions.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../domain/models/client_models.dart';
-
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../design_system/design_system.dart';
+import '../../../domain/models/client_models.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
 import '../../widgets/client_scaffold.dart';
@@ -16,14 +16,12 @@ class ClientRaiseComplaintScreen extends ConsumerStatefulWidget {
   const ClientRaiseComplaintScreen({super.key});
 
   @override
-  ConsumerState<ClientRaiseComplaintScreen> createState() =>
-      _ClientRaiseComplaintScreenState();
+  ConsumerState<ClientRaiseComplaintScreen> createState() => _ClientRaiseComplaintScreenState();
 }
 
 class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplaintScreen> {
   final _description = TextEditingController();
   bool _loading = false;
-
   String _urgency = 'STANDARD';
 
   @override
@@ -33,7 +31,7 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
   }
 
   Future<void> _submit() async {
-    if (_description.text.isEmpty) {
+    if (_description.text.trim().isEmpty) {
       context.showDsSnackBar(context.l10n.pleaseDescribeIssue, type: DsSnackBarType.warning);
       return;
     }
@@ -56,212 +54,157 @@ class _ClientRaiseComplaintScreenState extends ConsumerState<ClientRaiseComplain
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_forward_ios, color: context.colors.onSurface),
-          onPressed: () {
-            if (context.canPop()) context.pop();
-          },
+    final l10n = context.l10n;
+    final levels = [
+      ('LOW', l10n.urgencyLow, Icons.south_rounded, AppColors.success),
+      ('STANDARD', l10n.urgencyStandard, Icons.remove_rounded, AppColors.primary),
+      ('CRITICAL', l10n.urgencyCritical, Icons.priority_high_rounded, AppColors.error),
+    ];
+
+    return DsPage(
+      title: 'Report an issue',
+      onBack: () {
+        if (context.canPop()) context.pop();
+      },
+      actions: [
+        DsPageAction(
+          icon: Icons.history_rounded,
+          tooltip: l10n.complaintHistoryTitle,
+          onPressed: () => context.push(ClientRoutes.complaintHistory),
         ),
-        title: Text(
-          'HOMEGENNY',
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundImage: const NetworkImage('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150'),
-              backgroundColor: Colors.grey.shade200,
-            ),
-          ),
-        ],
+      ],
+      bottom: DsGradientButton(
+        label: l10n.submitIssue,
+        icon: Icons.send_rounded,
+        isLoading: _loading,
+        onPressed: _loading ? null : _submit,
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-        children: [
-          Text(
-            context.l10n.experienceIssue,
-            style: GoogleFonts.libreCaslonText(
-              fontSize: 32,
-              color: context.colors.onSurface,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          SizedBox(height: 16),
-          Text(
-            context.l10n.supportTeamDesc,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: context.colors.onSurfaceVariant,
-              height: 1.5,
-            ),
-          ),
-          SizedBox(height: 40),
-          
-          Text(
-            context.l10n.describeIssue,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              color: const Color(0xFF9E7C5D),
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
-          SizedBox(height: 16),
-          TextField(
-            controller: _description,
-            maxLines: 5,
-            style: GoogleFonts.inter(fontSize: 14, color: context.colors.onSurface),
-            decoration: InputDecoration(
-              hintText: context.l10n.detailProblemHint,
-              hintStyle: GoogleFonts.inter(fontSize: 14, color: Colors.black26),
-              border: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-              enabledBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFFE5E7EB)),
-              ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFF1A56FF)),
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
-          SizedBox(height: 40),
-          
-          Text(
-            context.l10n.urgencyLevel,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              color: const Color(0xFF9E7C5D),
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
-            ),
-          ),
-          SizedBox(height: 16),
-          Row(
+      body: [
+        DsGradientCard(
+          child: Row(
             children: [
-              Expanded(child: _UrgencyButton(label: context.l10n.urgencyLow, isActive: _urgency == 'LOW', onTap: () => setState(() => _urgency = 'LOW'))),
-              SizedBox(width: 8),
-              Expanded(child: _UrgencyButton(label: context.l10n.urgencyStandard, isActive: _urgency == 'STANDARD', onTap: () => setState(() => _urgency = 'STANDARD'))),
-              SizedBox(width: 8),
-              Expanded(child: _UrgencyButton(label: context.l10n.urgencyCritical, isActive: _urgency == 'CRITICAL', onTap: () => setState(() => _urgency = 'CRITICAL'))),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.experienceIssue,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 21,
+                        height: 1.2,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      l10n.supportTeamDesc,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        height: 1.45,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.82),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const DsFloatingIconTile(icon: Icons.support_agent_rounded),
             ],
           ),
-          SizedBox(height: 40),
-
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1A56FF),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
+        ),
+        DsSection(l10n.describeIssue),
+        DsLabeledField(
+          label: 'What happened?',
+          controller: _description,
+          icon: Icons.edit_note_rounded,
+          hint: l10n.detailProblemHint,
+          maxLines: 5,
+          minLines: 4,
+          textCapitalization: TextCapitalization.sentences,
+        ),
+        DsSection(l10n.urgencyLevel),
+        Row(
+          children: [
+            for (var i = 0; i < levels.length; i++) ...[
+              if (i > 0) const SizedBox(width: 10),
+              Expanded(
+                child: _UrgencyCard(
+                  label: levels[i].$2,
+                  icon: levels[i].$3,
+                  color: levels[i].$4,
+                  selected: _urgency == levels[i].$1,
+                  onTap: () => setState(() => _urgency = levels[i].$1),
                 ),
-                disabledBackgroundColor: const Color(0xFF1A56FF).withOpacity(0.5),
               ),
-              child: _loading 
-                ? Icon(Icons.check, color: context.theme.cardColor)
-                : Text(
-                  context.l10n.submitIssue,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-            ),
-          ),
-          SizedBox(height: 32),
-          
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: context.colors.surfaceVariant,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.headset_mic_outlined, color: Color(0xFF1A56FF), size: 20),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.l10n.priorityHandling,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: const Color(0xFF1A56FF),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        context.l10n.priorityHandlingDesc,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: context.colors.onSurface,
-                          fontWeight: FontWeight.w500,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 100),
-        ],
-      ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 18),
+        DsNote(title: l10n.priorityHandling, text: l10n.priorityHandlingDesc),
+      ],
     );
   }
 }
 
-class _UrgencyButton extends StatelessWidget {
-  const _UrgencyButton({required this.label, required this.isActive, required this.onTap});
+class _UrgencyCard extends StatelessWidget {
+  const _UrgencyCard({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
   final String label;
-  final bool isActive;
+  final IconData icon;
+  final Color color;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+      child: AnimatedContainer(
+        duration: 250.ms,
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
-          color: isActive ? Colors.black : Colors.white,
-          border: Border.all(color: isActive ? Colors.black : const Color(0xFFE5E7EB)),
-          borderRadius: BorderRadius.circular(4),
+          color: selected ? color.withValues(alpha: 0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? color : AppColors.lightBorder, width: selected ? 1.8 : 1),
+          boxShadow: selected
+              ? [BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 14, offset: const Offset(0, 6))]
+              : dsCardShadow,
         ),
-        child: Center(
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              color: isActive ? Colors.white : Colors.black87,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.0,
+        child: Column(
+          children: [
+            AnimatedContainer(
+              duration: 250.ms,
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: selected ? color : color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 20, color: selected ? Colors.white : color),
             ),
-          ),
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? color : AppColors.lightTextPrimary,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -275,256 +218,143 @@ class ClientComplaintHistoryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final complaints = ref.watch(clientComplaintsProvider);
+    final l10n = context.l10n;
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1A56FF)),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          context.l10n.complaintHistoryTitle,
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+    return DsPage(
+      title: l10n.complaintHistoryTitle,
+      onBack: () => context.pop(),
+      onRefresh: () async => ref.invalidate(clientComplaintsProvider),
+      bottom: DsGradientButton(
+        label: l10n.newComplaintBtn,
+        icon: Icons.add_rounded,
+        onPressed: () => context.push(ClientRoutes.complaintRaise),
       ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 24),
-        child: ElevatedButton.icon(
-          onPressed: () => context.push(ClientRoutes.complaintRaise),
-          icon: Icon(Icons.add, size: 20),
-          label: Text(
-            context.l10n.newComplaintBtn,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.0,
-            ),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1A56FF),
-            foregroundColor: Colors.white,
-            elevation: 4,
-            shadowColor: const Color(0xFF1A56FF).withOpacity(0.4),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      body: complaints.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (list) {
-          if (list.isEmpty) {
-            return Center(
-              child: Text(
-                context.l10n.noComplaintsFound,
-                style: GoogleFonts.inter(color: context.colors.onSurfaceVariant),
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16).copyWith(bottom: 100),
-            itemCount: list.length,
-            separatorBuilder: (_, __) => SizedBox(height: 16),
-            itemBuilder: (_, i) {
-              final c = list[i];
-              final isResolved = c.status == ClientComplaintStatus.resolved;
-              final isInvestigation = c.status == ClientComplaintStatus.inProgress;
-              
-              return Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: context.theme.cardColor,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: context.theme.dividerColor),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 10,
-                      spreadRadius: 0,
-                      offset: const Offset(0, 4),
+      body: dsAsyncBody(
+        complaints,
+        onRetry: () => ref.invalidate(clientComplaintsProvider),
+        builder: (list) {
+          final open = list
+              .where((c) =>
+                  c.status == ClientComplaintStatus.open || c.status == ClientComplaintStatus.inProgress)
+              .length;
+          return [
+            DsGradientCard(
+              child: Row(
+                children: [
+                  Expanded(child: DsGlassStat(value: '${list.length}', label: 'Total', icon: Icons.forum_rounded)),
+                  const SizedBox(width: 10),
+                  Expanded(child: DsGlassStat(value: '$open', label: 'Open', icon: Icons.pending_rounded)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DsGlassStat(
+                      value: '${list.length - open}',
+                      label: 'Closed',
+                      icon: Icons.task_alt_rounded,
                     ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (list.isEmpty)
+              DsEmptyBlock(
+                icon: Icons.sentiment_satisfied_alt_rounded,
+                color: AppColors.success,
+                title: 'No complaints',
+                message: l10n.noComplaintsFound,
+              )
+            else
+              for (final c in list) _ComplaintCard(complaint: c),
+          ];
+        },
+      ),
+    );
+  }
+}
+
+class _ComplaintCard extends StatelessWidget {
+  const _ComplaintCard({required this.complaint});
+  final ClientComplaint complaint;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = complaint;
+    final (color, icon) = switch (c.status) {
+      ClientComplaintStatus.resolved => (AppColors.success, Icons.check_circle_rounded),
+      ClientComplaintStatus.closed => (AppColors.lightTextSecondary, Icons.lock_rounded),
+      ClientComplaintStatus.inProgress => (AppColors.primary, Icons.autorenew_rounded),
+      ClientComplaintStatus.open => (AppColors.warning, Icons.schedule_rounded),
+    };
+    final ref = c.id.hashCode.abs().toString().padLeft(4, '0').substring(0, 4);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: dsCardDecoration(),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(width: 5, color: color),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 16, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      c.subject,
-                      style: GoogleFonts.libreCaslonText(
-                        color: context.colors.onSurface,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        height: 1.2,
-                      ),
-                    ),
-                    SizedBox(height: 8),
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.info, color: context.colors.onSurfaceVariant),
-                        SizedBox(width: 4),
-                        Text(
-                          c.createdAt,
-                          style: GoogleFonts.inter(
-                            color: context.colors.onSurfaceVariant,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+                        Expanded(
+                          child: Text(
+                            c.subject,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.lightTextPrimary,
+                            ),
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Text('|', style: TextStyle(color: context.theme.dividerColor)),
-                        ),
-                        Text(
-                          context.l10n.ref(c.id.hashCode.toString().substring(0, 4)),
-                          style: GoogleFonts.inter(
-                            color: context.colors.onSurfaceVariant,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
+                        const SizedBox(width: 8),
+                        DsPill(clientComplaintStatusLabel(c.status), color: color, icon: icon),
                       ],
                     ),
-                    SizedBox(height: 12),
-                    
-                    // Status Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isResolved 
-                            ? const Color(0xFF1A56FF).withOpacity(0.1) 
-                            : isInvestigation 
-                                ? Colors.grey.shade200 
-                                : Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        clientComplaintStatusLabel(c.status).toUpperCase(),
-                        style: GoogleFonts.inter(
-                          color: isResolved 
-                              ? const Color(0xFF1A56FF)
-                              : isInvestigation 
-                                  ? Colors.black54
-                                  : Colors.orange.shade800,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.0,
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${c.createdAt} · ${context.l10n.ref(ref)}',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.lightTextSecondary,
                       ),
                     ),
-                    SizedBox(height: 16),
-                    
-                    // Description with left border
-                    IntrinsicHeight(
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 2,
-                            color: context.theme.dividerColor,
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  c.description,
-                                  style: GoogleFonts.inter(
-                                    color: context.colors.onSurface,
-                                    fontSize: 12,
-                                    height: 1.6,
-                                  ),
-                                ),
-                                if (c.imageCount > 0) ...[
-                                  SizedBox(height: 12),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: Image.network(
-                                      'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=150&q=80',
-                                      width: 60,
-                                      height: 60,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 10),
+                    Text(
+                      c.description,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: const Color(0xFF374151),
                       ),
                     ),
-                    
-                    if (c.resolution != null && c.resolution!.isNotEmpty) ...[
-                      SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.check_circle_outline, color: Color(0xFF1A56FF), size: 14),
-                                SizedBox(width: 6),
-                                Text(
-                                  context.l10n.resolutionDetails,
-                                  style: GoogleFonts.inter(
-                                    color: const Color(0xFF1A56FF),
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.0,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              '"${c.resolution}"',
-                              style: GoogleFonts.inter(
-                                color: context.colors.onSurfaceVariant,
-                                fontSize: 12,
-                                fontStyle: FontStyle.italic,
-                                height: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    if (c.imageCount > 0) ...[
+                      const SizedBox(height: 10),
+                      DsPill('${c.imageCount} attachments', color: AppColors.iconAccent, icon: Icons.attach_file_rounded),
                     ],
-                    
-                    if (!isResolved && c.imageCount > 0) ...[
-                      SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Icon(Icons.info, color: context.colors.onSurfaceVariant),
-                          SizedBox(width: 4),
-                          Text(
-                            '${c.imageCount} files',
-                            style: GoogleFonts.inter(color: context.colors.onSurfaceVariant, fontSize: 10),
-                          ),
-                        ],
+                    if (c.resolution != null && c.resolution!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      DsNote(
+                        tone: DsNoteTone.success,
+                        title: context.l10n.resolutionDetails,
+                        text: c.resolution!,
                       ),
                     ],
                   ],
                 ),
-              );
-            },
-          );
-        },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

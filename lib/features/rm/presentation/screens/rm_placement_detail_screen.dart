@@ -4,6 +4,10 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../../design_system/widgets/buttons/ds_buttons.dart';
+import '../../../../design_system/widgets/feedback/ds_feedback.dart';
+import '../../domain/models/pipeline_stage.dart';
+import '../widgets/rm_stage_ui.dart';
 
 import '../../../../core/utils/result.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
@@ -39,40 +43,25 @@ class RmPlacementDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final placementAsync = ref.watch(staffPlacementProvider(staffId));
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(
-        backgroundColor: RmTheme.offWhite,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: RmTheme.textPrimary),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'Placement Details',
-          style: RmTheme.headline(context).copyWith(fontSize: 20),
-        ),
-      ),
-      body: placementAsync.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: RmTheme.electricBlue),
-        ),
-        error: (e, _) => Center(
-          child: Text(
-            '$e',
-            style: GoogleFonts.inter(color: RmTheme.crimsonDanger),
-          ),
-        ),
-        data: (placement) {
+    return RmStageScaffold(
+      title: 'Placement',
+      stageCode: 'S5',
+      stageColor: rmStageColor(PipelineStages.s5Deploy),
+      onRefresh: () async => ref.invalidate(staffPlacementProvider(staffId)),
+      body: rmAsyncBody<PlacementRow?>(
+        placementAsync,
+        onRetry: () => ref.invalidate(staffPlacementProvider(staffId)),
+        builder: (placement) {
           if (placement == null || placement.id != placementId) {
-            return Center(
-              child: Text(
-                'Placement not found',
-                style: GoogleFonts.inter(color: RmTheme.textSecondary),
+            return const [
+              RmEmptyBlock(
+                icon: Icons.search_off_rounded,
+                title: 'Placement not found',
+                message: 'It may have been replaced by a newer placement.',
               ),
-            );
+            ];
           }
-          return _PlacementBody(placement: placement, staffId: staffId);
+          return [_PlacementBody(placement: placement, staffId: staffId)];
         },
       ),
     );
@@ -105,30 +94,21 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
           rmPlacementsProvider(PlacementListParams(staffId: widget.staffId)),
         );
         ref.invalidate(rmDashboardProvider);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Placement Confirmed — attendance, check-in, and invoicing now unlocked',
-            ),
-            backgroundColor: RmTheme.emeraldGreen,
-          ),
+        DsSnackBar.show(
+          context,
+          message: 'Placement Confirmed — attendance, check-in, and invoicing now unlocked',
+          type: DsSnackBarType.success,
         );
       },
       onError: (f) {
         final missingA2A3 = f.message.contains('A2') || f.message.contains('A3');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(f.message),
-            backgroundColor: RmTheme.crimsonDanger,
-            duration: missingA2A3 ? const Duration(seconds: 6) : const Duration(seconds: 4),
-            action: missingA2A3
-                ? SnackBarAction(
-                    label: 'SEND A2/A3',
-                    textColor: Colors.white,
-                    onPressed: () => context.push(RmRoutes.stage5Hub(widget.staffId)),
-                  )
-                : null,
-          ),
+        DsSnackBar.show(
+          context,
+          message: f.message,
+          type: DsSnackBarType.error,
+          duration: missingA2A3 ? const Duration(seconds: 6) : const Duration(seconds: 4),
+          actionLabel: missingA2A3 ? 'Send A2/A3' : null,
+          onAction: missingA2A3 ? () => context.push(RmRoutes.stage5Hub(widget.staffId)) : null,
         );
         ref.invalidate(staffPlacementProvider(widget.staffId));
       },
@@ -222,16 +202,9 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
           rmPlacementsProvider(PlacementListParams(staffId: widget.staffId)),
         );
         ref.invalidate(rmDashboardProvider);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Placement exited')));
+        DsSnackBar.show(context, message: 'Placement exited', type: DsSnackBarType.success);
       },
-      onError: (f) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(f.message),
-          backgroundColor: RmTheme.crimsonDanger,
-        ),
-      ),
+      onError: (f) => DsSnackBar.show(context, message: f.message, type: DsSnackBarType.error),
     );
   }
 
@@ -239,219 +212,185 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
   Widget build(BuildContext context) {
     final placement = widget.placement;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Status Overview Card ──
-          _buildStatusCard(placement.status),
-
-          const SizedBox(height: 16),
-
-          // ── Trial Lockout Warning Block ──
-          if (placement.isTrial)
-            _buildWarningBlock()
-                .animate()
-                .fadeIn(duration: 400.ms)
-                .slideY(begin: 0.05, end: 0, duration: 400.ms),
-
-          const SizedBox(height: 16),
-
-          // ── Primary Details Card ──
-          _buildDetailsCard(placement),
-
-          const SizedBox(height: 16),
-
-          // ── Financial Numbers Card ──
-          if (placement.staffSalary != null || placement.managementFee != null)
-            _buildFinancialsCard(placement),
-
-          const SizedBox(height: 32),
-
-          // ── Actions Footer ──
-          if (placement.isTrial)
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: FilledButton(
-                onPressed: _busy ? null : _confirm,
-                style: FilledButton.styleFrom(
-                  backgroundColor: RmTheme.emeraldGreen,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 2,
-                ),
-                child: _busy
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        'Confirm Placement',
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-              ),
-            ).animate().scale(delay: 200.ms, duration: 300.ms)
-          else if (placement.isConfirmed)
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: OutlinedButton(
-                onPressed: _busy ? null : _exit,
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: RmTheme.crimsonDanger, width: 1.5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: Text(
-                  'End Placement',
-                  style: GoogleFonts.inter(
-                    color: RmTheme.crimsonDanger,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ).animate().scale(delay: 200.ms, duration: 300.ms),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildStatusCard(placement.status),
+        if (placement.isTrial) ...[
+          const SizedBox(height: 14),
+          const RmNote(
+            tone: RmNoteTone.warning,
+            title: 'Trial — pending confirmation',
+            text: 'Check-in, attendance and invoicing stay locked until you confirm.',
+          ),
         ],
-      ),
+        const RmSectionTitle(title: 'Assignment & schedule'),
+        _buildDetailsCard(placement),
+        if (placement.staffSalary != null || placement.managementFee != null) ...[
+          const RmSectionTitle(title: 'Financial plan'),
+          _buildFinancialsCard(placement),
+        ],
+        const SizedBox(height: 24),
+        if (placement.isTrial)
+          DsGradientButton(
+            label: 'Confirm placement',
+            icon: Icons.verified_rounded,
+            isLoading: _busy,
+            gradient: const LinearGradient(
+              colors: [Color(0xFF34D399), Color(0xFF059669)],
+            ),
+            onPressed: _busy ? null : _confirm,
+          )
+        else if (placement.isConfirmed)
+          DsOutlineButton(
+            label: 'End placement',
+            icon: Icons.logout_rounded,
+            color: RmTheme.crimsonDanger,
+            isLoading: _busy,
+            onPressed: _busy ? null : _exit,
+          ),
+      ],
     );
   }
 
   // ─── Component Builders ───────────────────────────────────────────────────
 
+  /// Gradient status hero with a TRIAL → CONFIRMED → EXITED journey.
   Widget _buildStatusCard(String status) {
     final isConfirmed = status == 'CONFIRMED';
     final isTrial = status == 'TRIAL';
+    final step = isTrial ? 0 : (isConfirmed ? 1 : 2);
 
-    final Color primaryColor = isConfirmed
-        ? RmTheme.emeraldGreen
+    final (IconData icon, String helper) = isConfirmed
+        ? (Icons.verified_rounded, 'Active — attendance & invoicing unlocked')
         : isTrial
-            ? RmTheme.amberWarning
-            : RmTheme.textSecondary;
+            ? (Icons.hourglass_top_rounded, 'Awaiting your confirmation')
+            : (Icons.flag_rounded, 'Placement concluded');
 
-    final IconData statusIcon = isConfirmed
-        ? Icons.verified_rounded
-        : isTrial
-            ? Icons.hourglass_empty_rounded
-            : Icons.cancel_outlined;
-
-    final String helperText = isConfirmed
-        ? 'Active & Invoicing unlocked'
-        : isTrial
-            ? 'Awaiting validation'
-            : 'Placement concluded';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: RmTheme.borderSubtle.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x06000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: primaryColor.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(statusIcon, color: primaryColor, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'STATUS',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: RmTheme.textSecondary,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  status,
-                  style: GoogleFonts.inter(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: primaryColor,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  helperText,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: RmTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: -0.05, end: 0, duration: 400.ms);
-  }
-
-  Widget _buildWarningBlock() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.amberWarning.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: RmTheme.amberWarning.withValues(alpha: 0.2),
-          width: 1.2,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            color: RmTheme.amberWarning,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'TRIAL — pending confirmation. Check-in, attendance, and invoicing are locked until confirmed.',
-              style: GoogleFonts.inter(
-                color: const Color(0xFFB45309), // Warm dark amber
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                height: 1.4,
+    Widget node(int i, String label) {
+      final done = i <= step;
+      final current = i == step;
+      return Expanded(
+        child: Column(
+          children: [
+            AnimatedContainer(
+              duration: 300.ms,
+              width: current ? 30 : 24,
+              height: current ? 30 : 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: done ? Colors.white : Colors.white.withValues(alpha: 0.18),
+                border: current
+                    ? Border.all(color: const Color(0xFFFFD84D), width: 3)
+                    : null,
+              ),
+              child: Icon(
+                done ? Icons.check_rounded : Icons.circle,
+                size: done ? 15 : 7,
+                color: done ? RmTheme.electricBlue : Colors.white.withValues(alpha: 0.5),
               ),
             ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11.5,
+                fontWeight: current ? FontWeight.w800 : FontWeight.w600,
+                color: Colors.white.withValues(alpha: done ? 1 : 0.6),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget line(int i) => Expanded(
+          child: Container(
+            height: 3,
+            margin: const EdgeInsets.only(bottom: 22),
+            decoration: BoxDecoration(
+              color: i < step ? Colors.white : Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isConfirmed
+              ? const [Color(0xFF064E3B), Color(0xFF059669), Color(0xFF34D399)]
+              : const [RmTheme.navy, Color(0xFF1238B8), RmTheme.electricBlue],
+        ),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: (isConfirmed ? RmTheme.emeraldGreen : RmTheme.electricBlue)
+                .withValues(alpha: 0.3),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: RmTheme.iconAccent, size: 26),
+              ).animate().scaleXY(
+                    begin: 0.5,
+                    end: 1,
+                    duration: 550.ms,
+                    curve: Curves.elasticOut,
+                  ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      rmTitleCase(status),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      helper,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              node(0, 'Trial'),
+              line(0),
+              node(1, 'Confirmed'),
+              line(1),
+              node(2, 'Exited'),
+            ],
           ),
         ],
       ),
@@ -464,7 +403,7 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(
           color: RmTheme.borderSubtle.withValues(alpha: 0.5),
           width: 1.5,
@@ -480,15 +419,6 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Assignment & Schedule',
-            style: GoogleFonts.libreCaslonText(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: RmTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
           _buildDetailRow(
             icon: Icons.person_pin_rounded,
             label: 'Staff ID',
@@ -543,15 +473,6 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Financial Plan',
-            style: GoogleFonts.libreCaslonText(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: RmTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 16),
           Row(
             children: [
               if (placement.staffSalary != null)
@@ -596,7 +517,15 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
       builder: (context) => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: RmTheme.electricBlue.withValues(alpha: 0.8), size: 20),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: RmTheme.iconAccentSoft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: RmTheme.iconAccent, size: 19),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -604,7 +533,7 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
               children: [
                 Text(
                   label,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: RmTheme.textSecondary,
@@ -613,7 +542,7 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
                 const SizedBox(height: 3),
                 Text(
                   value,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: RmTheme.textPrimary,
@@ -628,11 +557,11 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
               color: RmTheme.textSecondary.withValues(alpha: 0.7),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: value));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('$label copied to clipboard'),
-                    duration: const Duration(seconds: 1),
-                  ),
+                DsSnackBar.show(
+                  context,
+                  message: '$label copied',
+                  type: DsSnackBarType.success,
+                  duration: const Duration(seconds: 1),
                 );
               },
               tooltip: 'Copy ID',
@@ -655,7 +584,7 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: RmTheme.textSecondary,
@@ -664,7 +593,7 @@ class _PlacementBodyState extends ConsumerState<_PlacementBody> {
           const SizedBox(height: 4),
           Text(
             '₹${amount.toString()}',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 20,
               fontWeight: FontWeight.w800,
               color: color,

@@ -26,6 +26,10 @@ import '../screens/salary/tax_declaration_screen.dart';
 import '../screens/settings/settings_screens.dart';
 import '../screens/training/training_screens.dart';
 import '../screens/video_certification/video_certification_screens.dart';
+import '../screens/care/staff_care_screens.dart';
+import '../screens/care/staff_client_updates_screen.dart';
+import '../screens/care/staff_cook_screens.dart';
+import '../screens/care/staff_instruction_screens.dart';
 import 'staff_routes.dart';
 import 'staff_shell_screen.dart';
 
@@ -285,5 +289,38 @@ List<RouteBase> get staffRoutes => [
       GoRoute(
         path: StaffRoutes.help,
         builder: (_, __) => const StaffHelpScreen(),
+      ),
+
+      // Daily care ('today' is matched before ':pid')
+      GoRoute(
+        path: StaffRoutes.careToday,
+        builder: (_, __) => const StaffCareTodayScreen(),
+      ),
+      GoRoute(
+        path: '/staff/care/:pid/plan',
+        builder: (_, state) => StaffCarePlanScreen(placementId: state.pathParameters['pid']!),
+      ),
+      GoRoute(
+        path: StaffRoutes.clientUpdates,
+        builder: (_, __) => const StaffClientUpdatesScreen(),
+      ),
+      GoRoute(
+        path: StaffRoutes.instructions,
+        builder: (_, __) => const StaffInstructionsScreen(),
+      ),
+      GoRoute(
+        path: StaffRoutes.cookToday,
+        builder: (_, __) => const StaffCookTodayScreen(),
+      ),
+      GoRoute(
+        path: '/staff/cook/:pid/ratings',
+        builder: (_, state) => StaffCookRatingsScreen(placementId: state.pathParameters['pid']!),
+      ),
+      GoRoute(
+        path: '/staff/care/:pid/report',
+        builder: (_, state) => StaffCareReportScreen(
+          placementId: state.pathParameters['pid']!,
+          args: state.extra as StaffCareReportArgs?,
+        ),
       ),
     ];

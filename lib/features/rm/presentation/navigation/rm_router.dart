@@ -6,6 +6,7 @@ import '../screens/rm_pipeline_screen.dart';
 import '../screens/rm_tasks_screen.dart';
 import '../screens/rm_alerts_screen.dart';
 import '../screens/rm_profile_screen.dart';
+import '../screens/rm_account_screens.dart';
 import '../screens/rm_staff_intake_screen.dart';
 import '../screens/rm_staff_detail_screen.dart';
 import '../screens/rm_verification_dashboard_screen.dart';
@@ -64,6 +65,26 @@ final List<RouteBase> rmRoutes = [
     path: '/rm/profile',
     name: 'rmProfile',
     builder: (context, state) => const RmProfileScreen(),
+  ),
+  slideRoute(
+    path: '/rm/profile/personal-info',
+    name: 'rmPersonalInfo',
+    builder: (context, state) => const RmPersonalInfoScreen(),
+  ),
+  slideRoute(
+    path: '/rm/profile/security',
+    name: 'rmSecurity',
+    builder: (context, state) => const RmSecurityScreen(),
+  ),
+  slideRoute(
+    path: '/rm/profile/notifications',
+    name: 'rmNotificationSettings',
+    builder: (context, state) => const RmNotificationSettingsScreen(),
+  ),
+  slideRoute(
+    path: '/rm/profile/support',
+    name: 'rmSupport',
+    builder: (context, state) => const RmSupportScreen(),
   ),
   slideRoute(
     path: '/rm/staff-intake',

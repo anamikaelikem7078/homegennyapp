@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:homegennyapp/design_system/widgets/buttons/ds_buttons.dart';
+import '../widgets/auth_hero_scaffold.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/router/app_routes.dart';
 import '../../domain/models/user_role.dart';
 import '../providers/auth_provider.dart';
 import '../viewmodels/biometric_viewmodel.dart';
-import '../widgets/app_button.dart';
-import '../widgets/app_widgets.dart';
 
 // --- Premium Palette ---
 const Color _electricBlue = Color(0xFF1A56FF);
-const Color _offWhite = Color(0xFFFBF9F8);
-const Color _textColor = Color(0xFF1A1C1E);
 
 /// Premium Biometric Login Screen
 class BiometricLoginScreen extends ConsumerStatefulWidget {
@@ -51,7 +50,6 @@ class _BiometricLoginScreenState extends ConsumerState<BiometricLoginScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(biometricViewModelProvider);
-    final l10n = context.l10n;
 
     ref.listen(biometricViewModelProvider, (prev, next) {
       if (next.errorMessage != null &&
@@ -60,159 +58,116 @@ class _BiometricLoginScreenState extends ConsumerState<BiometricLoginScreen> {
       }
     });
 
-    return Scaffold(
-      backgroundColor: _offWhite,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(height: 32),
-              // Wordmark Branding
-              Center(
-                child: Text(
-                  'HOMEGENNY',
-                  style: GoogleFonts.libreCaslonText(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: _electricBlue,
-                    letterSpacing: 2.0,
-                  ),
-                ),
-              ),
-              const Spacer(flex: 1),
-              
-              // Title
-              Text(
-                'Touch ID / Face\nID',
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w600,
-                  color: _electricBlue,
-                  height: 1.1,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 12),
-              
-              // Subtitle
-              Text(
-                'Secure, fast, and effortless access.',
-                style: GoogleFonts.inter(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                  color: const Color(0xFF1A1C1E),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 48),
-
-              // Gestural Focus
-              Center(
-                child: Container(
-                  width: 240,
-                  height: 240,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: const Color(0xFFE5E7EB)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 16,
-                        spreadRadius: 2,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Container(
-                      width: 140,
-                      height: 140,
+    return AuthHeroScaffold(
+      onBack: () => context.go(AppRoutes.login),
+      badge: 'Quick sign-in',
+      badgeIcon: Icons.bolt_rounded,
+      titleLine1: 'Touch ID /',
+      titleHighlight: 'Face ID.',
+      subtitle: 'Secure, fast, and effortless access.',
+      floatingIcons: const [
+        Icons.fingerprint_rounded,
+        Icons.face_rounded,
+        Icons.lock_open_rounded,
+      ],
+      children: [
+        const SizedBox(height: 8),
+        Center(
+          child: GestureDetector(
+            onTap: state.isAvailable && !state.isLoading ? _authenticate : null,
+            child: SizedBox(
+              width: 190,
+              height: 190,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  for (var i = 0; i < 2; i++)
+                    Container(
+                      width: 190,
+                      height: 190,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF9FAFB),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFF3F4F6)),
-                      ),
-                      child: Icon(
-                        Icons.fingerprint_rounded,
-                        size: 80,
-                        color: _electricBlue,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              const Spacer(flex: 2),
-              
-              // Not Available Text
-              if (!state.isAvailable)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    'Biometric authentication is not available on this device',
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFF6B7280),
-                      fontSize: 13,
-                      fontStyle: FontStyle.italic,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                
-              // Authenticate Button
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: state.isAvailable && !state.isLoading ? _authenticate : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _electricBlue,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  child: state.isLoading
-                      ? SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : Text(
-                          'Authenticate',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.0,
-                          ),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _electricBlue.withValues(alpha: 0.25),
+                          width: 2,
                         ),
-                ),
-              ),
-              SizedBox(height: 24),
-              
-              // Use Password Instead
-              Center(
-                child: InkWell(
-                  onTap: () => context.go(AppRoutes.login),
-                  child: Text(
-                    'Use Password Instead',
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF4B5563),
+                      ),
+                    )
+                        .animate(
+                          delay: (i * 900).ms,
+                          onPlay: (c) => c.repeat(),
+                        )
+                        .scaleXY(
+                          begin: 0.55,
+                          end: 1,
+                          duration: 1800.ms,
+                          curve: Curves.easeOut,
+                        )
+                        .fadeOut(duration: 1800.ms, curve: Curves.easeIn),
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFFFFF4EB), Color(0xFFFFE2CC)],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFF97316).withValues(alpha: 0.25),
+                          blurRadius: 30,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
+                    child: const Icon(
+                      Icons.fingerprint_rounded,
+                      size: 68,
+                      color: Color(0xFFF97316),
+                    ),
+                  )
+                      .animate(onPlay: (c) => c.repeat(reverse: true))
+                      .scaleXY(
+                        begin: 1,
+                        end: 1.05,
+                        duration: 1100.ms,
+                        curve: Curves.easeInOut,
+                      ),
+                ],
               ),
-              SizedBox(height: 32),
-            ],
+            ),
           ),
         ),
-      ),
+        const SizedBox(height: 12),
+        Text(
+          state.isAvailable
+              ? 'Tap the fingerprint or the button below'
+              : 'Biometric authentication is not available on this device',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF6B7280),
+          ),
+        ),
+        const SizedBox(height: 28),
+        DsGradientButton(
+          label: 'Authenticate',
+          icon: Icons.fingerprint_rounded,
+          isLoading: state.isLoading,
+          onPressed:
+              state.isAvailable && !state.isLoading ? _authenticate : null,
+        ),
+        const SizedBox(height: 12),
+        DsOutlineButton(
+          label: 'Use password instead',
+          icon: Icons.password_rounded,
+          onPressed: () => context.go(AppRoutes.login),
+        ),
+        const SizedBox(height: 12),
+      ],
     );
   }
 }

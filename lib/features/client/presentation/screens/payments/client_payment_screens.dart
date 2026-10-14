@@ -1,13 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import '../../../../../core/extensions/context_extensions.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/utils/currency_formatter.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/client_models.dart';
@@ -25,349 +27,302 @@ Future<void> _saveAndShareInvoiceHtml(String html, String invoiceNumber) async {
   await Share.shareXFiles([XFile(file.path)], text: 'Invoice $invoiceNumber');
 }
 
+/// Downloads [inv] and opens the share sheet, with snackbar feedback.
+Future<void> _downloadInvoice(BuildContext context, WidgetRef ref, ClientInvoice inv) async {
+  final result = await ref.read(clientRepositoryProvider).downloadInvoice(inv.invoiceId);
+  if (!context.mounted) return;
+  switch (result) {
+    case Success(data: final html):
+      await _saveAndShareInvoiceHtml(html, inv.invoiceNumber);
+      if (!context.mounted) return;
+      context.showDsSnackBar(context.l10n.statementDownloaded, type: DsSnackBarType.success);
+    case Error(failure: final f):
+      context.showDsSnackBar(f.message, type: DsSnackBarType.error);
+  }
+}
+
+String _gatewayUri(ClientInvoice inv) => Uri(
+      path: ClientRoutes.paymentGateway,
+      queryParameters: {'invoiceId': inv.invoiceId, 'amount': inv.totalAmount.toString()},
+    ).toString();
+
+const _noInvoices = DsEmptyBlock(
+  icon: Icons.receipt_long_rounded,
+  title: 'No invoices yet',
+  message: 'Invoices appear after your Relationship Manager approves shifts and Finance runs payroll.',
+);
+
+Color _paymentColor(ClientPaymentStatus s) => switch (s) {
+      ClientPaymentStatus.paid => AppColors.success,
+      ClientPaymentStatus.pending => AppColors.warning,
+      ClientPaymentStatus.overdue => AppColors.error,
+      ClientPaymentStatus.processing => AppColors.primary,
+    };
+
+/// Big amount hero shared by the payment screens.
+class _AmountHero extends StatelessWidget {
+  const _AmountHero({
+    required this.label,
+    required this.amount,
+    this.pill,
+    this.caption,
+    this.icon = Icons.account_balance_wallet_rounded,
+    this.footer,
+  });
+
+  final String label;
+  final double amount;
+  final String? pill;
+  final String? caption;
+  final IconData icon;
+  final Widget? footer;
+
+  @override
+  Widget build(BuildContext context) {
+    return DsGradientCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (pill != null) ...[DsGlassPill(pill!), const SizedBox(height: 12)],
+                    Text(
+                      label,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: amount),
+                      duration: 900.ms,
+                      curve: Curves.easeOutCubic,
+                      builder: (_, v, _) => FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          CurrencyFormatter.inr(v),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 36,
+                            height: 1.15,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (caption != null)
+                      Text(
+                        caption!,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.78),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              DsFloatingIconTile(icon: icon),
+            ],
+          ),
+          if (footer != null) ...[const SizedBox(height: 18), footer!],
+        ],
+      ),
+    );
+  }
+}
+
 /// Payments tab.
 class ClientPaymentsTabScreen extends ConsumerStatefulWidget {
   const ClientPaymentsTabScreen({super.key});
 
   @override
-  ConsumerState<ClientPaymentsTabScreen> createState() =>
-      _ClientPaymentsTabScreenState();
+  ConsumerState<ClientPaymentsTabScreen> createState() => _ClientPaymentsTabScreenState();
 }
 
-class _ClientPaymentsTabScreenState
-    extends ConsumerState<ClientPaymentsTabScreen> {
+class _ClientPaymentsTabScreenState extends ConsumerState<ClientPaymentsTabScreen> {
   bool _autoPayEnabled = true;
 
   @override
   Widget build(BuildContext context) {
     final invoices = ref.watch(clientInvoicesProvider);
+    final profile = ref.watch(clientProfileProvider).valueOrNull;
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          context.l10n.financialCenter,
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
+    return DsPage(
+      title: context.l10n.financialCenter,
+      subtitle: context.l10n.manageInvoicesDesc,
+      showBack: false,
+      extraBottomPadding: 90,
+      onRefresh: () async {
+        ref.invalidate(clientInvoicesProvider);
+        ref.invalidate(clientProfileProvider);
+      },
+      actions: [
+        DsPageAction(
+          icon: Icons.history_rounded,
+          tooltip: context.l10n.paymentHistoryTitle,
+          onPressed: () => context.push(ClientRoutes.paymentHistory),
         ),
-      ),
-      body: invoices.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => DsErrorState(title: context.l10n.error),
-        data: (list) {
-          if (list.isEmpty) {
-            return _buildEmptyInvoices(context);
-          }
-          final inv = list.first;
-          return ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            Text(
-              context.l10n.manageInvoicesDesc,
-              style: GoogleFonts.inter(
-                color: context.colors.onSurfaceVariant,
-                fontSize: 13,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 32),
-            // Pending Invoice Card
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: context.theme.cardColor,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF1A56FF).withOpacity(0.08),
-                    blurRadius: 32,
-                    spreadRadius: 0,
-                    offset: const Offset(0, 16),
-                  ),
-                ],
-                border: Border.all(
-                  color: context.colors.surfaceVariant,
-                  width: 1,
+      ],
+      body: dsAsyncBody(
+        invoices,
+        onRetry: () => ref.invalidate(clientInvoicesProvider),
+        builder: (list) {
+          final inv = list.isEmpty ? null : list.first;
+          return [
+            if (inv == null)
+              _noInvoices
+            else
+              _AmountHero(
+                pill: context.l10n.pendingInvoice.toUpperCase(),
+                label: context.l10n.totalOutstanding,
+                amount: inv.totalAmount,
+                caption: context.l10n.dueBy(inv.dueDate),
+                footer: Row(
+                  children: [
+                    Expanded(
+                      child: DsHeroPillButton(
+                        label: context.l10n.payNow,
+                        icon: Icons.bolt_rounded,
+                        onPressed: () => context.push(ClientRoutes.invoice),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          context.l10n.pendingInvoice,
-                          style: GoogleFonts.inter(
-                            color: Colors.orange.shade800,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '#${inv.id}',
-                        style: GoogleFonts.inter(
-                          color: Colors.black45,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    context.l10n.totalOutstanding,
-                    style: GoogleFonts.inter(
-                      color: context.colors.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    CurrencyFormatter.inr(inv.totalAmount),
-                    style: GoogleFonts.libreCaslonText(
-                      color: context.colors.onSurface,
-                      fontSize: 40,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    context.l10n.dueBy(inv.dueDate),
-                    style: GoogleFonts.inter(
-                      color: context.colors.onSurfaceVariant,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => context.push(ClientRoutes.invoice),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A56FF),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: Text(
-                        context.l10n.payNow,
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 32),
-            // Statements & History
+            const DsSection('Quick actions'),
             Row(
               children: [
                 Expanded(
-                  child: _PaymentActionCard(
+                  child: _ActionTile(
                     icon: Icons.history_rounded,
                     title: context.l10n.paymentHistoryTitle,
                     onTap: () => context.push(ClientRoutes.paymentHistory),
                   ),
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: _PaymentActionCard(
+                  child: _ActionTile(
                     icon: Icons.download_rounded,
                     title: context.l10n.downloadStatements,
-                    onTap: () async {
-                      final result = await ref
-                          .read(clientRepositoryProvider)
-                          .downloadInvoice(inv.invoiceId);
-                      if (!context.mounted) return;
-                      switch (result) {
-                        case Success(data: final html):
-                          await _saveAndShareInvoiceHtml(html, inv.invoiceNumber);
-                          if (!context.mounted) return;
-                          context.showDsSnackBar(
-                            context.l10n.statementDownloaded,
-                            type: DsSnackBarType.success,
-                          );
-                        case Error(failure: final f):
-                          context.showDsSnackBar(
-                            f.message,
-                            type: DsSnackBarType.error,
-                          );
-                      }
-                    },
+                    onTap: inv == null ? null : () => _downloadInvoice(context, ref, inv),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ActionTile(
+                    icon: Icons.receipt_long_rounded,
+                    title: context.l10n.invoiceDetails,
+                    onTap: inv == null ? null : () => context.push(ClientRoutes.invoice),
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 32),
-            // Auto-pay Settings
-            Text(
-              context.l10n.autoPaySettings,
-              style: GoogleFonts.libreCaslonText(
-                color: context.colors.onSurface,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            SizedBox(height: 16),
+            DsSection(context.l10n.autoPaySettings),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: BoxDecoration(
-                color: context.theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: context.theme.dividerColor, width: 1),
-              ),
+              padding: const EdgeInsets.all(14),
+              decoration: dsCardDecoration(),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.indigo.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.credit_card_rounded,
-                      color: Colors.indigo.shade400,
-                      size: 24,
-                    ),
-                  ),
-                  SizedBox(width: 16),
+                  const DsIconTile(Icons.credit_card_rounded),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Consumer(
-                      builder: (context, ref, _) {
-                        final profile = ref.watch(clientProfileProvider);
-                        final method = profile.valueOrNull?.paymentMethod;
-                        final last4 = profile.valueOrNull?.accountLast4;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              method ?? 'No payment method on file',
-                              style: GoogleFonts.inter(
-                                color: context.colors.onSurface,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            if (last4 != null) ...[
-                              SizedBox(height: 2),
-                              Text(
-                                'Ending in $last4',
-                                style: GoogleFonts.inter(
-                                  color: context.colors.onSurfaceVariant,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ],
-                        );
-                      },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          profile?.paymentMethod ?? 'No payment method on file',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.lightTextPrimary,
+                          ),
+                        ),
+                        Text(
+                          profile?.accountLast4 != null
+                              ? 'Ending in ${profile!.accountLast4}'
+                              : (_autoPayEnabled ? 'Auto-pay is on' : 'Auto-pay is off'),
+                          style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
+                        ),
+                      ],
                     ),
                   ),
                   Switch(
                     value: _autoPayEnabled,
-                    activeColor: const Color(0xFF1A56FF),
-                    onChanged: (val) {
-                      setState(() {
-                        _autoPayEnabled = val;
-                      });
+                    activeTrackColor: AppColors.primary,
+                    activeThumbColor: Colors.white,
+                    onChanged: (v) {
+                      HapticFeedback.selectionClick();
+                      setState(() => _autoPayEnabled = v);
                     },
                   ),
                 ],
               ),
             ),
-            SizedBox(height: 32),
-            // "Recent Transactions" ledger removed — there is no real
-            // transactions endpoint; use the Payment History action card
-            // above instead, which is honestly backed by dummy data.
-            SizedBox(height: 100), // Padding for floating nav
-          ],
-          );
+            const SizedBox(height: 14),
+            DsNote(
+              tone: DsNoteTone.success,
+              text: context.l10n.securePaymentDesc,
+            ),
+          ];
         },
       ),
     );
   }
-
-  Widget _buildEmptyInvoices(BuildContext context) {
-    return const DsEmptyState(
-      title: 'No invoices yet',
-      message:
-          'Invoices appear after your Relationship Manager approves shifts and Finance runs payroll.',
-      icon: Icons.receipt_long_outlined,
-    );
-  }
 }
 
-class _PaymentActionCard extends StatelessWidget {
-  const _PaymentActionCard({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-  });
-
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({required this.icon, required this.title, required this.onTap});
   final IconData icon;
   final String title;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: context.theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: context.theme.dividerColor, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 10,
-              spreadRadius: 0,
-              offset: const Offset(0, 4),
+    return Opacity(
+      opacity: onTap == null ? 0.5 : 1,
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap == null
+              ? null
+              : () {
+                  HapticFeedback.selectionClick();
+                  onTap!();
+                },
+          child: Ink(
+            padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+            decoration: dsCardDecoration(),
+            child: Column(
+              children: [
+                DsIconTile(icon, size: 46),
+                const SizedBox(height: 10),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    height: 1.25,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.lightTextPrimary,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: const Color(0xFF1A56FF), size: 28),
-            SizedBox(height: 16),
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                color: context.colors.onSurface,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                height: 1.3,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -381,462 +336,156 @@ class ClientInvoiceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final invoices = ref.watch(clientInvoicesProvider);
+    final inv = invoices.valueOrNull?.firstOrNull;
 
-    Future<ClientInvoice?> firstInvoice() async {
-      final list = await ref.read(clientInvoicesProvider.future);
-      return list.isEmpty ? null : list.first;
-    }
-
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: context.colors.onSurface),
-          onPressed: () => context.pop(),
-        ),
-        centerTitle: true,
-        title: Text(
-          context.l10n.invoiceDetails,
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
+    return DsPage(
+      title: context.l10n.invoiceDetails,
+      subtitle: inv == null ? null : 'For ${inv.billingMonth}',
+      onBack: () => context.pop(),
+      onRefresh: () async => ref.invalidate(clientInvoicesProvider),
+      actions: [
+        if (inv != null) ...[
+          DsPageAction(
+            icon: Icons.share_rounded,
+            tooltip: context.l10n.share,
+            onPressed: () => Share.share(
+              'Invoice: ${inv.invoiceNumber}\nAmount: ${CurrencyFormatter.inr(inv.totalAmount)}\nDue Date: ${inv.dueDate}',
+            ),
           ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.download_outlined, color: Color(0xFF1A56FF)),
-            onPressed: () async {
-              final inv = await firstInvoice();
-              if (inv == null) return;
-              final result = await ref
-                  .read(clientRepositoryProvider)
-                  .downloadInvoice(inv.invoiceId);
-              if (!context.mounted) return;
-              switch (result) {
-                case Success(data: final html):
-                  await _saveAndShareInvoiceHtml(html, inv.invoiceNumber);
-                  if (!context.mounted) return;
-                  context.showDsSnackBar(
-                    context.l10n.statementDownloaded,
-                    type: DsSnackBarType.success,
-                  );
-                case Error(failure: final f):
-                  context.showDsSnackBar(
-                    f.message,
-                    type: DsSnackBarType.error,
-                  );
-              }
-            },
+          const SizedBox(width: 8),
+          DsPageAction(
+            icon: Icons.download_rounded,
+            tooltip: context.l10n.download,
+            onPressed: () => _downloadInvoice(context, ref, inv),
           ),
         ],
-      ),
-      body: invoices.when(
-        loading: () =>
-            Center(child: CircularProgressIndicator(color: Color(0xFF1A56FF))),
-        error: (_, __) => Center(child: Text(context.l10n.errorLoadingInvoice)),
-        data: (list) {
-          if (list.isEmpty) {
-            return const DsEmptyState(
-              title: 'No invoices yet',
-              message:
-                  'Invoices appear after your Relationship Manager approves shifts and Finance runs payroll.',
-              icon: Icons.receipt_long_outlined,
-            );
-          }
+      ],
+      bottom: inv == null
+          ? null
+          : DsGradientButton(
+              label: context.l10n.proceedToPayment,
+              icon: Icons.arrow_forward_rounded,
+              onPressed: () => context.push(_gatewayUri(inv)),
+            ),
+      body: dsAsyncBody(
+        invoices,
+        onRetry: () => ref.invalidate(clientInvoicesProvider),
+        builder: (list) {
+          if (list.isEmpty) return const [_noInvoices];
           final inv = list.first;
-          return ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: context.theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: context.theme.dividerColor),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: context.theme.dividerColor,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          context.l10n.invoiceCap,
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: context.colors.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE0E7FF),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: Color(0xFF1A56FF),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              context.l10n.pending,
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF1A56FF),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-                  Text(
-                    inv.invoiceNumber,
-                    style: GoogleFonts.libreCaslonText(
-                      fontSize: 32,
-                      color: context.colors.onSurface,
-                      fontWeight: FontWeight.w600,
-                      height: 1.2,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'For ${inv.billingMonth}',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: context.colors.onSurfaceVariant,
-                    ),
-                  ),
-                  SizedBox(height: 32),
-                  const Divider(color: Color(0xFFF3F4F6), height: 1),
-                  SizedBox(height: 32),
-                  Text(
-                    context.l10n.totalOutstanding,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: context.colors.onSurfaceVariant,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    CurrencyFormatter.inr(inv.totalAmount),
-                    style: GoogleFonts.libreCaslonText(
-                      fontSize: 36,
-                      color: const Color(0xFF1A56FF),
-                    ),
-                  ),
-                  SizedBox(height: 40),
-
-                  // Service lines + GST breakdown from GET
-                  // /client/invoices/:id, falling back to the three numeric
-                  // components from the list endpoint while detail loads.
-                  Consumer(
-                    builder: (context, ref, _) {
-                      final detail = ref.watch(clientInvoiceDetailProvider(inv.invoiceId));
-                      return detail.maybeWhen(
-                        data: (d) => _buildInvoiceDetailBreakdown(context, d),
-                        orElse: () => Column(
-                          children: [
-                            for (final item in inv.items) ...[
-                              _buildFeeRow(
-                                context,
-                                item.description,
-                                '',
-                                CurrencyFormatter.inr(item.amount),
-                              ),
-                              SizedBox(height: 24),
-                            ],
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-
-                  // Divider with dots
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: context.theme.dividerColor),
-                        ),
-                      ),
-                      Expanded(
-                        child: Container(
-                          height: 1,
-                          color: context.theme.dividerColor,
-                        ),
-                      ),
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: context.theme.dividerColor),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 40),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () =>
-                          context.push(ClientRoutes.paymentGateway),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A56FF),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        context.l10n.proceedToPayment,
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 32),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildActionBtn(
-                        context,
-                        Icons.share_outlined,
-                        context.l10n.share,
-                        onTap: () async {
-                          final inv = await firstInvoice();
-                          if (inv == null) return;
-                          Share.share(
-                            'Invoice: ${inv.invoiceNumber}\nAmount: ${CurrencyFormatter.inr(inv.totalAmount)}\nDue Date: ${inv.dueDate}',
-                          );
-                        },
-                      ),
-                      SizedBox(width: 32),
-                      _buildActionBtn(
-                        context,
-                        Icons.download_outlined,
-                        context.l10n.download,
-                        onTap: () async {
-                          final inv = await firstInvoice();
-                          if (inv == null) return;
-                          final result = await ref
-                              .read(clientRepositoryProvider)
-                              .downloadInvoice(inv.invoiceId);
-                          if (!context.mounted) return;
-                          switch (result) {
-                            case Success(data: final html):
-                              await _saveAndShareInvoiceHtml(html, inv.invoiceNumber);
-                              if (!context.mounted) return;
-                              context.showDsSnackBar(
-                                context.l10n.statementDownloaded,
-                                type: DsSnackBarType.success,
-                              );
-                            case Error(failure: final f):
-                              context.showDsSnackBar(
-                                f.message,
-                                type: DsSnackBarType.error,
-                              );
-                          }
-                        },
-                      ),
-                      SizedBox(width: 32),
-                      _buildActionBtn(
-                        context,
-                        Icons.help_outline,
-                        context.l10n.help,
-                        onTap: () {},
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+          final detail = ref.watch(clientInvoiceDetailProvider(inv.invoiceId)).valueOrNull;
+          return [
+            _AmountHero(
+              pill: inv.invoiceNumber.toUpperCase(),
+              label: context.l10n.totalOutstanding,
+              amount: inv.totalAmount,
+              caption: context.l10n.dueBy(inv.dueDate),
+              icon: Icons.receipt_long_rounded,
             ),
-            SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                context.l10n.securePaymentDesc,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: context.colors.onSurfaceVariant,
-                  height: 1.5,
-                ),
-              ),
+            DsSection(
+              detail == null ? 'Charges' : (detail.documentType == 'TAX_INVOICE' ? 'Tax invoice' : 'Bill of supply'),
+              trailing: DsPill(context.l10n.pending, color: AppColors.warning),
             ),
-            SizedBox(height: 40),
-          ],
-          );
+            // Service lines + GST breakdown from GET /client/invoices/:id,
+            // falling back to the list endpoint's components while loading.
+            if (detail != null) _DetailBreakdown(detail: detail) else _ItemsBreakdown(invoice: inv),
+            const SizedBox(height: 14),
+            DsNote(tone: DsNoteTone.success, text: context.l10n.securePaymentDesc),
+          ];
         },
       ),
     );
   }
+}
 
-  /// Renders a [ClientInvoiceDetail]: one row per service line, then a
-  /// totals block. CGST/SGST and IGST are mutually exclusive — a same-state
-  /// client gets CGST+SGST, an out-of-state one gets IGST — so each row is
-  /// only shown when its amount is non-zero; for a Bill of Supply all three
-  /// are zero and the whole GST block naturally disappears.
-  Widget _buildInvoiceDetailBreakdown(BuildContext context, ClientInvoiceDetail d) {
-    final isTaxInvoice = d.documentType == 'TAX_INVOICE';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          isTaxInvoice ? 'Tax Invoice' : 'Bill of Supply',
-          style: GoogleFonts.inter(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
-            color: context.colors.onSurfaceVariant,
-          ),
-        ),
-        SizedBox(height: 16),
-        for (final line in d.serviceLines) ...[
-          _buildFeeRow(
-            context,
-            line.description,
-            '',
-            CurrencyFormatter.inr(line.amount),
-          ),
-          SizedBox(height: 24),
-        ],
-        const Divider(color: Color(0xFFF3F4F6), height: 1),
-        SizedBox(height: 24),
-        _buildFeeRow(context, 'Amount', '', CurrencyFormatter.inr(d.taxableValue)),
-        if (d.cgst > 0) ...[
-          SizedBox(height: 16),
-          _buildFeeRow(context, '9% CGST', '', CurrencyFormatter.inr(d.cgst)),
-        ],
-        if (d.sgst > 0) ...[
-          SizedBox(height: 16),
-          _buildFeeRow(context, '9% SGST', '', CurrencyFormatter.inr(d.sgst)),
-        ],
-        if (d.igst > 0) ...[
-          SizedBox(height: 16),
-          _buildFeeRow(context, '18% IGST', '', CurrencyFormatter.inr(d.igst)),
-        ],
-        SizedBox(height: 16),
-        _buildFeeRow(context, 'Total', '', CurrencyFormatter.inr(d.totalAmount)),
-      ],
-    );
-  }
+class _Row {
+  const _Row(this.label, this.amount, {this.bold = false, this.muted = false});
+  final String label;
+  final double amount;
+  final bool bold;
+  final bool muted;
+}
 
-  Widget _buildFeeRow(
-    BuildContext context,
-    String title,
-    String subtitle,
-    String amount,
-  ) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: context.colors.onSurface,
-                ),
-              ),
-              if (subtitle.isNotEmpty) ...[
-                SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: context.colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        SizedBox(width: 12),
-        Text(
-          amount,
-          style: GoogleFonts.inter(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: context.colors.onSurface,
-          ),
-        ),
-      ],
-    );
-  }
+class _AmountRows extends StatelessWidget {
+  const _AmountRows({required this.rows});
+  final List<_Row> rows;
 
-  Widget _buildActionBtn(
-    BuildContext context,
-    IconData icon,
-    String label, {
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Row(
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: dsCardDecoration(),
+      child: Column(
         children: [
-          Icon(icon, size: 20, color: context.colors.onSurface),
-          SizedBox(width: 8),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: context.colors.onSurface,
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0 && rows[i].bold) const Divider(height: 8, color: AppColors.lightBorder),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      rows[i].label,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: rows[i].bold ? 15 : 13.5,
+                        fontWeight: rows[i].bold ? FontWeight.w800 : FontWeight.w600,
+                        color: rows[i].muted ? AppColors.lightTextSecondary : AppColors.lightTextPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    CurrencyFormatter.inr(rows[i].amount),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: rows[i].bold ? 17 : 14,
+                      fontWeight: FontWeight.w800,
+                      color: rows[i].bold ? AppColors.primary : AppColors.lightTextPrimary,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// CGST/SGST and IGST are mutually exclusive — a same-state client gets
+/// CGST+SGST, an out-of-state one gets IGST — so each row only shows when
+/// non-zero; for a Bill of Supply the whole GST block disappears.
+class _DetailBreakdown extends StatelessWidget {
+  const _DetailBreakdown({required this.detail});
+  final ClientInvoiceDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = detail;
+    return _AmountRows(
+      rows: [
+        for (final line in d.serviceLines) _Row(line.description, line.amount),
+        _Row('Amount', d.taxableValue, muted: true),
+        if (d.cgst > 0) _Row('9% CGST', d.cgst, muted: true),
+        if (d.sgst > 0) _Row('9% SGST', d.sgst, muted: true),
+        if (d.igst > 0) _Row('18% IGST', d.igst, muted: true),
+        _Row('Total', d.totalAmount, bold: true),
+      ],
+    );
+  }
+}
+
+class _ItemsBreakdown extends StatelessWidget {
+  const _ItemsBreakdown({required this.invoice});
+  final ClientInvoice invoice;
+
+  @override
+  Widget build(BuildContext context) {
+    return _AmountRows(
+      rows: [
+        for (final item in invoice.items) _Row(item.description, item.amount),
+        _Row('Total', invoice.totalAmount, bold: true),
+      ],
     );
   }
 }
@@ -849,234 +498,114 @@ class ClientPaymentHistoryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(clientPaymentHistoryProvider);
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF1A56FF),
+    return DsPage(
+      title: context.l10n.paymentHistory,
+      subtitle: context.l10n.financialArchive,
+      onBack: () => context.pop(),
+      onRefresh: () async => ref.invalidate(clientPaymentHistoryProvider),
+      body: dsAsyncBody(
+        history,
+        onRetry: () => ref.invalidate(clientPaymentHistoryProvider),
+        builder: (list) {
+          if (list.isEmpty) {
+            return [
+              DsEmptyBlock(
+                icon: Icons.receipt_long_rounded,
+                title: 'No payments yet',
+                message: context.l10n.noPaymentHistory,
+              ),
+            ];
+          }
+          final paid = list.where((p) => p.status == ClientPaymentStatus.paid).length;
+          return [
+            DsGradientCard(
+              child: Row(
+                children: [
+                  Expanded(child: DsGlassStat(value: '${list.length}', label: 'Payments', icon: Icons.payments_rounded)),
+                  const SizedBox(width: 10),
+                  Expanded(child: DsGlassStat(value: '$paid', label: 'Completed', icon: Icons.verified_rounded)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DsGlassStat(
+                      value: '${list.length - paid}',
+                      label: 'In progress',
+                      icon: Icons.hourglass_top_rounded,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            DsSection(context.l10n.statementOverview),
+            for (var i = 0; i < list.length; i++)
+              _PaymentCard(payment: list[i])
+                  .animate(delay: (45 * i.clamp(0, 10)).ms)
+                  .fadeIn(duration: 300.ms)
+                  .slideX(begin: 0.05, end: 0),
+          ];
+        },
+      ),
+    );
+  }
+}
+
+class _PaymentCard extends StatelessWidget {
+  const _PaymentCard({required this.payment});
+  final ClientPaymentHistory payment;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = payment;
+    final methodIcon = switch (p.method.toLowerCase()) {
+      'bank transfer' => Icons.account_balance_rounded,
+      'credit card' || 'debit card' => Icons.credit_card_rounded,
+      _ => Icons.qr_code_scanner_rounded,
+    };
+    final color = _paymentColor(p.status);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: dsCardDecoration(radius: 20),
+      child: Row(
+        children: [
+          DsIconTile(methodIcon, size: 46),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.amount,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.lightTextPrimary,
+                  ),
+                ),
+                Text(
+                  '${p.date} · ${p.method}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
+                ),
+                if (p.invoiceNumber.isNotEmpty)
+                  Text(
+                    p.invoiceNumber,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.lightTextHint,
+                    ),
+                  ),
+              ],
+            ),
           ),
-          onPressed: () => context.pop(),
-        ),
-        centerTitle: true,
-        title: Text(
-          context.l10n.paymentHistory,
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.tune_rounded, color: Color(0xFF1A56FF)),
-            onPressed: () {},
+          const SizedBox(width: 8),
+          DsPill(
+            clientPaymentStatusLabel(p.status),
+            color: color,
+            icon: p.status == ClientPaymentStatus.paid ? Icons.check_circle_rounded : null,
           ),
         ],
-      ),
-      body: history.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (list) {
-          if (list.isEmpty) {
-            return Center(
-              child: Text(
-                context.l10n.noPaymentHistory,
-                style: GoogleFonts.inter(
-                  color: context.colors.onSurfaceVariant,
-                ),
-              ),
-            );
-          }
-          return ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 16,
-            ).copyWith(bottom: 100),
-            children: [
-              Text(
-                context.l10n.statementOverview,
-                style: GoogleFonts.inter(
-                  color: context.colors.onSurfaceVariant,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                context.l10n.financialArchive,
-                style: GoogleFonts.libreCaslonText(
-                  color: context.colors.onSurface,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 16),
-              Container(height: 2, width: 60, color: const Color(0xFF1A56FF)),
-              SizedBox(height: 32),
-
-              ...list.map((p) {
-                IconData methodIcon;
-                switch (p.method.toLowerCase()) {
-                  case 'bank transfer':
-                    methodIcon = Icons.account_balance;
-                    break;
-                  case 'credit card':
-                  case 'debit card':
-                    methodIcon = Icons.credit_card;
-                    break;
-                  case 'upi':
-                  default:
-                    methodIcon = Icons.qr_code_scanner;
-                    break;
-                }
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: context.theme.cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: context.theme.dividerColor),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.02),
-                        blurRadius: 10,
-                        spreadRadius: 0,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A56FF).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          methodIcon,
-                          color: const Color(0xFF1A56FF),
-                          size: 24,
-                        ),
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              p.amount,
-                              style: GoogleFonts.libreCaslonText(
-                                color: context.colors.onSurface,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              '${p.date} · ${p.method}',
-                              style: GoogleFonts.inter(
-                                color: context.colors.onSurfaceVariant,
-                                fontSize: 13,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              p.invoiceNumber,
-                              style: GoogleFonts.inter(
-                                color: context.colors.onSurfaceVariant
-                                    .withValues(alpha: 0.6),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Paid Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.green.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.check_circle_outline,
-                              color: Colors.green,
-                              size: 12,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              context.l10n.paid,
-                              style: GoogleFonts.inter(
-                                color: Colors.green.shade700,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-
-              SizedBox(height: 16),
-
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: context.colors.onSurface,
-                    side: BorderSide(
-                      color: context.theme.dividerColor,
-                      width: 1,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        context.l10n.loadMoreRecords,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(Icons.keyboard_arrow_down_rounded, size: 18),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }
@@ -1088,29 +617,22 @@ class ClientDownloadInvoiceScreen extends ConsumerStatefulWidget {
   final String invoiceId;
 
   @override
-  ConsumerState<ClientDownloadInvoiceScreen> createState() =>
-      _ClientDownloadInvoiceScreenState();
+  ConsumerState<ClientDownloadInvoiceScreen> createState() => _ClientDownloadInvoiceScreenState();
 }
 
-class _ClientDownloadInvoiceScreenState
-    extends ConsumerState<ClientDownloadInvoiceScreen> {
+class _ClientDownloadInvoiceScreenState extends ConsumerState<ClientDownloadInvoiceScreen> {
   bool _loading = false;
 
   Future<void> _download() async {
     setState(() => _loading = true);
-    final result = await ref
-        .read(clientRepositoryProvider)
-        .downloadInvoice(widget.invoiceId);
+    final result = await ref.read(clientRepositoryProvider).downloadInvoice(widget.invoiceId);
     if (!mounted) return;
     setState(() => _loading = false);
     switch (result) {
       case Success(data: final html):
         await _saveAndShareInvoiceHtml(html, widget.invoiceId);
         if (!mounted) return;
-        context.showDsSnackBar(
-          context.l10n.statementDownloaded,
-          type: DsSnackBarType.success,
-        );
+        context.showDsSnackBar(context.l10n.statementDownloaded, type: DsSnackBarType.success);
         context.pop();
       case Error(failure: final f):
         context.showDsSnackBar(f.message, type: DsSnackBarType.error);
@@ -1119,29 +641,52 @@ class _ClientDownloadInvoiceScreenState
 
   @override
   Widget build(BuildContext context) {
-    return ClientPageScaffold(
-      title: 'Download Invoice',
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.picture_as_pdf_rounded,
-            size: 80,
-            color: AppColors.primary.withValues(alpha: 0.5),
-          ),
-          SizedBox(height: AppSpacing.xl),
-          Text(
-            context.l10n.downloadPdfInvoice,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          SizedBox(height: AppSpacing.xl),
-          DsGradientButton(
-            label: context.l10n.download,
-            isLoading: _loading,
-            onPressed: _download,
-          ),
-        ],
+    return DsPage(
+      title: 'Download invoice',
+      onBack: () => context.pop(),
+      bottom: DsGradientButton(
+        label: context.l10n.download,
+        icon: Icons.download_rounded,
+        isLoading: _loading,
+        onPressed: _loading ? null : _download,
       ),
+      body: [
+        const SizedBox(height: 20),
+        Center(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.06),
+                  shape: BoxShape.circle,
+                ),
+              )
+                  .animate(onPlay: (c) => c.repeat(reverse: true))
+                  .scaleXY(begin: 0.92, end: 1.06, duration: 1400.ms, curve: Curves.easeInOut),
+              const DsFloatingIconTile(icon: Icons.picture_as_pdf_rounded, size: 84),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          context.l10n.downloadPdfInvoice,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.lightTextPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'The invoice opens in your share sheet so you can save or send it.',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.plusJakartaSans(fontSize: 13.5, height: 1.45, color: AppColors.lightTextSecondary),
+        ),
+      ],
     );
   }
 }
@@ -1153,281 +698,58 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final invoices = ref.watch(clientInvoicesProvider);
+    final inv = invoices.valueOrNull?.firstOrNull;
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_forward_ios, color: context.colors.onSurface),
-          onPressed: () {
-            if (context.canPop()) context.pop();
-          },
-        ),
-        title: Text(
-          context.l10n.paymentStatus,
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.arrow_forward_ios,
-              color: context.colors.onSurface,
+    return DsPage(
+      title: context.l10n.paymentStatus,
+      onBack: () {
+        if (context.canPop()) context.pop();
+      },
+      onRefresh: () async => ref.invalidate(clientInvoicesProvider),
+      bottom: inv == null
+          ? null
+          : DsGradientButton(
+              label: 'Pay now',
+              icon: Icons.arrow_forward_rounded,
+              onPressed: () => context.push(_gatewayUri(inv)),
             ),
-            onPressed: () {},
-          ),
-        ],
-      ),
-      body: invoices.when(
-        loading: () =>
-            Center(child: CircularProgressIndicator(color: Color(0xFF1A56FF))),
-        error: (_, __) => Center(child: Text(context.l10n.error)),
-        data: (list) {
-          if (list.isEmpty) {
-            return const DsEmptyState(
-              title: 'No invoices yet',
-              message:
-                  'Invoices appear after your Relationship Manager approves shifts and Finance runs payroll.',
-              icon: Icons.receipt_long_outlined,
-            );
-          }
+      body: dsAsyncBody(
+        invoices,
+        onRetry: () => ref.invalidate(clientInvoicesProvider),
+        builder: (list) {
+          if (list.isEmpty) return const [_noInvoices];
           final inv = list.first;
-          return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Main Card
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: context.theme.cardColor,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
+          return [
+            _AmountHero(
+              pill: context.l10n.pendingCap,
+              label: context.l10n.referenceInvoice(inv.id),
+              amount: inv.totalAmount,
+              caption: context.l10n.dueDateDesc(inv.dueDate),
+              icon: Icons.hourglass_top_rounded,
+            ),
+            const DsSection('Charges'),
+            _ItemsBreakdown(invoice: inv),
+            const SizedBox(height: 14),
+            DsNote(tone: DsNoteTone.success, text: context.l10n.secureEncryptedDesc),
+            const SizedBox(height: 14),
+            DsAdaptiveGrid(
+              children: [
+                DsListCard(
+                  margin: EdgeInsets.zero,
+                  icon: Icons.support_agent_rounded,
+                  title: context.l10n.needAssistance,
+                  subtitle: context.l10n.needAssistanceDesc,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: context.theme.dividerColor,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                context.l10n.pendingCap,
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: context.colors.onSurfaceVariant,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              context.l10n.referenceInvoice(inv.id),
-                              style: GoogleFonts.inter(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: context.colors.onSurface,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: context.colors.surfaceVariant,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            Icons.money_outlined,
-                            size: 20,
-                            color: Color(0xFF1A56FF),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 24),
-                    Text(
-                      CurrencyFormatter.inr(inv.totalAmount),
-                      style: GoogleFonts.libreCaslonText(
-                        fontSize: 42,
-                        fontWeight: FontWeight.w500,
-                        color: context.colors.onSurface,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      context.l10n.dueDateDesc(inv.dueDate),
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: context.colors.onSurfaceVariant,
-                      ),
-                    ),
-                    SizedBox(height: 24),
-                    const Divider(color: Color(0xFFF3F4F6), height: 1),
-                    SizedBox(height: 24),
-                    for (final item in inv.items) ...[
-                      _buildFeeRow(
-                        context,
-                        item.description,
-                        CurrencyFormatter.inr(item.amount),
-                      ),
-                      SizedBox(height: 16),
-                    ],
-                  ],
+                DsListCard(
+                  margin: EdgeInsets.zero,
+                  icon: Icons.receipt_long_rounded,
+                  title: context.l10n.autoReceipt,
+                  subtitle: context.l10n.autoReceiptDesc,
                 ),
-              ),
-              SizedBox(height: 24),
-
-              // Pay Now Button
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () => context.push(Uri(path: ClientRoutes.paymentGateway, queryParameters: {'invoiceId': inv.invoiceId, 'amount': inv.totalAmount.toString()}).toString()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A56FF),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Pay Now',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward, size: 16),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-
-              Text(
-                context.l10n.secureEncryptedDesc,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: context.colors.onSurfaceVariant,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              SizedBox(height: 32),
-
-              // Bottom Cards
-              _buildInfoCard(
-                context,
-                Icons.support_agent_outlined,
-                context.l10n.needAssistance,
-                context.l10n.needAssistanceDesc,
-              ),
-              SizedBox(height: 16),
-              _buildInfoCard(
-                context,
-                Icons.receipt_long_outlined,
-                context.l10n.autoReceipt,
-                context.l10n.autoReceiptDesc,
-              ),
-            ],
-          ),
-          );
+              ],
+            ),
+          ];
         },
-      ),
-    );
-  }
-
-  Widget _buildFeeRow(BuildContext context, String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: context.colors.onSurfaceVariant,
-          ),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: context.colors.onSurface,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoCard(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String description,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: context.theme.cardColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: context.theme.dividerColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: const Color(0xFF1A56FF), size: 24),
-          SizedBox(height: 16),
-          Text(
-            title,
-            style: GoogleFonts.libreCaslonText(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: context.colors.onSurface,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            description,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: context.colors.onSurfaceVariant,
-              height: 1.5,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1454,17 +776,14 @@ class _ClientUpiPaymentScreenState extends ConsumerState<ClientUpiPaymentScreen>
 
   Future<void> _processPayment() async {
     if (_pinController.text.length < 4) {
-      context.showDsSnackBar(
-        context.l10n.enterValidUpiPin,
-        type: DsSnackBarType.warning,
-      );
+      context.showDsSnackBar(context.l10n.enterValidUpiPin, type: DsSnackBarType.warning);
       return;
     }
     setState(() => _isLoading = true);
-    
+
     final repo = ref.read(clientRepositoryProvider);
     final result = await repo.makeDemoPayment(widget.invoiceId, widget.amount, 'UPI');
-    
+
     if (!mounted) return;
     setState(() => _isLoading = false);
 
@@ -1476,159 +795,71 @@ class _ClientUpiPaymentScreenState extends ConsumerState<ClientUpiPaymentScreen>
         ref.invalidate(clientDashboardProvider);
         context.pop();
       },
-      onError: (f) {
-        context.showDsSnackBar(f.message, type: DsSnackBarType.error);
-      },
+      onError: (f) => context.showDsSnackBar(f.message, type: DsSnackBarType.error),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: context.colors.onSurface),
-          onPressed: () => context.pop(),
-        ),
-        centerTitle: true,
-        title: Text(
-          context.l10n.upiPayment,
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+    return DsPage(
+      title: context.l10n.upiPayment,
+      onBack: () => context.pop(),
+      bottom: DsGradientButton(
+        label: context.l10n.paySecurely,
+        icon: Icons.lock_rounded,
+        isLoading: _isLoading,
+        onPressed: _isLoading ? null : _processPayment,
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      body: [
+        _AmountHero(
+          pill: 'UPI',
+          label: context.l10n.payingHomeGenny,
+          amount: widget.amount,
+          icon: Icons.account_balance_wallet_rounded,
+        ),
+        DsSection(context.l10n.enterUpiPin),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: dsCardDecoration(),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(height: 32),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Color(0xFFE0E7FF),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 48,
-                  color: Color(0xFF1A56FF),
-                ),
-              ),
-              SizedBox(height: 24),
-              Text(
-                context.l10n.payingHomeGenny,
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  color: context.colors.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                CurrencyFormatter.inr(widget.amount),
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 48,
-                  color: context.colors.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 48),
-
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  context.l10n.enterUpiPin,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.0,
-                    color: context.colors.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              SizedBox(height: 12),
               TextField(
                 controller: _pinController,
                 obscureText: true,
                 keyboardType: TextInputType.number,
                 maxLength: 6,
-                style: GoogleFonts.inter(
-                  fontSize: 24,
-                  letterSpacing: 8,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  counterText: '',
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 20),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Color(0xFF1A56FF),
-                      width: 2,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 26,
+                  letterSpacing: 12,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.lightTextPrimary,
+                ),
+                decoration: const InputDecoration(counterText: '', hintText: '••••'),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.lock_rounded, size: 14, color: AppColors.iconAccent),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Your PIN is never stored',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.lightTextSecondary,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
-
-              const Spacer(),
-
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _processPayment,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A56FF),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: context.theme.cardColor,
-                          ),
-                        )
-                      : Text(
-                          context.l10n.paySecurely,
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                ),
-              ),
-              SizedBox(height: 16),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }

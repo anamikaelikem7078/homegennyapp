@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:homegennyapp/core/theme/app_fonts.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -12,6 +13,7 @@ import '../../../../design_system/foundations/rm_theme.dart';
 import '../../domain/models/pipeline_stage.dart';
 import '../../domain/models/rm_models.dart';
 import '../providers/rm_providers.dart';
+import '../widgets/rm_stage_ui.dart';
 
 /// Shared A1/A2/A3 e-sign flow: create (if missing) → send OTP → verify OTP
 /// → sign → generate PDF. All three instruments follow the same sequence
@@ -121,14 +123,14 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                     ),
                     child: const Icon(
                       Icons.lock_person_outlined,
-                      color: AppColors.primary,
+                      color: AppColors.secondary,
                       size: 28,
                     ),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'Enter OTP',
-                    style: GoogleFonts.libreCaslonText(
+                    style: AppFonts.display(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: RmTheme.textPrimary,
@@ -138,7 +140,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                   Text(
                     'Please enter the 6-digit code sent to the registered mobile number.',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       color: RmTheme.textSecondary,
                       height: 1.4,
@@ -164,14 +166,12 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                           style: OutlinedButton.styleFrom(
                             foregroundColor: RmTheme.textSecondary,
                             side: const BorderSide(color: RmTheme.borderSubtle),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+                            shape: const StadiumBorder(),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           child: Text(
                             'Cancel',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.plusJakartaSans(
                               fontWeight: FontWeight.w600,
                               fontSize: 14.5,
                             ),
@@ -188,14 +188,12 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                           },
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.primary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
+                            shape: const StadiumBorder(),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           child: Text(
                             'Verify & Sign',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.plusJakartaSans(
                               fontWeight: FontWeight.bold,
                               fontSize: 14.5,
                               color: Colors.white,
@@ -258,156 +256,56 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
   @override
   Widget build(BuildContext context) {
     final staffAsync = ref.watch(staffByIdProvider(widget.staffId));
-    final agreementsAsync = ref.watch(rmAgreementsProvider(AgreementListParams(staffId: widget.staffId, clientId: widget.clientId)));
+    final agreementsParams =
+        AgreementListParams(staffId: widget.staffId, clientId: widget.clientId);
+    final agreementsAsync = ref.watch(rmAgreementsProvider(agreementsParams));
     final client = ref.watch(agreementClientProvider(widget.staffId));
+    final staff = staffAsync.valueOrNull;
+    final isA1 = widget.type == 'A1';
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(
-        backgroundColor: RmTheme.offWhite,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: RmTheme.textPrimary),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          widget.title,
-          style: RmTheme.headline(context).copyWith(fontSize: 18),
-        ),
+    return RmStageScaffold(
+      title: widget.title,
+      stageCode: isA1 ? 'S4' : 'S5',
+      stageColor: rmStageColor(
+        isA1 ? PipelineStages.s4Agreements : PipelineStages.s5Deploy,
       ),
-      body: staffAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (staff) => agreementsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('$e')),
-          data: (agreements) {
-            final agreement = _findAgreement(agreements);
-            final staffName = staff?.fullName ?? widget.staffId;
-            final staffCode = staff?.staffCode;
-            final staffSeries = staff != null ? StaffSeries.label(staff.series).toUpperCase() : null;
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Premium Staff Profile Header Card
-                  _buildStaffProfileHeader(staffName, staffCode, staffSeries),
-                  const SizedBox(height: 20),
-
-                  // Document Details Summary Card
-                  _buildDocumentSummaryCard(agreement, client),
-                  const SizedBox(height: 24),
-
-                  // Step-by-step Execution Steps
-                  if (agreement == null)
-                    _buildCreateStep()
-                  else
-                    _buildInteractiveSteps(agreement, staffName),
-
-                  if (_error != null) ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: RmTheme.crimsonDanger.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: RmTheme.crimsonDanger.withOpacity(0.2)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.error_outline, color: RmTheme.crimsonDanger, size: 20),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _error!,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: RmTheme.crimsonDanger,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ).animate().shake(duration: 400.ms),
-                  ],
-
-                  if (_pdfUrl != null) ...[
-                    const SizedBox(height: 24),
-                    _buildPdfResultCard(),
-                  ],
-                ],
+      onBack: () => context.pop(),
+      onRefresh: () async => ref.invalidate(rmAgreementsProvider(agreementsParams)),
+      body: rmAsyncBody<List<Agreement>>(
+        agreementsAsync,
+        onRetry: () => ref.invalidate(rmAgreementsProvider(agreementsParams)),
+        builder: (agreements) {
+          final agreement = _findAgreement(agreements);
+          final staffName = staff?.fullName ?? widget.staffId;
+          return [
+            if (staff != null)
+              RmStaffBanner(staff: staff, showTracker: false)
+            else
+              const SizedBox(
+                height: 80,
+                child: Center(child: CircularProgressIndicator()),
               ),
-            );
-          },
-        ),
+            const RmSectionTitle(title: 'Document'),
+            _buildDocumentSummaryCard(agreement, client),
+            const RmSectionTitle(title: 'Signing steps'),
+            if (agreement == null)
+              _buildCreateStep()
+            else
+              _buildInteractiveSteps(agreement, staffName),
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              RmNote(tone: RmNoteTone.danger, title: 'Something went wrong', text: _error!)
+                  .animate()
+                  .shake(duration: 400.ms),
+            ],
+            if (_pdfUrl != null) ...[
+              const SizedBox(height: 24),
+              _buildPdfResultCard(),
+            ],
+          ];
+        },
       ),
     );
-  }
-
-  Widget _buildStaffProfileHeader(String name, String? code, String? series) {
-    final firstLetter = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: RmTheme.borderSubtle.withOpacity(0.5),
-          width: 1.5,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: RmTheme.electricBlue.withOpacity(0.1),
-            child: Text(
-              firstLetter,
-              style: GoogleFonts.inter(
-                color: RmTheme.electricBlue,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: RmTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${code ?? "ID: " + widget.staffId}${series != null ? " • $series" : ""}',
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: RmTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.02, end: 0, duration: 400.ms);
   }
 
   Widget _buildDocumentSummaryCard(Agreement? agreement, FinanceCustomer? client) {
@@ -448,7 +346,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                       ),
                       child: const Icon(
                         Icons.description_outlined,
-                        color: AppColors.primary,
+                        color: AppColors.secondary,
                         size: 22,
                       ),
                     ),
@@ -458,7 +356,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                         'Document Info',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 15.5,
                           fontWeight: FontWeight.bold,
                           color: RmTheme.textPrimary,
@@ -480,7 +378,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                     agreement?.status ?? 'NOT YET CREATED',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       color: statusColor,
                       fontWeight: FontWeight.bold,
                       fontSize: 11,
@@ -521,7 +419,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
             color: RmTheme.textSecondary,
             fontWeight: FontWeight.w500,
@@ -539,7 +437,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                     color: RmTheme.textPrimary,
                     fontWeight: FontWeight.w600,
                   )
-                : GoogleFonts.inter(
+                : GoogleFonts.plusJakartaSans(
                     fontSize: 13.5,
                     color: RmTheme.textPrimary,
                     fontWeight: FontWeight.w600,
@@ -564,7 +462,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
         children: [
           Text(
             'Document Draft Generation',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontWeight: FontWeight.w700,
               fontSize: 15.5,
               color: RmTheme.textPrimary,
@@ -573,7 +471,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
           const SizedBox(height: 8),
           Text(
             'No e-sign record exists yet. Generate a new A1 employment agreement document to begin the signing workflow.',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               color: RmTheme.textSecondary,
               fontSize: 13.5,
               height: 1.4,
@@ -587,9 +485,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
               onPressed: _busy ? null : _createAgreement,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: const StadiumBorder(),
               ),
               child: _busy
                   ? const SizedBox(
@@ -599,7 +495,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                     )
                   : Text(
                       'Create Agreement Record',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14.5),
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14.5),
                     ),
             ),
           ),
@@ -616,7 +512,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
           padding: const EdgeInsets.only(left: 4, bottom: 12),
           child: Text(
             'E-Sign Progress Tracker',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontWeight: FontWeight.bold,
               fontSize: 14,
               color: RmTheme.textSecondary,
@@ -653,13 +549,11 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                             icon: const Icon(Icons.sms_outlined, size: 18),
                             label: Text(
                               'Send OTP',
-                              style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13.5),
+                              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13.5),
                             ),
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.primary,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                              shape: const StadiumBorder(),
                             ),
                           ),
                         ),
@@ -673,14 +567,12 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                             icon: const Icon(Icons.edit_outlined, size: 18),
                             label: Text(
                               'Verify & Sign',
-                              style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13.5),
+                              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13.5),
                             ),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.primary,
                               side: const BorderSide(color: AppColors.primary, width: 1.5),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                              shape: const StadiumBorder(),
                             ),
                           ),
                         ),
@@ -710,14 +602,12 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                       icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
                       label: Text(
                         'Generate PDF Agreement',
-                        style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13.5),
+                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 13.5),
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: RmTheme.electricBlue,
                         side: const BorderSide(color: RmTheme.electricBlue, width: 1.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: const StadiumBorder(),
                       ),
                     ),
                   ),
@@ -762,7 +652,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                         ? const Icon(Icons.check, size: 13, color: RmTheme.emeraldGreen)
                         : Text(
                             stepNumber,
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.plusJakartaSans(
                               color: dotColor,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -791,7 +681,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontWeight: FontWeight.w700,
                       fontSize: 14.5,
                       color: isActive ? AppColors.primary : RmTheme.textPrimary,
@@ -800,7 +690,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                   const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       color: RmTheme.textSecondary,
                       fontSize: 12.5,
                       height: 1.35,
@@ -836,12 +726,12 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                   color: RmTheme.electricBlue.withOpacity(0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.picture_as_pdf, color: RmTheme.electricBlue, size: 18),
+                child: const Icon(Icons.picture_as_pdf, color: RmTheme.iconAccent, size: 18),
               ),
               const SizedBox(width: 10),
               Text(
                 'Signed Agreement PDF',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   color: RmTheme.electricBlue,
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
@@ -852,7 +742,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
           const SizedBox(height: 12),
           Text(
             'The signed employment agreement has been compiled and is hosted at the following URL address:',
-            style: GoogleFonts.inter(fontSize: 12.5, color: RmTheme.textSecondary, height: 1.4),
+            style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: RmTheme.textSecondary, height: 1.4),
           ),
           const SizedBox(height: 10),
           Container(
@@ -867,7 +757,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                 Expanded(
                   child: SelectableText(
                     _pdfUrl!,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
                       color: RmTheme.textPrimary,
                       fontWeight: FontWeight.w500,
@@ -877,7 +767,7 @@ class _RmAgreementInstrumentScreenState extends ConsumerState<RmAgreementInstrum
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.copy_rounded, color: RmTheme.electricBlue, size: 18),
+                  icon: const Icon(Icons.copy_rounded, color: RmTheme.iconAccent, size: 18),
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('PDF Link copied to clipboard')),

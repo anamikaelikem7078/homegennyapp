@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'app_breakpoints.dart';
 
 /// Border radius tokens for rounded UI.
 abstract final class AppRadius {
-  static double get xs => 8.r;
-  static double get sm => 12.r;
-  static double get md => 16.r;
-  static double get lg => 20.r;
-  static double get xl => 24.r;
-  static double get xxl => 32.r;
-  static double get full => 999.r;
+  static double get xs => AppScale.of(8);
+  static double get sm => AppScale.of(12);
+  static double get md => AppScale.of(16);
+  static double get lg => AppScale.of(20);
+  static double get xl => AppScale.of(24);
+  static double get xxl => AppScale.of(32);
+  static double get full => AppScale.of(999);
 
   static BorderRadius get xsAll => BorderRadius.circular(xs);
   static BorderRadius get smAll => BorderRadius.circular(sm);

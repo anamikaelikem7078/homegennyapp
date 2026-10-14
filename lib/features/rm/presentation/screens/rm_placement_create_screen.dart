@@ -2,13 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/presentation/async_value_widget.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../../design_system/widgets/buttons/ds_buttons.dart';
+import '../../../../design_system/widgets/feedback/ds_feedback.dart';
 import '../../../../core/utils/result.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../../domain/models/pipeline_stage.dart';
 import '../../domain/models/rm_models.dart';
 import '../navigation/rm_routes.dart';
 import '../providers/rm_providers.dart';
+import '../widgets/rm_stage_ui.dart';
 import '../widgets/rm_wage_config_form.dart';
 
 /// Placement creation — only reachable once a staff member is at
@@ -69,24 +74,17 @@ class _RmPlacementCreateScreenState extends ConsumerState<RmPlacementCreateScree
 
   Future<void> _submit(StaffRow staff) async {
     if (!_stageAllowsPlacement(staff.pipelineStage)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Placement can only be created once the staff has reached S5_DEPLOY (current stage: ${staff.pipelineStage}).'), backgroundColor: RmTheme.crimsonDanger),
-      );
+      DsSnackBar.show(context, message: 'Placement can only be created once the staff has reached S5_DEPLOY (current stage: ${staff.pipelineStage}).', type: DsSnackBarType.error);
       return;
     }
     if (_client == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a client first')));
+      DsSnackBar.show(context, message: 'Select a client first', type: DsSnackBarType.warning);
       return;
     }
     if (_confirmNow && !_confirmFieldsFilled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_detailedWage
+      DsSnackBar.show(context, message: _detailedWage
               ? 'Basic Wage and Management Fee % are required to confirm the placement now.'
-              : 'Staff salary and management fee are required to confirm the placement now.'),
-          backgroundColor: RmTheme.crimsonDanger,
-        ),
-      );
+              : 'Staff salary and management fee are required to confirm the placement now.', type: DsSnackBarType.error);
       return;
     }
 
@@ -116,126 +114,435 @@ class _RmPlacementCreateScreenState extends ConsumerState<RmPlacementCreateScree
         ref.invalidate(rmDashboardProvider);
         context.pushReplacement(RmRoutes.placementDetail(placement.id), extra: staff.id);
       },
-      onError: (f) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(f.message), backgroundColor: RmTheme.crimsonDanger)),
+      onError: (f) => DsSnackBar.show(context, message: f.message, type: DsSnackBarType.error),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final staffAsync = ref.watch(staffByIdProvider(widget.staffId));
+    final staff = staffAsync.valueOrNull;
+    final allowed = staff != null && _stageAllowsPlacement(staff.pipelineStage);
+    final canSubmit = !_submitting && !(_confirmNow && !_confirmFieldsFilled);
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(backgroundColor: RmTheme.offWhite, elevation: 0, title: const Text('Create Placement')),
-      body: AsyncValueWidget<StaffRow?>(
-        value: staffAsync,
+    return RmStageScaffold(
+      title: 'Create placement',
+      stageCode: 'S5',
+      stageColor: rmStageColor(PipelineStages.s5Deploy),
+      bottom: !allowed
+          ? null
+          : canSubmit
+              ? DsGradientButton(
+                  label: _confirmNow ? 'Create confirmed placement' : 'Create trial placement',
+                  icon: _confirmNow ? Icons.verified_rounded : Icons.hourglass_top_rounded,
+                  isLoading: _submitting,
+                  gradient: _confirmNow
+                      ? const LinearGradient(colors: [Color(0xFF34D399), Color(0xFF059669)])
+                      : null,
+                  onPressed: () => _submit(staff),
+                )
+              : const RmHint(text: 'Enter salary and management fee to confirm now.'),
+      body: rmAsyncBody<StaffRow?>(
+        staffAsync,
         onRetry: () => ref.invalidate(staffByIdProvider(widget.staffId)),
         builder: (staff) {
-          if (staff == null) return const Center(child: Text('Staff not found'));
-          if (!_stageAllowsPlacement(staff.pipelineStage)) {
-            return Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text('${staff.fullName} is at ${PipelineStages.label(staff.pipelineStage)} — placement is only available once the staff reaches S5_DEPLOY.'),
-            );
+          if (staff == null) {
+            return const [
+              RmEmptyBlock(
+                icon: Icons.person_off_rounded,
+                title: 'Staff not found',
+                message: 'This staff record could not be loaded.',
+              ),
+            ];
           }
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (!_stageAllowsPlacement(staff.pipelineStage)) {
+            return [
+              RmStaffBanner(staff: staff, showTracker: false),
+              const SizedBox(height: 16),
+              RmEmptyBlock(
+                icon: Icons.lock_rounded,
+                title: 'Not ready for placement',
+                message: '${staff.fullName} is at ${PipelineStages.label(staff.pipelineStage)}. '
+                    'Placement unlocks once they reach Deploy (S5).',
+              ),
+            ];
+          }
+          return [
+            RmStaffBanner(staff: staff, showTracker: false),
+            const RmSectionTitle(title: 'Client'),
+            _PickCard(
+              icon: Icons.business_rounded,
+              title: _client?.customerName ?? 'Select client',
+              subtitle: _client == null
+                  ? 'Required to create a placement'
+                  : 'Tap to change',
+              selected: _client != null,
+              onTap: _pickClient,
+            ),
+            const RmSectionTitle(title: 'Placement type'),
+            Row(
               children: [
-                Text(staff.fullName, style: RmTheme.headline(context).copyWith(fontSize: 22)),
-                Text('${staff.staffCode} · Staff ID: ${staff.id}', style: RmTheme.body(context).copyWith(fontSize: 12)),
-                const SizedBox(height: 20),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.business_outlined),
-                    title: Text(_client?.customerName ?? 'Select client'),
-                    subtitle: _client != null ? Text('FinanceCustomer ID: ${_client!.id}') : null,
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: _pickClient,
+                Expanded(
+                  child: _ModeCard(
+                    icon: Icons.hourglass_top_rounded,
+                    title: 'Trial',
+                    subtitle: 'Try first, confirm later',
+                    color: RmTheme.iconAccent,
+                    selected: !_confirmNow,
+                    onTap: () => setState(() => _confirmNow = false),
                   ),
                 ),
-                const SizedBox(height: 20),
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(value: false, label: Text('Trial'), icon: Icon(Icons.hourglass_empty_rounded)),
-                    ButtonSegment(value: true, label: Text('Confirm Now'), icon: Icon(Icons.verified_rounded)),
-                  ],
-                  selected: {_confirmNow},
-                  onSelectionChanged: (selection) => setState(() => _confirmNow = selection.first),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Wage entry', style: RmTheme.headline(context).copyWith(fontSize: 15)),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('Simple')),
-                        ButtonSegment(value: true, label: Text('Detailed')),
-                      ],
-                      selected: {_detailedWage},
-                      onSelectionChanged: (s) => setState(() => _detailedWage = s.first),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (_detailedWage)
-                  RmWageConfigForm(onConfigChanged: (config) => setState(() => _wageConfig = config))
-                else ...[
-                  TextField(
-                    controller: _salaryController,
-                    keyboardType: TextInputType.number,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      labelText: _confirmNow ? 'Staff salary (monthly) *' : 'Staff salary (monthly)',
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _feeController,
-                    keyboardType: TextInputType.number,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      labelText: _confirmNow ? 'Management fee (monthly) *' : 'Management fee (monthly)',
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (!_confirmNow)
-                    Text('Trial dates default to today → +14 days if left blank.', style: RmTheme.body(context).copyWith(fontSize: 12)),
-                ],
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: (_confirmNow ? RmTheme.emeraldGreen : RmTheme.amberWarning).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _confirmNow
-                        ? 'This creates the placement already CONFIRMED — no trial period. Salary and management fee are required.'
-                        : 'This creates a TRIAL placement, not a confirmed one. Confirmation is a separate, explicit step afterward.',
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: _submitting || (_confirmNow && !_confirmFieldsFilled) ? null : () => _submit(staff),
-                    style: FilledButton.styleFrom(backgroundColor: _confirmNow ? RmTheme.emeraldGreen : RmTheme.electricBlue),
-                    child: _submitting
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : Text(_confirmNow ? 'Create Placement (Confirmed)' : 'Create Placement (TRIAL)'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _ModeCard(
+                    icon: Icons.verified_rounded,
+                    title: 'Confirm now',
+                    subtitle: 'Skip the trial',
+                    color: RmTheme.emeraldGreen,
+                    selected: _confirmNow,
+                    onTap: () => setState(() => _confirmNow = true),
                   ),
                 ),
               ],
             ),
-          );
+            RmSectionTitle(
+              title: 'Wages',
+              trailing: _Toggle(
+                left: 'Simple',
+                right: 'Detailed',
+                value: _detailedWage,
+                onChanged: (v) => setState(() => _detailedWage = v),
+              ),
+            ),
+            if (_detailedWage)
+              RmWageConfigForm(onConfigChanged: (config) => setState(() => _wageConfig = config))
+            else ...[
+              _MoneyField(
+                label: 'Staff salary (monthly)',
+                required: _confirmNow,
+                controller: _salaryController,
+                onChanged: () => setState(() {}),
+              ),
+              const SizedBox(height: 14),
+              _MoneyField(
+                label: 'Management fee (monthly)',
+                required: _confirmNow,
+                controller: _feeController,
+                onChanged: () => setState(() {}),
+              ),
+            ],
+            const SizedBox(height: 16),
+            RmNote(
+              tone: _confirmNow ? RmNoteTone.success : RmNoteTone.warning,
+              title: _confirmNow ? 'Confirmed placement' : 'Trial placement',
+              text: _confirmNow
+                  ? 'Created already confirmed — no trial period. Salary and fee are required.'
+                  : 'Confirmation is a separate step afterward. Trial dates default to today → +14 days.',
+            ),
+          ];
         },
       ),
+    );
+  }
+}
+
+class _PickCard extends StatelessWidget {
+  const _PickCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: selected ? RmTheme.electricBlue.withValues(alpha: 0.4) : RmTheme.borderSubtle,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: RmTheme.iconAccentSoft,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(icon, color: RmTheme.iconAccent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                        color: RmTheme.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: RmTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                selected ? Icons.check_circle_rounded : Icons.chevron_right_rounded,
+                color: selected ? RmTheme.emeraldGreen : RmTheme.electricBlue,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeCard extends StatelessWidget {
+  const _ModeCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: 250.ms,
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected ? color.withValues(alpha: 0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: selected ? color : RmTheme.borderSubtle,
+            width: selected ? 1.8 : 1,
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.18),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : RmTheme.subtleShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, size: 20, color: color),
+                ),
+                const Spacer(),
+                AnimatedScale(
+                  scale: selected ? 1 : 0,
+                  duration: 250.ms,
+                  curve: Curves.elasticOut,
+                  child: Icon(Icons.check_circle_rounded, color: color, size: 22),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: RmTheme.textPrimary,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+                color: RmTheme.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Toggle extends StatelessWidget {
+  const _Toggle({
+    required this.left,
+    required this.right,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String left;
+  final String right;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget seg(String label, bool v) {
+      final on = value == v;
+      return GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onChanged(v);
+        },
+        child: AnimatedContainer(
+          duration: 200.ms,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: on ? RmTheme.electricBlue : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: on ? Colors.white : RmTheme.textSecondary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: RmTheme.borderSubtle),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [seg(left, false), seg(right, true)],
+      ),
+    );
+  }
+}
+
+class _MoneyField extends StatelessWidget {
+  const _MoneyField({
+    required this.label,
+    required this.required,
+    required this.controller,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool required;
+  final TextEditingController controller;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: RmTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            RmStatusPill(
+              label: required ? 'Required' : 'Optional',
+              color: required ? RmTheme.crimsonDanger : RmTheme.electricBlue,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          onChanged: (_) => onChanged(),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: RmTheme.textPrimary,
+          ),
+          decoration: InputDecoration(
+            hintText: '0',
+            fillColor: Colors.white,
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 16, right: 8),
+              child: Text(
+                '₹',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: RmTheme.iconAccent,
+                ),
+              ),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+            suffixText: '/ month',
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: RmTheme.borderSubtle),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

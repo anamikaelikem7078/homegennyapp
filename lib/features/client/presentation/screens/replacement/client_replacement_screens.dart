@@ -1,25 +1,37 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import '../../../../../core/extensions/context_extensions.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:file_picker/file_picker.dart';
+
 import '../../../../../design_system/design_system.dart';
+import '../../../domain/models/client_models.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
 import '../../widgets/client_scaffold.dart';
+import '../../../../../core/series/series_catalog.dart';
+
+void _backOrHome(BuildContext context) {
+  // `canPop()` is false whenever this screen is the only stack entry — a
+  // browser refresh/direct URL load leaves nothing to pop back to.
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go(ClientRoutes.dashboard);
+  }
+}
 
 /// Replacement request form.
 class ClientReplacementRequestScreen extends ConsumerStatefulWidget {
   const ClientReplacementRequestScreen({super.key});
 
   @override
-  ConsumerState<ClientReplacementRequestScreen> createState() =>
-      _ClientReplacementRequestScreenState();
+  ConsumerState<ClientReplacementRequestScreen> createState() => _ClientReplacementRequestScreenState();
 }
 
-class _ClientReplacementRequestScreenState
-    extends ConsumerState<ClientReplacementRequestScreen> {
+class _ClientReplacementRequestScreenState extends ConsumerState<ClientReplacementRequestScreen> {
   final _reason = TextEditingController();
   bool _loading = false;
   String _urgency = 'STANDARD';
@@ -36,9 +48,7 @@ class _ClientReplacementRequestScreenState
       allowedExtensions: ['jpg', 'png', 'pdf'],
     );
     if (result != null && result.files.isNotEmpty) {
-      setState(() {
-        _pickedFileName = result.files.first.name;
-      });
+      setState(() => _pickedFileName = result.files.first.name);
     }
   }
 
@@ -62,8 +72,7 @@ class _ClientReplacementRequestScreenState
       );
       return;
     }
-    final placementId = _selectedPlacementId ??
-        (assignedStaff.length == 1 ? assignedStaff.first.staffId : null);
+    final placementId = _selectedPlacementId ?? (assignedStaff.length == 1 ? assignedStaff.first.staffId : null);
     setState(() => _loading = true);
     final result = await ref.read(clientRepositoryProvider).requestReplacement(
           reason: _reason.text,
@@ -85,363 +94,233 @@ class _ClientReplacementRequestScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: context.theme.scaffoldBackgroundColor.withOpacity(0.8),
-        elevation: 0,
-        scrolledUnderElevation: 1,
-        centerTitle: true,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF000101)),
-          onPressed: () {
-            // `canPop()` is false whenever this screen is the only stack
-            // entry — a browser refresh/direct URL load leaves nothing to
-            // pop back to. Popping unconditionally in that case can throw.
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(ClientRoutes.dashboard);
-            }
-          },
+    final assignedStaff = ref.watch(clientAssignedStaffProvider).valueOrNull ?? const <ClientAssignedStaff>[];
+    const levels = [
+      ('LOW', 'Low', Icons.south_rounded, AppColors.success),
+      ('STANDARD', 'Standard', Icons.remove_rounded, AppColors.primary),
+      ('CRITICAL', 'Critical', Icons.priority_high_rounded, AppColors.error),
+    ];
+
+    return DsPage(
+      title: 'Request replacement',
+      onBack: () => _backOrHome(context),
+      actions: [
+        DsPageAction(
+          icon: Icons.track_changes_rounded,
+          tooltip: 'Request status',
+          onPressed: () => context.push(ClientRoutes.replacementStatus),
         ),
-        title: Text(
-          'HOMEGENNY',
-          style: GoogleFonts.libreCaslonText(
-            fontSize: 20,
-            letterSpacing: 2,
-            color: const Color(0xFF000101),
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundImage: const NetworkImage('https://lh3.googleusercontent.com/aida-public/AB6AXuAa4W3szKskOmkawO2a_LeP4GZI5MfpdAe7CNR-S_y1Q2Cbok1TRKElTyRH4q0BqALPoxR5Us6QELLH-GNnHV6uxxTjWEP78dncobxN91qbSGJxFtLnjoU7DmrenpmwVyD2Iee55IBGCUrX1fJ_JX3B2a9Zyn00hDJ5hE--mQzojfXKWGebkI4aNcVjyfn_NSyumAAVWK4m_LZBt5MO1cYb8LmD8XhGI-yvtFl1otq809YOZo2Aoxsr'),
-            ),
-          ),
-        ],
+      ],
+      bottom: DsGradientButton(
+        label: 'Submit request',
+        icon: Icons.send_rounded,
+        isLoading: _loading,
+        onPressed: _loading ? null : _submit,
       ),
-      body: Stack(
-        children: [
-          // Background Decor
-          Positioned(
-            top: MediaQuery.of(context).size.height * 0.1,
-            left: -150,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                color: const Color(0xFF735A3A).withOpacity(0.05),
-                shape: BoxShape.circle,
+      body: [
+        DsGradientCard(
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const DsGlassPill('REPLACEMENT', icon: Icons.swap_horiz_rounded),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Need a different staff member?',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 20,
+                        height: 1.2,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Tell us what\'s wrong and your Relationship Manager will find the right match.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        height: 1.45,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.82),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              const DsFloatingIconTile(icon: Icons.published_with_changes_rounded),
+            ],
           ),
-          Positioned(
-            bottom: MediaQuery.of(context).size.height * 0.1,
-            right: -150,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                color: const Color(0xFF2563EB).withOpacity(0.05),
-                shape: BoxShape.circle,
+        ),
+        if (assignedStaff.length > 1) ...[
+          const DsSection('Which staff member?'),
+          for (final s in assignedStaff)
+            _StaffOption(
+              staff: s,
+              selected: _selectedPlacementId == s.staffId,
+              onTap: () => setState(() => _selectedPlacementId = s.staffId),
+            ),
+        ],
+        const DsSection('Describe the issue'),
+        DsLabeledField(
+          label: 'Reason',
+          controller: _reason,
+          icon: Icons.edit_note_rounded,
+          hint: 'Detail the nature of the problem…',
+          maxLines: 5,
+          minLines: 4,
+          textCapitalization: TextCapitalization.sentences,
+        ),
+        const DsSection('Urgency level'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final (value, label, icon, color) in levels)
+              DsChoiceChip(
+                label: label,
+                icon: icon,
+                color: color,
+                selected: _urgency == value,
+                onTap: () => setState(() => _urgency = value),
               ),
-            ),
-          ),
-          // Content
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          ],
+        ),
+        const DsSection('Supporting document', trailing: DsPill('Optional', color: AppColors.lightTextSecondary)),
+        _UploadBox(fileName: _pickedFileName, onTap: _pickDocument, onClear: () => setState(() => _pickedFileName = null)),
+        const SizedBox(height: 18),
+        const DsNote(
+          title: 'Priority handling',
+          text: 'Our team responds within 15 minutes for critical issues.',
+        ),
+      ],
+    );
+  }
+}
+
+class _StaffOption extends StatelessWidget {
+  const _StaffOption({required this.staff, required this.selected, required this.onTap});
+  final ClientAssignedStaff staff;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = staff.fullName ?? staff.staffCode ?? staff.staffId;
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
+      child: AnimatedContainer(
+        duration: 220.ms,
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary.withValues(alpha: 0.06) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? AppColors.primary : AppColors.lightBorder, width: selected ? 1.6 : 1),
+          boxShadow: dsCardShadow,
+        ),
+        child: Row(
+          children: [
+            DsInitialsAvatar(name: name, size: 42),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Experience an issue?',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.libreCaslonText(
-                      fontSize: 32,
-                      color: const Color(0xFF000101),
-                      height: 1.2,
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.lightTextPrimary,
                     ),
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Our dedicated support team is ready to provide a seamless resolution for your concierge needs.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.manrope(
-                      fontSize: 16,
-                      color: const Color(0xFF735A3A),
-                    ),
-                  ),
-                  SizedBox(height: 48),
-                  Consumer(
-                    builder: (context, ref, _) {
-                      final assignedStaff = ref.watch(clientAssignedStaffProvider);
-                      return assignedStaff.when(
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
-                        data: (staff) {
-                          if (staff.length <= 1) return const SizedBox.shrink();
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 32),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'WHICH STAFF MEMBER?',
-                                  style: GoogleFonts.manrope(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.2,
-                                    color: const Color(0xFF735A3A),
-                                  ),
-                                ),
-                                SizedBox(height: 12),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF2F4F7),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                                  child: DropdownButtonHideUnderline(
-                                    child: DropdownButton<String>(
-                                      isExpanded: true,
-                                      hint: Text(
-                                        'Select a staff member',
-                                        style: GoogleFonts.manrope(fontSize: 14),
-                                      ),
-                                      value: _selectedPlacementId,
-                                      items: [
-                                        for (final s in staff)
-                                          DropdownMenuItem(
-                                            value: s.staffId,
-                                            child: Text(
-                                              s.fullName ?? s.staffCode ?? s.staffId,
-                                              style: GoogleFonts.manrope(fontSize: 14),
-                                            ),
-                                          ),
-                                      ],
-                                      onChanged: (v) => setState(() => _selectedPlacementId = v),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    },
                   ),
                   Text(
-                    'DESCRIBE THE ISSUE',
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                      color: const Color(0xFF735A3A),
-                    ),
+                    [if (staff.staffCode != null) staff.staffCode!, if (staff.series != null) SeriesDisplay.label(staff.series)].join(' · '),
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.lightTextSecondary),
                   ),
-                  SizedBox(height: 12),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF2F4F7),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: TextField(
-                      controller: _reason,
-                      maxLines: 5,
-                      style: GoogleFonts.manrope(fontSize: 16),
-                      decoration: InputDecoration(
-                        hintText: 'Detail the nature of the problem...',
-                        hintStyle: GoogleFonts.manrope(
-                          fontSize: 16,
-                          color: const Color(0xFFC5C6CA),
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.all(16),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 32),
-                  Text(
-                    'URGENCY LEVEL',
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                      color: const Color(0xFF735A3A),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Row(
-                    children: [
-                      _buildUrgencyButton('LOW'),
-                      SizedBox(width: 12),
-                      _buildUrgencyButton('STANDARD'),
-                      SizedBox(width: 12),
-                      _buildUrgencyButton('CRITICAL'),
-                    ],
-                  ),
-                  SizedBox(height: 32),
-                  GestureDetector(
-                    onTap: _pickDocument,
-                    child: Container(
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: const Color(0xFFC5C6CA).withOpacity(0.5),
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                        color: _pickedFileName != null ? const Color(0xFFF2F4F7) : Colors.transparent,
-                      ),
-                      child: Column(
-                        children: [
-                          Icon(
-                            _pickedFileName != null ? Icons.check_circle_outline : Icons.cloud_upload_outlined,
-                            size: 40,
-                            color: _pickedFileName != null ? const Color(0xFF2563EB) : const Color(0xFFC5C6CA),
-                          ),
-                          SizedBox(height: 12),
-                          Text(
-                            _pickedFileName ?? 'Upload Documents',
-                            style: GoogleFonts.manrope(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: _pickedFileName != null ? const Color(0xFF2563EB) : const Color(0xFF000101),
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          if (_pickedFileName == null) ...[
-                            SizedBox(height: 4),
-                            Text(
-                              'JPEG, PNG, or PDF (Max 10MB)',
-                              style: GoogleFonts.manrope(
-                                fontSize: 12,
-                                color: const Color(0xFF735A3A).withOpacity(0.7),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 32),
-                  ElevatedButton(
-                    onPressed: _loading ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB), // support-blue
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: _loading 
-                        ? SizedBox(
-                            height: 20, 
-                            width: 20, 
-                            child: CircularProgressIndicator(color: context.theme.cardColor, strokeWidth: 2)
-                          )
-                        : Text(
-                            'SUBMIT ISSUE',
-                            style: GoogleFonts.manrope(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 2,
-                            ),
-                          ),
-                  ),
-                  SizedBox(height: 48),
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F3F3),
-                      border: Border.all(color: const Color(0xFFC5C6CA).withOpacity(0.2)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(color: context.theme.cardColor,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 4,
-                                offset: Offset(0, 2),
-                              )
-                            ],
-                          ),
-                          child: Icon(
-                            Icons.support_agent,
-                            color: Color(0xFF2563EB),
-                          ),
-                        ),
-                        SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Priority Handling',
-                                style: GoogleFonts.manrope(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF000101),
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Our elite team responds within 15 minutes for critical issues.',
-                                style: GoogleFonts.manrope(
-                                  fontSize: 12,
-                                  color: const Color(0xFF735A3A),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 40),
                 ],
               ),
             ),
-          ),
-        ],
+            AnimatedSwitcher(
+              duration: 200.ms,
+              child: Icon(
+                selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                key: ValueKey(selected),
+                color: selected ? AppColors.primary : AppColors.lightBorder,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildUrgencyButton(String label) {
-    final isActive = _urgency == label;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _urgency = label),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 16),
+class _UploadBox extends StatelessWidget {
+  const _UploadBox({required this.fileName, required this.onTap, required this.onClear});
+  final String? fileName;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final picked = fileName != null;
+    return Material(
+      color: picked ? AppColors.primary.withValues(alpha: 0.05) : Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF000101) : Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: isActive ? const Color(0xFF000101) : const Color(0xFFC5C6CA),
+              color: picked ? AppColors.primary.withValues(alpha: 0.4) : AppColors.lightBorder,
+              width: 1.4,
             ),
-            borderRadius: BorderRadius.circular(4),
           ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: GoogleFonts.manrope(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: isActive ? Colors.white : const Color(0xFF000101),
-            ),
+          child: Row(
+            children: [
+              DsIconTile(picked ? Icons.insert_drive_file_rounded : Icons.cloud_upload_rounded, size: 48),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileName ?? 'Upload a document',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: picked ? AppColors.primary : AppColors.lightTextPrimary,
+                      ),
+                    ),
+                    Text(
+                      picked ? 'Tap to change' : 'JPEG, PNG or PDF · max 10 MB',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.lightTextSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              if (picked)
+                IconButton(
+                  tooltip: 'Remove',
+                  onPressed: onClear,
+                  icon: const Icon(Icons.close_rounded, color: AppColors.lightTextSecondary),
+                ),
+            ],
           ),
         ),
       ),
@@ -457,275 +336,166 @@ class ClientReplacementStatusScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final replacements = ref.watch(clientReplacementsProvider);
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.colors.onSurface),
-          onPressed: () {
-            // `canPop()` is false whenever this screen is the only stack
-            // entry — a browser refresh/direct URL load, or arriving here
-            // straight from a push-replacement flow — leaving nothing to
-            // pop back to. Without a fallback, back does nothing.
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(ClientRoutes.dashboard);
-            }
-          },
-        ),
-        title: Text(
-          'Replacement Status',
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+    return DsPage(
+      title: 'Replacement status',
+      onBack: () => _backOrHome(context),
+      onRefresh: () async => ref.invalidate(clientReplacementsProvider),
+      bottom: DsGradientButton(
+        label: 'Request replacement',
+        icon: Icons.swap_horiz_rounded,
+        onPressed: () => context.push(ClientRoutes.replacementRequest),
       ),
-      body: replacements.when(
-        loading: () => Center(child: CircularProgressIndicator(color: Color(0xFF2563EB))),
-        error: (_, __) => Center(
-          child: Text(
-            'Error loading status',
-            style: GoogleFonts.manrope(color: Colors.red),
-          ),
-        ),
-        data: (requests) {
+      body: dsAsyncBody(
+        replacements,
+        onRetry: () => ref.invalidate(clientReplacementsProvider),
+        builder: (requests) {
           if (requests.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+            return const [
+              DsEmptyBlock(
+                icon: Icons.find_replace_rounded,
+                title: 'No active request',
+                message: 'You currently have no replacement requests for your staff.',
+              ),
+            ];
+          }
+          return [for (final r in requests) _RequestCard(request: r)];
+        },
+      ),
+    );
+  }
+}
+
+class _RequestCard extends StatelessWidget {
+  const _RequestCard({required this.request});
+  final ClientReplacementRequest request;
+
+  static const _steps = [
+    ClientReplacementStatus.pending,
+    ClientReplacementStatus.inReview,
+    ClientReplacementStatus.approved,
+    ClientReplacementStatus.completed,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final r = request;
+    final rejected = r.status == ClientReplacementStatus.rejected;
+    final current = rejected ? 1 : _steps.indexOf(r.status);
+    final color = rejected
+        ? AppColors.error
+        : r.status == ClientReplacementStatus.completed
+            ? AppColors.success
+            : AppColors.primary;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: dsCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              DsIconTile(Icons.swap_horiz_rounded, color: color),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      r.currentStaffName.isEmpty ? 'Replacement request' : r.currentStaffName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.lightTextPrimary,
+                      ),
+                    ),
+                    if (r.requestedAt.isNotEmpty)
+                      Text(
+                        'Requested ${r.requestedAt}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.lightTextSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              DsPill(clientReplacementStatusLabel(r.status), color: color),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              for (var i = 0; i < _steps.length; i++) ...[
+                if (i > 0)
+                  Expanded(
+                    child: Container(
+                      height: 3,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: i <= current ? color : AppColors.lightBorder,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(24),
+                      width: 24,
+                      height: 24,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withOpacity(0.05),
+                        color: i <= current ? color : Colors.white,
                         shape: BoxShape.circle,
+                        border: Border.all(color: i <= current ? color : AppColors.lightBorder, width: 2),
                       ),
-                      child: Icon(
-                        Icons.find_replace_rounded,
-                        size: 64,
-                        color: Color(0xFF2563EB),
-                      ),
-                    ),
-                    SizedBox(height: 32),
+                      child: i < current || (i == current && !rejected)
+                          ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                          : (rejected && i == current)
+                              ? const Icon(Icons.close_rounded, size: 14, color: Colors.white)
+                              : null,
+                    ).animate(delay: (120 * i).ms).scaleXY(begin: 0.5, end: 1, curve: Curves.easeOutBack),
+                    const SizedBox(height: 4),
                     Text(
-                      'No Active Request',
-                      style: GoogleFonts.libreCaslonText(
-                        fontSize: 24,
-                        color: context.colors.onSurface,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'You currently have no active replacement requests for your staff.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.manrope(
-                        fontSize: 14,
-                        color: context.colors.onSurfaceVariant,
-                        height: 1.5,
-                      ),
-                    ),
-                    SizedBox(height: 40),
-                    ElevatedButton(
-                      onPressed: () => context.push(ClientRoutes.replacementRequest),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2563EB),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      child: Text(
-                        'REQUEST REPLACEMENT',
-                        style: GoogleFonts.manrope(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.2,
-                        ),
+                      switch (_steps[i]) {
+                        ClientReplacementStatus.pending => 'Sent',
+                        ClientReplacementStatus.inReview => rejected ? 'Rejected' : 'Review',
+                        ClientReplacementStatus.approved => 'Approved',
+                        _ => 'Done',
+                      },
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: i <= current ? color : AppColors.lightTextSecondary,
                       ),
                     ),
                   ],
                 ),
-              ),
-            );
-          }
-
-          return ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              for (final request in requests) ...[
-                Container(
-                  margin: const EdgeInsets.only(bottom: 24),
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: context.theme.cardColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: context.theme.dividerColor),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'STATUS',
-                            style: GoogleFonts.manrope(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.2,
-                              color: const Color(0xFF735A3A),
-                            ),
-                          ),
-                          DsStatusChip(
-                            label: clientReplacementStatusLabel(request.status),
-                            type: clientReplacementStatusType(request.status),
-                          ),
-                        ],
-                      ),
-                      if (request.currentStaffName.isNotEmpty) ...[
-                        SizedBox(height: 24),
-                        Text(
-                          'Current Staff',
-                          style: GoogleFonts.manrope(
-                            fontSize: 12,
-                            color: const Color(0xFF735A3A),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          request.currentStaffName,
-                          style: GoogleFonts.libreCaslonText(
-                            fontSize: 18,
-                            color: const Color(0xFF000101),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                      if (request.requestedAt.isNotEmpty) ...[
-                        SizedBox(height: 16),
-                        Text(
-                          'Requested On',
-                          style: GoogleFonts.manrope(
-                            fontSize: 12,
-                            color: const Color(0xFF735A3A),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          request.requestedAt,
-                          style: GoogleFonts.manrope(
-                            fontSize: 16,
-                            color: const Color(0xFF000101),
-                          ),
-                        ),
-                      ],
-                      if (request.newStaffName != null) ...[
-                        SizedBox(height: 16),
-                        Text(
-                          'New Staff',
-                          style: GoogleFonts.manrope(
-                            fontSize: 12,
-                            color: const Color(0xFF735A3A),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          request.newStaffName!,
-                          style: GoogleFonts.libreCaslonText(
-                            fontSize: 18,
-                            color: const Color(0xFF000101),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                      if (request.estimatedDate != null) ...[
-                        SizedBox(height: 16),
-                        Text(
-                          'Estimated Date',
-                          style: GoogleFonts.manrope(
-                            fontSize: 12,
-                            color: const Color(0xFF735A3A),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          request.estimatedDate!,
-                          style: GoogleFonts.manrope(
-                            fontSize: 16,
-                            color: const Color(0xFF000101),
-                          ),
-                        ),
-                      ],
-                      if (request.reason.isNotEmpty) ...[
-                        SizedBox(height: 16),
-                        Text(
-                          'Reason',
-                          style: GoogleFonts.manrope(
-                            fontSize: 12,
-                            color: const Color(0xFF735A3A),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          request.reason,
-                          style: GoogleFonts.manrope(
-                            fontSize: 16,
-                            color: const Color(0xFF000101),
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                      if (request.remarks != null) ...[
-                        SizedBox(height: 16),
-                        Text(
-                          'Remarks',
-                          style: GoogleFonts.manrope(
-                            fontSize: 12,
-                            color: const Color(0xFF735A3A),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          request.remarks!,
-                          style: GoogleFonts.manrope(
-                            fontSize: 16,
-                            color: const Color(0xFF000101),
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
               ],
-              Center(
-                child: TextButton(
-                  onPressed: () => context.push(ClientRoutes.replacementRequest),
-                  child: Text(
-                    'FILE ANOTHER REQUEST',
-                    style: GoogleFonts.manrope(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                      color: const Color(0xFF2563EB),
-                    ),
-                  ),
-                ),
-              ),
             ],
-          );
-        },
+          ),
+          if (r.newStaffName != null || r.estimatedDate != null || r.reason.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          DsInfoCard(
+            lines: [
+              if (r.newStaffName != null) DsInfoLine(Icons.person_add_alt_1_rounded, 'New staff', r.newStaffName!),
+              if (r.estimatedDate != null) DsInfoLine(Icons.event_rounded, 'Estimated date', r.estimatedDate!),
+              if (r.reason.isNotEmpty) DsInfoLine(Icons.chat_bubble_rounded, 'Reason', r.reason),
+            ],
+          ),
+          ],
+          if (r.remarks != null && r.remarks!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            DsNote(
+              tone: rejected ? DsNoteTone.danger : DsNoteTone.info,
+              title: 'Remarks',
+              text: r.remarks!,
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 import '../../../../core/utils/result.dart';
 import '../models/client_models.dart';
+import '../models/staff_request_models.dart';
 
 /// Client module repository contract.
 abstract interface class ClientRepository {
@@ -35,4 +36,12 @@ abstract interface class ClientRepository {
   Future<Result<void>> makeDemoPayment(String invoiceId, double amount, String method);
   Future<Result<ClientProfile>> getProfile();
   Future<Result<void>> updateProfile(Map<String, String> data);
+
+  // Staff requests
+  Future<Result<List<StaffRequest>>> getStaffRequests();
+  Future<Result<StaffRequest>> getStaffRequest(String id);
+  Future<Result<StaffRequest>> createStaffRequest(Map<String, dynamic> body);
+  Future<Result<void>> selectStaffForRequest(String id, {required String staffId, String? note});
+  Future<Result<void>> rejectStaffRequestShortlist(String id, String reason);
+  Future<Result<void>> cancelStaffRequest(String id, String reason);
 }

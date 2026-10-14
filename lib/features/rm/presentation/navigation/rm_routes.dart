@@ -5,6 +5,10 @@ abstract final class RmRoutes {
   static const String tasks = '/rm/tasks';
   static const String alerts = '/rm/alerts';
   static const String profile = '/rm/profile';
+  static const String personalInfo = '/rm/profile/personal-info';
+  static const String security = '/rm/profile/security';
+  static const String notificationSettings = '/rm/profile/notifications';
+  static const String support = '/rm/profile/support';
   static const String staffIntake = '/rm/staff-intake';
   static const String trials = '/rm/trials';
   static const String deferred = '/rm/deferred';

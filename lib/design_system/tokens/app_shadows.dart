@@ -8,16 +8,9 @@ abstract final class AppShadows {
         BoxShadow(
           color: isDark
               ? Colors.black.withValues(alpha: 0.35)
-              : AppColors.secondary.withValues(alpha: 0.08),
-          blurRadius: 24,
-          offset: const Offset(0, 8),
-        ),
-        BoxShadow(
-          color: isDark
-              ? Colors.black.withValues(alpha: 0.2)
-              : AppColors.primary.withValues(alpha: 0.04),
-          blurRadius: 8,
-          offset: const Offset(0, 2),
+              : AppColors.navy.withValues(alpha: 0.08),
+          blurRadius: 28,
+          offset: const Offset(0, 10),
         ),
       ];
 
@@ -25,17 +18,17 @@ abstract final class AppShadows {
         BoxShadow(
           color: isDark
               ? Colors.black.withValues(alpha: 0.4)
-              : const Color(0xFF0F172A).withValues(alpha: 0.06),
-          blurRadius: 16,
-          offset: const Offset(0, 4),
+              : AppColors.navy.withValues(alpha: 0.06),
+          blurRadius: 20,
+          offset: const Offset(0, 6),
         ),
       ];
 
   static List<BoxShadow> button({bool isDark = false}) => [
         BoxShadow(
-          color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.3),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
+          color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.35),
+          blurRadius: 20,
+          offset: const Offset(0, 8),
         ),
       ];
 }

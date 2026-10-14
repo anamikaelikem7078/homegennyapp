@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:homegennyapp/core/theme/app_fonts.dart';
 import '../../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/staff_models.dart';
@@ -11,8 +13,13 @@ import '../../../../../core/utils/communication_helper.dart';
 import '../../../../../core/presentation/async_value_widget.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../providers/staff_providers.dart';
-import '../../widgets/staff_scaffold.dart';
 import '../../../../../common/presentation/viewmodels/biometric_viewmodel.dart';
+import '../../../../../core/series/series_catalog.dart';
+import '../../../../care/presentation/care_providers.dart';
+import '../care/staff_care_screens.dart';
+import '../care/staff_client_updates_screen.dart';
+import '../care/staff_cook_screens.dart';
+import '../care/staff_instruction_screens.dart';
 
 /// Staff home dashboard tab.
 class StaffHomeScreen extends ConsumerWidget {
@@ -25,55 +32,6 @@ class StaffHomeScreen extends ConsumerWidget {
     final userName = authState.user?.name ?? 'Staff User';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8), // Sophisticated off-white
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        automaticallyImplyLeading: false,
-        title: Text(
-          'HOMEGENNY',
-          style: GoogleFonts.libreCaslonText(
-            color: const Color(0xFF1A56FF),
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.2,
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: () => context.push(StaffRoutes.notifications),
-                  child: Stack(
-                    alignment: Alignment.topRight,
-                    children: [
-                      const Icon(Icons.notifications_none_rounded, color: Color(0xFF0F172A), size: 28),
-                      Container(
-                        width: 8,
-                        height: 8,
-                        margin: const EdgeInsets.only(top: 2, right: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A56FF),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFFFBF9F8), width: 1.5),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                const CircleAvatar(
-                  radius: 16,
-                  backgroundImage: NetworkImage('https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200'),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
       body: AsyncValueWidget(
         value: dashboard,
         onRetry: () => ref.invalidate(staffDashboardProvider),
@@ -82,15 +40,25 @@ class StaffHomeScreen extends ConsumerWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
             child: DsRefreshIndicator(
-              onRefresh: () async => ref.invalidate(staffDashboardProvider),
+              onRefresh: () async {
+                ref.invalidate(staffDashboardProvider);
+                ref.invalidate(staffCareTodayProvider);
+                ref.invalidate(cookTodayProvider);
+                ref.invalidate(staffInstructionsProvider);
+                ref.invalidate(clientUpdatesUnreadProvider);
+              },
               child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: EdgeInsets.zero,
             children: [
               _WelcomeHeader(name: userName),
-              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
               _ProfileSpotlightCard(
                 name: data.fullName,
-                role: data.series,
+                role: SeriesDisplay.label(data.series),
                 employeeId: data.staffCode,
                 onTap: () => context.push(StaffRoutes.profileCompletion),
                 onBiometricTap: () async {
@@ -117,6 +85,10 @@ class StaffHomeScreen extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: 16),
+              const StaffClientUpdatesHomeCard(),
+              const StaffCareHomeCard(),
+              const StaffCookHomeCard(),
+              const StaffInstructionsHomeCard(),
               _AttendanceBentoCard(
                 percentage: 92,
                 onTap: () => context.go(StaffRoutes.attendance),
@@ -128,6 +100,12 @@ class StaffHomeScreen extends ConsumerWidget {
               const SizedBox(height: 24),
               _CareShieldBanner(),
               const SizedBox(height: 100),
+                  ]
+                      .animate(interval: 70.ms)
+                      .fadeIn(duration: 380.ms)
+                      .slideY(begin: 0.12, end: 0, curve: Curves.easeOutCubic),
+                ),
+              ),
             ],
           ),
         ),
@@ -172,7 +150,7 @@ class _WelcomeHeader extends StatelessWidget {
                 const SizedBox(height: 20),
                 Text(
                   'Submit New Request',
-                  style: GoogleFonts.libreCaslonText(
+                  style: AppFonts.display(
                     fontSize: 22,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF0F172A),
@@ -181,7 +159,7 @@ class _WelcomeHeader extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Select the type of request you would like to log with your Relationship Manager.',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     color: const Color(0xFF64748B),
                   ),
@@ -197,7 +175,7 @@ class _WelcomeHeader extends StatelessWidget {
                       SnackBar(
                         content: Text(
                           'Leave request logged and sent to your Relationship Manager.',
-                          style: GoogleFonts.inter(),
+                          style: GoogleFonts.plusJakartaSans(),
                         ),
                         backgroundColor: const Color(0xFF16A34A),
                       ),
@@ -215,7 +193,7 @@ class _WelcomeHeader extends StatelessWidget {
                       SnackBar(
                         content: Text(
                           'Shift change request logged and sent to your RM.',
-                          style: GoogleFonts.inter(),
+                          style: GoogleFonts.plusJakartaSans(),
                         ),
                         backgroundColor: const Color(0xFF16A34A),
                       ),
@@ -254,68 +232,34 @@ class _WelcomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'OVERVIEW',
-          style: GoogleFonts.inter(
-            color: const Color(0xFF1A56FF),
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Welcome back,\n$name',
-          style: GoogleFonts.libreCaslonText(
-            fontSize: 32,
-            color: const Color(0xFF0F172A),
-            fontWeight: FontWeight.w600,
-            height: 1.1,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Your personal care ecosystem at a glance.',
-          style: GoogleFonts.inter(
-            color: const Color(0xFF64748B),
-            fontSize: 13,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton(
-            onPressed: () => _showNewRequestBottomSheet(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1A56FF),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.add, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'New Request',
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
+    final firstName = name.trim().split(RegExp(r'\s+')).first;
+    return DsHeroHeader(
+      leading: DsRingAvatar(
+        name: name,
+        onTap: () => context.go(StaffRoutes.profile),
+      ),
+      actions: [
+        DsHeroIconButton(
+          icon: Icons.notifications_none_rounded,
+          tooltip: 'Notifications',
+          badgeCount: 1,
+          onPressed: () => context.push(StaffRoutes.notifications),
         ),
       ],
+      eyebrow: dsGreeting(),
+      eyebrowIcon: Icons.wb_sunny_rounded,
+      title: 'Welcome back,\n$firstName',
+      subtitle: 'Your personal care ecosystem at a glance.',
+      floatingIcons: const [
+        Icons.cleaning_services_rounded,
+        Icons.fingerprint_rounded,
+        Icons.workspace_premium_rounded,
+      ],
+      bottom: DsHeroPillButton(
+        label: 'New Request',
+        icon: Icons.add_rounded,
+        onPressed: () => _showNewRequestBottomSheet(context),
+      ),
     );
   }
 }
@@ -361,7 +305,7 @@ class _BottomSheetActionTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF0F172A),
@@ -370,7 +314,7 @@ class _BottomSheetActionTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       color: const Color(0xFF64748B),
                     ),
@@ -430,7 +374,7 @@ class _ProfileSpotlightCard extends StatelessWidget {
                 children: [
                   Text(
                     name,
-                    style: GoogleFonts.libreCaslonText(
+                    style: AppFonts.display(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF0F172A),
@@ -439,7 +383,7 @@ class _ProfileSpotlightCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '$role · $employeeId',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       color: const Color(0xFF64748B),
                     ),
@@ -460,7 +404,7 @@ class _ProfileSpotlightCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         '4.8 Rating',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           color: const Color(0xFF64748B),
                           fontWeight: FontWeight.w500,
@@ -536,7 +480,7 @@ class _ProfileSpotlightCard extends StatelessWidget {
                           children: [
                             Text(
                               'TODAY\'S SHIFT',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
                                 color: const Color(0xFF94A3B8),
@@ -546,7 +490,7 @@ class _ProfileSpotlightCard extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               '09:00 AM - 06:00 PM',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: const Color(0xFF0F172A),
@@ -561,7 +505,7 @@ class _ProfileSpotlightCard extends StatelessWidget {
                           children: [
                             Text(
                               'CURRENT TASK',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
                                 color: const Color(0xFF94A3B8),
@@ -571,7 +515,7 @@ class _ProfileSpotlightCard extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               'Health\nMonitoring',
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: const Color(0xFF0F172A),
@@ -631,7 +575,7 @@ class _ProfileSpotlightCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           Text(
                             'ACTIVE NOW',
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.plusJakartaSans(
                               color: Colors.white,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
@@ -686,7 +630,7 @@ class _AttendanceBentoCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'ATTENDANCE',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         color: const Color(0xFF64748B),
@@ -717,7 +661,7 @@ class _AttendanceBentoCard extends StatelessWidget {
                   ),
                   Text(
                     '$percentage%',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: const Color(0xFF0F172A),
@@ -730,7 +674,7 @@ class _AttendanceBentoCard extends StatelessWidget {
             Center(
               child: Text(
                 '22/24 days',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   color: const Color(0xFF1A56FF),
                 ),
@@ -772,7 +716,7 @@ class _OngoingTrainingWidget extends StatelessWidget {
                 children: [
                   Text(
                     'ONGOING TRAINING',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF94A3B8),
@@ -782,7 +726,7 @@ class _OngoingTrainingWidget extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Hygiene & Safety v2.4',
-                    style: GoogleFonts.libreCaslonText(
+                    style: AppFonts.display(
                       fontSize: 15,
                       color: const Color(0xFF0F172A),
                     ),
@@ -827,14 +771,14 @@ class _QuickManagementGrid extends StatelessWidget {
         ),
         title: Text(
           'Deployment Replacement',
-          style: GoogleFonts.libreCaslonText(
+          style: AppFonts.display(
             fontWeight: FontWeight.w600,
             color: const Color(0xFF0F172A),
           ),
         ),
         content: Text(
           'To request a replacement, change your current shift, or modify your assignment, please contact Concierge Support.',
-          style: GoogleFonts.inter(
+          style: GoogleFonts.plusJakartaSans(
             color: const Color(0xFF64748B),
             fontSize: 14,
             height: 1.5,
@@ -845,7 +789,7 @@ class _QuickManagementGrid extends StatelessWidget {
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Cancel',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 color: const Color(0xFF64748B),
                 fontWeight: FontWeight.w600,
               ),
@@ -859,13 +803,11 @@ class _QuickManagementGrid extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF1A56FF),
               elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              shape: const StadiumBorder(),
             ),
             child: Text(
               'Contact Support',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
               ),
@@ -886,7 +828,7 @@ class _QuickManagementGrid extends StatelessWidget {
             Expanded(
               child: Text(
                 'Quick Management',
-                style: GoogleFonts.libreCaslonText(
+                style: AppFonts.display(
                   fontSize: 18,
                   color: const Color(0xFF0F172A),
                   fontWeight: FontWeight.w600,
@@ -992,7 +934,7 @@ class _QuickActionCard extends StatelessWidget {
             Text(
               label,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 color: const Color(0xFF0F172A),
@@ -1032,7 +974,7 @@ class _CareShieldBanner extends StatelessWidget {
               children: [
                 Text(
                   'Premium Insurance Active',
-                  style: GoogleFonts.libreCaslonText(
+                  style: AppFonts.display(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF0F172A),
@@ -1041,7 +983,7 @@ class _CareShieldBanner extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'You are fully covered by HomeGenny\'s Comprehensive Care Shield.',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     color: const Color(0xFF64748B),
                     height: 1.5,
@@ -1052,7 +994,7 @@ class _CareShieldBanner extends StatelessWidget {
                   children: [
                     Text(
                       'View Policy Details',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.plusJakartaSans(
                         color: const Color(0xFF1A56FF),
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -1078,18 +1020,35 @@ class _TaskTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(AppSpacing.md),
-      decoration: AppDecorations.softCard(context),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: dsCardDecoration(radius: 20, color: task.done ? const Color(0xFFF0FDF4) : Colors.white),
       child: Row(
         children: [
-          Icon(
-            task.done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-            color: task.done ? AppColors.success : AppColors.primary,
+          AnimatedContainer(
+            duration: 250.ms,
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: task.done ? AppColors.success : Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: task.done ? AppColors.success : AppColors.lightBorder, width: 2),
+            ),
+            child: task.done ? const Icon(Icons.check_rounded, size: 17, color: Colors.white) : null,
           ),
-          SizedBox(width: AppSpacing.md),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text(task.title, style: Theme.of(context).textTheme.titleSmall),
+            child: Text(
+              task.title,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                color: task.done ? AppColors.lightTextSecondary : AppColors.lightTextPrimary,
+                decoration: task.done ? TextDecoration.lineThrough : null,
+              ),
+            ),
           ),
+          if (task.done) const DsPill('Done', color: AppColors.success),
         ],
       ),
     );
@@ -1104,23 +1063,68 @@ class StaffTodaysTasksScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tasks = ref.watch(staffTasksProvider);
 
-    return StaffPageScaffold(
-      title: "Today's Tasks",
-      body: tasks.when(
-        loading: () => const DsLoadingWidget(),
-        error: (e, _) => DsErrorState(
-          title: 'Error',
-          onRetry: () => ref.invalidate(staffTasksProvider),
-        ),
-        data: (list) => list.isEmpty
-            ? const DsEmptyState(title: 'No tasks', message: 'You are all caught up!')
-            : ListView.builder(
-                itemCount: list.length,
-                itemBuilder: (_, i) => Padding(
-                  padding: EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: _TaskTile(task: list[i]),
-                ),
+    return DsPage(
+      title: 'Today\'s tasks',
+      onBack: () => context.canPop() ? context.pop() : context.go(StaffRoutes.home),
+      onRefresh: () async => ref.invalidate(staffTasksProvider),
+      body: dsAsyncBody(
+        tasks,
+        onRetry: () => ref.invalidate(staffTasksProvider),
+        builder: (list) {
+          final done = list.where((t) => t.done).length;
+          return [
+            DsGradientCard(
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: list.isEmpty ? 1 : done / list.length),
+                      duration: 900.ms,
+                      curve: Curves.easeOutCubic,
+                      builder: (_, v, _) => Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox.expand(
+                            child: CircularProgressIndicator(
+                              value: v,
+                              strokeWidth: 7,
+                              strokeCap: StrokeCap.round,
+                              backgroundColor: Colors.white.withValues(alpha: 0.2),
+                              color: AppColors.sunYellow,
+                            ),
+                          ),
+                          Text(
+                            '$done/${list.length}',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      list.isEmpty || done == list.length ? 'All caught up for today!' : '${list.length - done} tasks left today',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white),
+                    ),
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(height: 16),
+            if (list.isEmpty)
+              const DsEmptyBlock(
+                icon: Icons.task_alt_rounded,
+                color: AppColors.success,
+                title: 'No tasks',
+                message: 'You are all caught up!',
+              )
+            else
+              for (final t in list) _TaskTile(task: t),
+          ];
+        },
       ),
     );
   }
@@ -1134,443 +1138,256 @@ class StaffProfileCompletionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(staffProfileProvider);
     final completionPct = ref.watch(staffDashboardProvider).valueOrNull?.completionPct ?? 0;
-    final documents = ref.watch(staffDocumentsProvider).valueOrNull ?? const [];
+    final documents = ref.watch(staffDocumentsProvider).valueOrNull ?? const <StaffDocument>[];
     final pendingDocuments = documents.where((d) => d.status == DocumentApprovalStatus.pending).length;
+    final rejectedDocuments = documents.where((d) => d.status == DocumentApprovalStatus.rejected).length;
+    final agreement = ref.watch(staffAgreementProvider).valueOrNull;
+    final videoCert = ref.watch(staffTrainingHomeProvider).valueOrNull?.videoCert;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1A56FF)),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(StaffRoutes.home);
-            }
-          },
-        ),
-        centerTitle: true,
-        title: Text(
-          'Profile Completion',
-          style: GoogleFonts.libreCaslonText(
-            color: const Color(0xFF0F172A),
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Color(0xFF64748B)),
-            onPressed: () => context.push(StaffRoutes.settings),
-          ),
-        ],
+    final steps = <_CompletionStep>[
+      _CompletionStep(
+        icon: Icons.person_rounded,
+        title: 'Personal details',
+        subtitle: 'Your basic profile',
+        status: ('Done', AppColors.success),
+        onTap: () => context.canPop() ? context.pop() : context.go(StaffRoutes.profile),
       ),
-      body: profile.when(
-        loading: () => const DsLoadingWidget(),
-        error: (e, _) => DsErrorState(
-          title: 'Error',
-          onRetry: () => ref.invalidate(staffProfileProvider),
-        ),
-        data: (p) => Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(24),
-                children: [
-                  // Overall Progress Card
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 24,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'STATUS',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF94A3B8),
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Overall\nProgress',
-                                style: GoogleFonts.libreCaslonText(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF0F172A),
-                                  height: 1.1,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'You\'re almost there!\nComplete the remaining\ntasks to unlock full\naccess.',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: const Color(0xFF64748B),
-                                  height: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // The custom 72% square progress indicator
-                        Container(
-                          width: 100,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A56FF),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // The light blue background part for uncompleted
-                              Positioned(
-                                top: 0,
-                                left: 0,
-                                bottom: 0,
-                                child: Container(
-                                  width: 40,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFFE0E7FF), // Lighter blue for uncompleted part
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(16),
-                                      bottomLeft: Radius.circular(16),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // White inner container
-                              Container(
-                                width: 76,
-                                height: 96,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '$completionPct%',
-                                    style: GoogleFonts.libreCaslonText(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF1A56FF),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  Text(
-                    'REQUIRED STEPS',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF94A3B8),
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Step Items
-                  _RequiredStepTile(
-                    icon: Icons.person_outline,
-                    iconBgColor: const Color(0xFFF1F5F9),
-                    title: 'Personal Details',
-                    subtitle: 'Completed on Oct 12',
-                    onTap: () {
-                      if (context.canPop()) {
-                        context.pop();
-                      } else {
-                        context.go(StaffRoutes.profile);
-                      }
-                    },
-                    statusWidget: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDCFCE7),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.check, color: Color(0xFF16A34A), size: 12),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Done',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF16A34A),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  
-                  _RequiredStepTile(
-                    icon: Icons.description_outlined,
-                    iconBgColor: const Color(0xFFEFF6FF),
-                    iconColor: const Color(0xFF1A56FF),
-                    title: 'Documents',
-                    subtitle: 'ID verification required',
-                    onTap: () => context.push(StaffRoutes.documents),
-                    statusWidget: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE0E7FF),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        pendingDocuments > 0 ? '$pendingDocuments pending' : 'All clear',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF3730A3), // darker blue text
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  _RequiredStepTile(
-                    icon: Icons.school_outlined,
-                    iconBgColor: const Color(0xFFF1F5F9),
-                    title: 'Training',
-                    subtitle: 'Safety & Procedures module',
-                    onTap: () => context.push(StaffRoutes.training),
-                    statusWidget: Text(
-                      '60%',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1A56FF),
-                      ),
-                    ),
-                    bottomWidget: Padding(
-                      padding: const EdgeInsets.only(top: 12),
-                      child: Stack(
-                        children: [
-                          Container(
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                          FractionallySizedBox(
-                            alignment: Alignment.centerLeft,
-                            widthFactor: 0.6,
-                            child: Container(
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1A56FF),
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  _RequiredStepTile(
-                    icon: Icons.videocam_outlined,
-                    iconBgColor: const Color(0xFFFEF2F2),
-                    iconColor: const Color(0xFFDC2626),
-                    title: 'Video Certification',
-                    subtitle: 'Record self-introduction',
-                    onTap: () => context.push(StaffRoutes.videoCertification),
-                    statusWidget: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEE2E2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.warning_amber_rounded, color: Color(0xFF991B1B), size: 12),
-                          const SizedBox(width: 4),
-                          Text(
-                            '2 pending',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF991B1B),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  _RequiredStepTile(
-                    icon: Icons.draw_outlined,
-                    iconBgColor: const Color(0xFFF1F5F9),
-                    title: 'Agreement',
-                    subtitle: 'Terms and Conditions',
-                    onTap: () => context.push(StaffRoutes.agreement),
-                    statusWidget: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        'Pending',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF64748B),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            // Bottom Button
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () => context.push(StaffRoutes.documents),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A56FF),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: Text(
-                    'CONTINUE SETUP',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      _CompletionStep(
+        icon: Icons.folder_rounded,
+        title: 'Documents',
+        subtitle: 'ID verification',
+        status: rejectedDocuments > 0
+            ? ('$rejectedDocuments to fix', AppColors.error)
+            : pendingDocuments > 0
+                ? ('$pendingDocuments pending', AppColors.warning)
+                : documents.isEmpty
+                    ? ('Not started', AppColors.lightTextSecondary)
+                    : ('All clear', AppColors.success),
+        onTap: () => context.push(StaffRoutes.documents),
       ),
-    );
-  }
-}
+      _CompletionStep(
+        icon: Icons.school_rounded,
+        title: 'Training',
+        subtitle: 'Safety & procedures',
+        status: ('Open', AppColors.primary),
+        onTap: () => context.push(StaffRoutes.training),
+      ),
+      _CompletionStep(
+        icon: Icons.videocam_rounded,
+        title: 'Video certification',
+        subtitle: 'Record your introduction',
+        status: videoCert == null
+            ? ('Open', AppColors.primary)
+            : videoCert.approved >= videoCert.required_
+                ? ('Done', AppColors.success)
+                : ('${videoCert.approved}/${videoCert.required_}', AppColors.warning),
+        progress: videoCert == null || videoCert.required_ == 0 ? null : videoCert.approved / videoCert.required_,
+        onTap: () => context.push(StaffRoutes.videoCertification),
+      ),
+      _CompletionStep(
+        icon: Icons.draw_rounded,
+        title: 'Agreement',
+        subtitle: 'Terms and conditions',
+        status: switch (agreement?.status) {
+          AgreementStatus.signed => ('Signed', AppColors.success),
+          AgreementStatus.expired => ('Expired', AppColors.error),
+          AgreementStatus.pending => ('Sign now', AppColors.warning),
+          null => ('Pending', AppColors.lightTextSecondary),
+        },
+        onTap: () => context.push(StaffRoutes.agreement),
+      ),
+    ];
 
-class _RequiredStepTile extends StatelessWidget {
-  final IconData icon;
-  final Color iconBgColor;
-  final Color? iconColor;
-  final String title;
-  final String subtitle;
-  final Widget statusWidget;
-  final Widget? bottomWidget;
-  final VoidCallback? onTap;
-
-  const _RequiredStepTile({
-    required this.icon,
-    required this.iconBgColor,
-    this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.statusWidget,
-    this.bottomWidget,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    return DsPage(
+      title: 'Profile completion',
+      onBack: () => context.canPop() ? context.pop() : context.go(StaffRoutes.home),
+      onRefresh: () async {
+        ref.invalidate(staffProfileProvider);
+        ref.invalidate(staffDashboardProvider);
+        ref.invalidate(staffDocumentsProvider);
+        ref.invalidate(staffAgreementProvider);
+      },
+      actions: [
+        DsPageAction(
+          icon: Icons.settings_rounded,
+          tooltip: 'Settings',
+          onPressed: () => context.push(StaffRoutes.settings),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      ],
+      bottom: DsGradientButton(
+        label: 'Continue setup',
+        icon: Icons.arrow_forward_rounded,
+        onPressed: () => context.push(StaffRoutes.documents),
+      ),
+      body: dsAsyncBody(
+        profile,
+        onRetry: () => ref.invalidate(staffProfileProvider),
+        builder: (p) => [
+          DsGradientCard(
+            child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: iconBgColor,
-                    borderRadius: BorderRadius.circular(12),
+                SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: completionPct / 100),
+                    duration: 1100.ms,
+                    curve: Curves.easeOutCubic,
+                    builder: (_, v, _) => Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox.expand(
+                          child: CircularProgressIndicator(
+                            value: v,
+                            strokeWidth: 9,
+                            strokeCap: StrokeCap.round,
+                            backgroundColor: Colors.white.withValues(alpha: 0.2),
+                            color: AppColors.sunYellow,
+                          ),
+                        ),
+                        Text(
+                          '${(v * 100).round()}%',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Icon(icon, color: iconColor ?? const Color(0xFF475569), size: 24),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const DsGlassPill('OVERALL PROGRESS', icon: Icons.trending_up_rounded),
+                      const SizedBox(height: 10),
                       Text(
-                        title,
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF0F172A),
-                        ),
+                        completionPct >= 100 ? 'Profile complete!' : 'You\'re almost there',
+                        style: GoogleFonts.plusJakartaSans(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
-                        subtitle,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: const Color(0xFF64748B),
+                        'Finish the steps below to unlock full access.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white.withValues(alpha: 0.82),
                         ),
                       ),
                     ],
                   ),
                 ),
-                statusWidget,
               ],
             ),
-            if (bottomWidget != null) bottomWidget!,
-          ],
+          ),
+          const DsSection('Required steps'),
+          for (var i = 0; i < steps.length; i++)
+            _CompletionTile(step: steps[i])
+                .animate(delay: (60 * i).ms)
+                .fadeIn(duration: 300.ms)
+                .slideX(begin: 0.05, end: 0),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompletionStep {
+  const _CompletionStep({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.status,
+    required this.onTap,
+    this.progress,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final (String, Color) status;
+  final VoidCallback onTap;
+  final double? progress;
+}
+
+class _CompletionTile extends StatelessWidget {
+  const _CompletionTile({required this.step});
+  final _CompletionStep step;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = step.status;
+    final done = color == AppColors.success;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: step.onTap,
+          child: Ink(
+            padding: const EdgeInsets.all(14),
+            decoration: dsCardDecoration(),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        DsIconTile(step.icon, size: 46),
+                        if (done)
+                          Positioned(
+                            right: -4,
+                            bottom: -4,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                              child: const Icon(Icons.check_circle_rounded, size: 16, color: AppColors.success),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            step.title,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.lightTextPrimary,
+                            ),
+                          ),
+                          Text(
+                            step.subtitle,
+                            style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    DsPill(label, color: color),
+                  ],
+                ),
+                if (step.progress != null) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: step.progress!.clamp(0, 1).toDouble(),
+                      minHeight: 6,
+                      backgroundColor: AppColors.lightSurfaceVariant,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:homegennyapp/core/theme/app_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../../design_system/design_system.dart';
@@ -180,10 +181,7 @@ class _ChatScreenState extends State<ChatScreen> {
         backgroundColor: Colors.white,
         elevation: 1,
         shadowColor: Colors.black12,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: primaryColor, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        leading: DsBackButton(onPressed: () => Navigator.of(context).pop()),
         titleSpacing: 0,
         title: Row(
           children: [
@@ -214,7 +212,7 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 Text(
                   _targetName,
-                  style: GoogleFonts.libreCaslonText(
+                  style: AppFonts.display(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF0F172A),
@@ -222,7 +220,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 Text(
                   _targetRole,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w400,
                     color: const Color(0xFF64748B),
@@ -234,7 +232,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.phone_outlined, color: primaryColor),
+            icon: Icon(Icons.phone_outlined, color: Color(0xFFF97316)),
             onPressed: () {
               // Initiate simulated call directly from active chat
               CommunicationHelper.makePhoneCall(context, '+18005550199', recipientName: _targetName);
@@ -300,7 +298,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: ActionChip(
               label: Text(
                 label,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   color: const Color(0xFF1E293B),
                   fontWeight: FontWeight.w500,
@@ -363,7 +361,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         const SizedBox(width: 8),
                         Text(
                           'Attachment',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: isMe ? Colors.white : const Color(0xFF1E293B),
@@ -375,7 +373,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ],
                   Text(
                     msg.text,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       color: isMe ? Colors.white : const Color(0xFF1E293B),
                       height: 1.4,
@@ -457,7 +455,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               child: TextField(
                 controller: _messageController,
-                style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF0F172A)),
+                style: GoogleFonts.plusJakartaSans(fontSize: 14, color: const Color(0xFF0F172A)),
                 decoration: const InputDecoration(
                   hintText: 'Type your message...',
                   hintStyle: TextStyle(color: Color(0xFF94A3B8)),

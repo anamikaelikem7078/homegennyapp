@@ -5,6 +5,9 @@ import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+/// Largest video-certification upload the bucket accepts (500 MB).
+const int kMaxVideoCertBytes = 500 * 1024 * 1024;
+
 /// Streams the file in chunks instead of loading it fully into memory —
 /// video-cert uploads can be up to 500MB (the backend's own upload limit).
 /// Only usable when a real filesystem path is available (mobile/desktop).

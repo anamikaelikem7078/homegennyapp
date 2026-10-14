@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:homegennyapp/design_system/widgets/buttons/ds_buttons.dart';
+import '../widgets/auth_hero_scaffold.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -68,175 +70,100 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       }
     });
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Color(0xFF1A1C1E)),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(height: 24),
-                // Icon Container
-                Center(
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A56FF).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.settings_backup_restore_rounded, // Similar to lock_reset but circular
-                        size: 40,
-                        color: Color(0xFF1A56FF),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 32),
-                // Title
-                Text(
-                  'Reset password',
-                  style: GoogleFonts.libreCaslonText(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1A1C1E),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 16),
-                // Subtitle
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'Enter your mobile number and we\'ll send an OTP to reset your password.',
-                    style: GoogleFonts.inter(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFF6B7280),
-                      height: 1.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                SizedBox(height: 48),
-                // Phone Field
-                Text(
-                  'Mobile Number',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF6B7280),
-                  ),
-                ),
-                SizedBox(height: 8),
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  maxLength: 10,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    color: const Color(0xFF1A1C1E),
-                  ),
-                  decoration: InputDecoration(
-                    hintText: '9876543210',
-                    hintStyle: GoogleFonts.inter(
-                      color: const Color(0xFF9CA3AF),
-                    ),
-                    prefixIcon: Icon(Icons.phone_android_rounded, color: Color(0xFF6B7280)),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    counterText: '',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Color(0xFF1A56FF), width: 1.5),
-                    ),
-                  ),
-                  validator: (v) => _localizedValidator(Validators.phone(v)),
-                ),
-                SizedBox(height: 32),
-                // Button
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: state.isLoading ? null : _sendResetLink,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1A56FF),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: state.isLoading
-                        ? SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: context.theme.cardColor),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Send reset link',
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Icon(Icons.send_outlined, size: 18),
-                            ],
-                          ),
-                  ),
-                ),
-                SizedBox(height: 48),
-                // Back to login
-                Center(
-                  child: TextButton(
-                    onPressed: () => context.go(AppRoutes.login),
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF1A56FF),
-                    ),
-                    child: Text(
-                      'Back to login',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    return AuthHeroScaffold(
+      formKey: _formKey,
+      onBack: () => context.pop(),
+      badge: 'Account recovery',
+      badgeIcon: Icons.lock_reset_rounded,
+      titleLine1: 'Forgot your',
+      titleHighlight: 'password?',
+      subtitle: 'No worries — we\'ll send an OTP to reset it.',
+      floatingIcons: const [
+        Icons.lock_reset_rounded,
+        Icons.sms_rounded,
+        Icons.key_rounded,
+      ],
+      sheetTitle: 'Reset password',
+      sheetSubtitle: 'Enter your registered mobile number',
+      children: [
+        TextFormField(
+          controller: _phoneController,
+          keyboardType: TextInputType.phone,
+          maxLength: 10,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: const Color(0xFF111827),
           ),
+          decoration: InputDecoration(
+            hintText: 'Mobile number',
+            counterText: '',
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 16, right: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '+91',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 1.2,
+                    height: 22,
+                    color: const Color(0xFFD1D5DB),
+                  ),
+                ],
+              ),
+            ),
+            prefixIconConstraints:
+                const BoxConstraints(minWidth: 0, minHeight: 0),
+          ),
+          validator: (v) => _localizedValidator(Validators.phone(v)),
         ),
-      ),
+        const SizedBox(height: 28),
+        DsGradientButton(
+          label: 'Send OTP',
+          isLoading: state.isLoading,
+          onPressed: state.isLoading ? null : _sendResetLink,
+        ),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Remembered it? ',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => context.go(AppRoutes.login),
+              child: Text(
+                'Back to login',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF1A56FF),
+                  decoration: TextDecoration.underline,
+                  decorationColor:
+                      const Color(0xFF1A56FF).withValues(alpha: 0.35),
+                  decorationThickness: 2,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+      ],
     );
   }
 }

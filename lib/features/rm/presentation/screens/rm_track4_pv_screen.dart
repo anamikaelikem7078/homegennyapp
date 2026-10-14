@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:homegennyapp/core/theme/app_fonts.dart';
 
 import '../../../../core/utils/result.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
@@ -94,7 +95,7 @@ class _RmTrack4PvScreenState extends ConsumerState<RmTrack4PvScreen> {
         content: Text(
           'This will mark police verification as $_closeResult for this staff member. '
           'This is a compliance record and cannot be silently undone.',
-          style: GoogleFonts.inter(height: 1.4),
+          style: GoogleFonts.plusJakartaSans(height: 1.4),
         ),
         actions: [
           TextButton(
@@ -202,7 +203,7 @@ class _RmTrack4PvScreenState extends ConsumerState<RmTrack4PvScreen> {
             child: Text(
               'Submitting always creates a new PENDING request — the outcome (CLEAR/ADVERSE) is '
               'recorded later by the back office, not returned immediately.',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 color: RmTheme.textSecondary,
                 fontSize: 12,
                 height: 1.35,
@@ -234,7 +235,7 @@ class _RmTrack4PvScreenState extends ConsumerState<RmTrack4PvScreen> {
             const SizedBox(height: 24),
             Text(
               'Record Final Outcome',
-              style: GoogleFonts.libreCaslonText(
+              style: AppFonts.display(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: RmTheme.textPrimary,
@@ -306,7 +307,7 @@ class _RmTrack4PvScreenState extends ConsumerState<RmTrack4PvScreen> {
         children: [
           Text(
             'Current PV Status',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               fontWeight: FontWeight.w500,
               color: RmTheme.textSecondary,
@@ -324,7 +325,7 @@ class _RmTrack4PvScreenState extends ConsumerState<RmTrack4PvScreen> {
             ),
             child: Text(
               statusFormatted,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: statusColor,
@@ -394,7 +395,7 @@ class _ChoiceChipCard extends StatelessWidget {
             child: Center(
               child: Text(
                 label,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   color: selected ? color : RmTheme.textSecondary,
                   fontWeight: FontWeight.w700,
                   fontSize: 14,

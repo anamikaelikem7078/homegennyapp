@@ -184,6 +184,9 @@ class StaffRepositoryImpl implements StaffRepository {
   }) =>
       _executor.mutateVoid(
         remote: () async {
+          if (file.size > kMaxVideoCertBytes) {
+            throw ArgumentError('Video is too large. Maximum size is 500 MB.');
+          }
           final profile = await _remote.getProfile();
           final staffId = _requireStaffApplicantId(profile);
           final expectedHash = await sha256OfPlatformFile(file);

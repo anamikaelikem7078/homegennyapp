@@ -36,6 +36,10 @@ class ClientAssignedStaff {
     this.staffCode,
     this.fullName,
     this.series,
+    this.placementId,
+    this.hasCarePlan = false,
+    this.hasMenu = false,
+    this.hasInstructions = true,
   });
 
   final String staffId;
@@ -44,6 +48,15 @@ class ClientAssignedStaff {
   final String? series;
   final String deploymentDate;
   final String status;
+
+  /// Daily care (care plan, menu, instructions) is addressed by placement.
+  final String? placementId;
+
+  /// `features` from the API: care plan for UC/SC, menu for Cook,
+  /// instructions for everyone.
+  final bool hasCarePlan;
+  final bool hasMenu;
+  final bool hasInstructions;
 }
 
 /// Attendance aggregate for the attendance-summary screen, computed

@@ -1,6 +1,7 @@
 import '../../../../core/data/repository_executor.dart';
 import '../../../../core/utils/result.dart';
 import '../../domain/models/client_models.dart';
+import '../../domain/models/staff_request_models.dart';
 import '../../domain/repositories/client_repository.dart';
 import '../datasources/client_datasource.dart';
 
@@ -215,4 +216,33 @@ class ClientRepositoryImpl implements ClientRepository {
       await _dummy.makeDemoPayment(invoiceId, amount, method);
     },
   );
+
+  // ── Staff requests ── (live only: no cache or dummy, the status moves
+  // under the client's feet as the RM works on it)
+
+  @override
+  Future<Result<List<StaffRequest>>> getStaffRequests() =>
+      _executor.fetch(remote: _remote.getStaffRequests);
+
+  @override
+  Future<Result<StaffRequest>> getStaffRequest(String id) =>
+      _executor.fetch(remote: () => _remote.getStaffRequest(id));
+
+  @override
+  Future<Result<StaffRequest>> createStaffRequest(Map<String, dynamic> body) =>
+      _executor.mutate(remote: () => _remote.createStaffRequest(body));
+
+  @override
+  Future<Result<void>> selectStaffForRequest(String id, {required String staffId, String? note}) =>
+      _executor.mutateVoid(
+        remote: () => _remote.selectStaffForRequest(id, staffId: staffId, note: note),
+      );
+
+  @override
+  Future<Result<void>> rejectStaffRequestShortlist(String id, String reason) =>
+      _executor.mutateVoid(remote: () => _remote.rejectStaffRequestShortlist(id, reason));
+
+  @override
+  Future<Result<void>> cancelStaffRequest(String id, String reason) =>
+      _executor.mutateVoid(remote: () => _remote.cancelStaffRequest(id, reason));
 }

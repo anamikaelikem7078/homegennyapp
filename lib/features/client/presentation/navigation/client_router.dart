@@ -5,6 +5,9 @@ import '../../../../core/router/route_helpers.dart';
 import '../../../../core/presentation/screens/app_settings_screens.dart';
 
 import '../screens/attendance/client_attendance_screens.dart';
+import '../screens/care/client_care_screens.dart';
+import '../screens/care/client_cook_screens.dart';
+import '../screens/care/client_instruction_screens.dart';
 import '../screens/complaint/client_complaint_screens.dart';
 import '../screens/home/client_home_screens.dart';
 import '../screens/notifications/client_notifications_screens.dart';
@@ -12,6 +15,7 @@ import '../screens/payments/client_payment_screens.dart';
 import '../screens/profile/client_profile_screens.dart';
 import '../screens/replacement/client_replacement_screens.dart';
 import '../screens/staff/client_staff_screens.dart';
+import '../screens/staff_request/client_staff_request_screens.dart';
 import 'client_routes.dart';
 import 'client_shell_screen.dart';
 
@@ -207,6 +211,66 @@ List<RouteBase> get clientRoutes => [
       GoRoute(
         path: ClientRoutes.replacementStatus,
         builder: (_, __) => const ClientReplacementStatusScreen(),
+      ),
+
+      // Staff requests ('new' must come before ':id')
+      GoRoute(
+        path: ClientRoutes.staffRequests,
+        builder: (_, __) => const ClientStaffRequestsScreen(),
+      ),
+      GoRoute(
+        path: ClientRoutes.staffRequestNew,
+        builder: (_, __) => const ClientStaffRequestFormScreen(),
+      ),
+      GoRoute(
+        path: '${ClientRoutes.staffRequests}/:id',
+        builder: (_, state) => ClientStaffRequestDetailScreen(requestId: state.pathParameters['id']!),
+      ),
+
+      // Daily care (staff name passed as extra for the header)
+      GoRoute(
+        path: '/client/care/:pid',
+        builder: (_, state) => ClientCareScreen(
+          placementId: state.pathParameters['pid']!,
+          staffName: state.extra as String?,
+        ),
+      ),
+      GoRoute(
+        path: '/client/care/:pid/plan',
+        builder: (_, state) => ClientCarePlanScreen(placementId: state.pathParameters['pid']!),
+      ),
+      GoRoute(
+        path: '/client/care/:pid/history',
+        builder: (_, state) => ClientCareHistoryScreen(placementId: state.pathParameters['pid']!),
+      ),
+      GoRoute(
+        path: '/client/care/:pid/menu',
+        builder: (_, state) => ClientMenuScreen(
+          placementId: state.pathParameters['pid']!,
+          staffName: state.extra as String?,
+        ),
+      ),
+      GoRoute(
+        path: '/client/care/:pid/meals',
+        builder: (_, state) => ClientMealsScreen(placementId: state.pathParameters['pid']!),
+      ),
+      GoRoute(
+        path: '/client/care/:pid/instructions',
+        builder: (_, state) => ClientInstructionsScreen(
+          placementId: state.pathParameters['pid']!,
+          staffName: state.extra as String?,
+        ),
+      ),
+      GoRoute(
+        path: '/client/care/:pid/instructions/new',
+        builder: (_, state) => ClientNewInstructionScreen(
+          placementId: state.pathParameters['pid']!,
+          staffName: state.extra as String?,
+        ),
+      ),
+      GoRoute(
+        path: ClientRoutes.foodProfile,
+        builder: (_, __) => const ClientFoodProfileScreen(),
       ),
 
       // Profile sub-routes

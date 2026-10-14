@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:homegennyapp/core/theme/app_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
@@ -124,7 +125,7 @@ class _SimulatedCallWidgetState extends State<_SimulatedCallWidget> {
             children: [
               Text(
                 'SIMULATED CALL',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: const Color(0xFF1A56FF), // Neon blue brand highlight
@@ -134,7 +135,7 @@ class _SimulatedCallWidgetState extends State<_SimulatedCallWidget> {
               const SizedBox(height: 16),
               Text(
                 widget.displayName,
-                style: GoogleFonts.libreCaslonText(
+                style: AppFonts.display(
                   fontSize: 32,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
@@ -143,7 +144,7 @@ class _SimulatedCallWidgetState extends State<_SimulatedCallWidget> {
               const SizedBox(height: 8),
               Text(
                 widget.phoneNumber,
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
                   color: Colors.white60,
                 ),
@@ -227,7 +228,7 @@ class _SimulatedCallWidgetState extends State<_SimulatedCallWidget> {
                     child: Center(
                       child: Text(
                         widget.displayName.isNotEmpty ? widget.displayName[0].toUpperCase() : 'H',
-                        style: GoogleFonts.libreCaslonText(
+                        style: AppFonts.display(
                           fontSize: 48,
                           fontWeight: FontWeight.w600,
                           color: const Color(0xFF1A56FF),
@@ -259,7 +260,7 @@ class _SimulatedCallWidgetState extends State<_SimulatedCallWidget> {
                 const SizedBox(width: 8),
                 Text(
                   'Copy Number',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     color: Colors.white54,
                     decoration: TextDecoration.underline,
@@ -317,7 +318,7 @@ class _SimulatedCallWidgetState extends State<_SimulatedCallWidget> {
           const SizedBox(height: 10),
           Text(
             'END CONNECTION',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 10,
               fontWeight: FontWeight.w600,
               color: Colors.white38,
@@ -367,7 +368,7 @@ class _CallActionButton extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: GoogleFonts.plusJakartaSans(
             fontSize: 12,
             color: Colors.white70,
             fontWeight: FontWeight.w400,

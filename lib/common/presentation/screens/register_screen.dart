@@ -4,27 +4,45 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import '../../../core/extensions/context_extensions.dart';
-import '../../../core/presentation/widgets/responsive_layout.dart';
 import '../../../core/router/app_routes.dart';
+import '../../../core/series/series_catalog.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/validators.dart';
 import '../providers/auth_provider.dart';
 import '../viewmodels/register_viewmodel.dart';
-
-enum _RegisterRole { client, staff }  
+enum _RegisterRole { client, staff }
 
 const _genderOptions = ['MALE', 'FEMALE', 'OTHER'];
-const _seriesOptions = <String, String>{
-  'MAID': 'Maid / Domestic Help',
-  'SC': 'Skilled Care (Nurse, Attendant)',
-  'UC': 'Unskilled Care (Helper, Security)',
-  'DR': 'Driver',
+/// Friendlier picker text for known series; anything else uses the label
+/// from GET /meta/series.
+const _seriesDescriptions = <String, String>{
+  'UC': 'Unskilled Caretaker (Helper, Attendant)',
+  'SC': 'Skilled Caretaker (Nurse)',
+  'CK': 'Cook',
 };
 
-/// Premium sign-up screen redesigned with HomeGenny's design system tokens,
-/// Plus Jakarta Sans typography, and modern form components.
+// --- Palette (matches the login screen: blue brand, orange icons) ---
+const Color _brand = Color(0xFF1A56FF);
+const Color _brandLight = Color(0xFF2F6BFF);
+const Color _brandDark = Color(0xFF1238B8);
+const Color _brandSoft = Color(0xFFE8EEFF);
+const Color _deepNavy = Color(0xFF0B1B4D);
+const Color _iconAccent = AppColors.secondary;
+const Color _iconAccentSoft = AppColors.secondaryContainer;
+const Color _sunYellow = Color(0xFFFFD84D);
+const Color _ink = Color(0xFF111827);
+const Color _muted = Color(0xFF6B7280);
+const Color _hint = Color(0xFF9CA3AF);
+const Color _fieldFill = Color(0xFFF3F5FA);
+const Color _error = Color(0xFFE5484D);
+
+const double _heroHeight = 290;
+const double _sheetOverlap = 36;
+final _fieldRadius = BorderRadius.circular(16);
+
+/// Sign-up screen: orange gradient hero with floating icons and a slide-up
+/// form sheet, matching the login screen.
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key, this.initialRole});
 
@@ -65,7 +83,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   void initState() {
     super.initState();
-    _role = widget.initialRole == 'staff' ? _RegisterRole.staff : _RegisterRole.client;
+    _role = widget.initialRole == 'staff'
+        ? _RegisterRole.staff
+        : _RegisterRole.client;
   }
 
   @override
@@ -89,7 +109,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (key == null) return null;
     return switch (key) {
       'emailRequired' || 'phoneRequired' => 'Mobile number is required',
-      'emailInvalid' || 'phoneInvalid' => 'Enter a valid 10-digit mobile number',
+      'emailInvalid' ||
+      'phoneInvalid' => 'Enter a valid 10-digit mobile number',
       'passwordRequired' => context.l10n.passwordRequired,
       'passwordTooShort' => context.l10n.passwordTooShort,
       'passwordWeak' =>
@@ -113,9 +134,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: Theme.of(context).colorScheme.copyWith(
-                  primary: AppColors.primary,
-                  onPrimary: Colors.white,
-                ),
+              primary: _brand,
+              onPrimary: Colors.white,
+            ),
           ),
           child: child!,
         );
@@ -127,11 +148,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _onSubmit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      HapticFeedback.mediumImpact();
+      return;
+    }
 
     if (_role == _RegisterRole.staff) {
       if (_dateOfBirth == null) {
-        context.showAppSnackBar('Please select your date of birth', isError: true);
+        context.showAppSnackBar(
+          'Please select your date of birth',
+          isError: true,
+        );
         return;
       }
       if (_gender == null) {
@@ -139,10 +166,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         return;
       }
       if (_series == null) {
-        context.showAppSnackBar('Please select your work category', isError: true);
+        context.showAppSnackBar(
+          'Please select your work category',
+          isError: true,
+        );
         return;
       }
     }
+    HapticFeedback.lightImpact();
 
     final phone = _phoneController.text.trim();
     final notifier = ref.read(registerViewModelProvider.notifier);
@@ -188,40 +219,32 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final registerState = ref.watch(registerViewModelProvider);
 
     ref.listen(registerViewModelProvider, (prev, next) {
-      if (next.errorMessage != null && next.errorMessage != prev?.errorMessage) {
+      if (next.errorMessage != null &&
+          next.errorMessage != prev?.errorMessage) {
         context.showAppSnackBar(next.errorMessage!, isError: true);
       }
     });
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.lightBackground,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
           child: Center(
-            child: ResponsiveLayout(
-              maxWidth: 540,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 540),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildTopNav(isDark),
-                  const SizedBox(height: 16),
-                  _buildHeader(isDark).animate().fadeIn(duration: 300.ms).slideY(begin: -0.05, end: 0),
-                  const SizedBox(height: 28),
-                  _buildRoleToggle(isDark).animate().fadeIn(duration: 350.ms),
-                  const SizedBox(height: 28),
-                  _buildForm(registerState.isLoading, isDark)
-                      .animate()
-                      .fadeIn(duration: 400.ms)
-                      .slideY(begin: 0.04, end: 0),
-                  const SizedBox(height: 32),
-                  _buildFooter(isDark),
-                  const SizedBox(height: 20),
+                  _Hero(onBack: () => context.go(AppRoutes.login)),
+                  Transform.translate(
+                    offset: const Offset(0, -_sheetOverlap),
+                    child: _buildSheet(registerState.isLoading),
+                  ),
                 ],
               ),
             ),
@@ -231,580 +254,388 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
-  Widget _buildTopNav(bool isDark) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => context.go(AppRoutes.login),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              size: 18,
-              color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(bool isDark) {
-    return Column(
-      children: [
-        // Brand icon badge with soft container & subtle glow
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.primary.withValues(alpha: 0.15),
-                AppColors.primaryContainer.withValues(alpha: 0.6),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.25),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.12),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Center(
-            child: Icon(
-              Icons.person_add_rounded,
-              color: AppColors.primary,
-              size: 30,
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          'Create your account',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 26,
-            fontWeight: FontWeight.w700,
-            color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Tell us a little about yourself to get started.',
-          textAlign: TextAlign.center,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-            height: 1.45,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRoleToggle(bool isDark) {
+  Widget _buildSheet(bool isLoading) {
     return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceVariant : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          width: 1,
-        ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _roleSegment(
-              title: 'Client',
-              subtitle: 'Hire verified help',
-              icon: Icons.person_outline_rounded,
-              role: _RegisterRole.client,
-              isDark: isDark,
-            ),
-          ),
-          Expanded(
-            child: _roleSegment(
-              title: 'Staff',
-              subtitle: 'Join as service professional',
-              icon: Icons.badge_outlined,
-              role: _RegisterRole.staff,
-              isDark: isDark,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _roleSegment({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required _RegisterRole role,
-    required bool isDark,
-  }) {
-    final isSelected = _role == role;
-    return GestureDetector(
-      onTap: () => setState(() => _role = role),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? (isDark ? AppColors.primary : AppColors.primary)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.28),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+      padding: const EdgeInsets.fromLTRB(24, 14, 24, 8),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected
-                  ? Colors.white
-                  : (isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected
-                    ? Colors.white
-                    : (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5E7EB),
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ],
+            const SizedBox(height: 22),
+            Text(
+              'I want to join as',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _muted,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _RoleToggle(
+              role: _role,
+              onChanged: (r) {
+                HapticFeedback.selectionClick();
+                setState(() => _role = r);
+              },
+            ),
+            const SizedBox(height: 28),
+            ..._buildFormSections(isLoading),
+            const SizedBox(height: 26),
+            _buildFooter(),
+            const SizedBox(height: 12),
+          ]
+              .animate(interval: 60.ms, delay: 250.ms)
+              .fadeIn(duration: 420.ms)
+              .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
         ),
       ),
-    );
+    )
+        .animate()
+        .slideY(
+          begin: 0.3,
+          end: 0,
+          duration: 650.ms,
+          curve: Curves.easeOutQuart,
+        )
+        .fadeIn(duration: 400.ms);
   }
 
-  Widget _buildForm(bool isLoading, bool isDark) {
-    return Form(
-      key: _formKey,
-      child: Column(
+  List<Widget> _buildFormSections(bool isLoading) {
+    final isStaff = _role == _RegisterRole.staff;
+
+    return [
+      // 1 · Personal information
+      const _SectionHeader(
+        step: 1,
+        title: 'Personal details',
+        icon: Icons.person_rounded,
+      ),
+      const SizedBox(height: 16),
+      _buildField(
+        label: 'Full Name',
+        isRequired: true,
+        child: _textField(
+          controller: _fullNameController,
+          hint: 'Anita Sharma',
+          prefixIcon: Icons.person_outline_rounded,
+          validator: (v) => _localizedValidator(Validators.name(v)),
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+        ),
+      ),
+      const SizedBox(height: 16),
+      _buildField(
+        label: 'Mobile Number',
+        isRequired: true,
+        child: _textField(
+          controller: _phoneController,
+          hint: '9876543210',
+          prefix: const _CountryPrefix(),
+          keyboardType: TextInputType.phone,
+          maxLength: 10,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          textInputAction: TextInputAction.next,
+          validator: (v) => _localizedValidator(Validators.phone(v)),
+          letterSpacing: 1,
+        ),
+      ),
+      const SizedBox(height: 16),
+      _RoleSwitcher(
+        child: isStaff
+            ? Padding(
+                key: const ValueKey('alt-phone'),
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildField(
+                  label: 'Alternate Number',
+                  isOptional: true,
+                  child: _textField(
+                    controller: _alternatePhoneController,
+                    hint: '9876543211',
+                    prefix: const _CountryPrefix(),
+                    keyboardType: TextInputType.phone,
+                    maxLength: 10,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    textInputAction: TextInputAction.next,
+                    letterSpacing: 1,
+                  ),
+                ),
+              )
+            : const SizedBox.shrink(key: ValueKey('no-alt-phone')),
+      ),
+      _buildField(
+        label: 'Email Address',
+        isOptional: true,
+        child: _textField(
+          controller: _emailController,
+          hint: 'you@example.com',
+          prefixIcon: Icons.mail_outline_rounded,
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+          validator: (v) {
+            if (v == null || v.trim().isEmpty) return null;
+            return _localizedValidator(Validators.email(v));
+          },
+        ),
+      ),
+      const SizedBox(height: 30),
+
+      // 2 · Security
+      const _SectionHeader(
+        step: 2,
+        title: 'Secure your account',
+        icon: Icons.lock_rounded,
+      ),
+      const SizedBox(height: 16),
+      _buildField(
+        label: 'Password',
+        isRequired: true,
+        child: _textField(
+          controller: _passwordController,
+          hint: 'Create a strong password',
+          prefixIcon: Icons.lock_outline_rounded,
+          obscureText: _obscurePassword,
+          textInputAction: TextInputAction.next,
+          letterSpacing: _obscurePassword ? 3 : 0.2,
+          suffix: IconButton(
+            splashRadius: 20,
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+            icon: AnimatedSwitcher(
+              duration: 250.ms,
+              transitionBuilder: (child, anim) => RotationTransition(
+                turns: Tween(begin: 0.75, end: 1.0).animate(anim),
+                child: FadeTransition(opacity: anim, child: child),
+              ),
+              child: Icon(
+                _obscurePassword
+                    ? Icons.visibility_off_rounded
+                    : Icons.visibility_rounded,
+                key: ValueKey(_obscurePassword),
+                color: _muted,
+                size: 20,
+              ),
+            ),
+          ),
+          validator: (v) => _localizedValidator(Validators.registerPassword(v)),
+        ),
+      ),
+      const SizedBox(height: 10),
+      _PasswordStrength(controller: _passwordController),
+      const SizedBox(height: 30),
+
+      // 3 · Role-specific
+      _RoleSwitcher(
+        child: isStaff
+            ? Column(
+                key: const ValueKey('staff'),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _SectionHeader(
+                    step: 3,
+                    title: 'Professional profile',
+                    icon: Icons.work_rounded,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildField(
+                    label: 'Date of Birth',
+                    isRequired: true,
+                    child: _buildDateOfBirthField(),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildField(
+                    label: 'Gender',
+                    isRequired: true,
+                    child: _GenderChips(
+                      value: _gender,
+                      onChanged: (v) {
+                        HapticFeedback.selectionClick();
+                        setState(() => _gender = v);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildField(
+                    label: 'Work Category',
+                    isRequired: true,
+                    child: Builder(builder: (context) {
+                      // Only series taken on right now (GET /meta/series).
+                      final active = ref.watch(seriesCatalogProvider).active;
+                      final items = [for (final s in active) s.short];
+                      return _buildDropdownField(
+                        value: items.contains(_series) ? _series : null,
+                        hint: 'Select work specialization',
+                        prefixIcon: Icons.category_outlined,
+                        items: items,
+                        labelBuilder: (v) => _seriesDescriptions[v] ??
+                            active.firstWhere((s) => s.short == v).label,
+                        onChanged: (v) => setState(() => _series = v),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 30),
+                ],
+              )
+            : Column(
+                key: const ValueKey('client'),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const _SectionHeader(
+                    step: 3,
+                    title: 'Account & tax details',
+                    icon: Icons.business_rounded,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildField(
+                    label: 'Residence / Business Name',
+                    isOptional: true,
+                    child: _textField(
+                      controller: _businessNameController,
+                      hint: 'Sharma Residence',
+                      prefixIcon: Icons.storefront_outlined,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildField(
+                    label: 'PAN Card Number',
+                    isRequired: true,
+                    child: _textField(
+                      controller: _panCardController,
+                      hint: 'ABCDE1234F',
+                      prefixIcon: Icons.credit_card_outlined,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [UpperCaseTextFormatter()],
+                      textInputAction: TextInputAction.next,
+                      letterSpacing: 1,
+                      validator: (v) => _localizedValidator(
+                        Validators.required(v, 'panCard'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildField(
+                    label: 'GSTIN',
+                    isOptional: true,
+                    child: _textField(
+                      controller: _gstnController,
+                      hint: '09ABCDE1234F1Z5',
+                      prefixIcon: Icons.receipt_long_outlined,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [UpperCaseTextFormatter()],
+                      textInputAction: TextInputAction.next,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                ],
+              ),
+      ),
+
+      // 4 · Address
+      const _SectionHeader(
+        step: 4,
+        title: 'Where are you located?',
+        icon: Icons.location_on_rounded,
+      ),
+      const SizedBox(height: 16),
+      _buildField(
+        label: 'Address',
+        isRequired: true,
+        child: _textField(
+          controller: _addressController,
+          hint: 'House / Flat No., Street, Locality',
+          prefixIcon: Icons.home_outlined,
+          maxLines: 2,
+          textInputAction: TextInputAction.next,
+          validator: (v) =>
+              _localizedValidator(Validators.required(v, 'address')),
+        ),
+      ),
+      const SizedBox(height: 16),
+      Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section 1: Basic Information
-          _buildSectionHeader('PERSONAL INFORMATION', Icons.badge_outlined, isDark),
-          const SizedBox(height: 14),
-
-          _buildField(
-            label: 'Full Name',
-            isRequired: true,
-            isDark: isDark,
-            child: _buildStyledTextField(
-              controller: _fullNameController,
-              hint: 'Anita Sharma',
-              prefixIcon: Icons.person_outline_rounded,
-              validator: (v) => _localizedValidator(Validators.name(v)),
-              textCapitalization: TextCapitalization.words,
-              textInputAction: TextInputAction.next,
-              isDark: isDark,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          _buildField(
-            label: 'Mobile Number',
-            isRequired: true,
-            isDark: isDark,
-            child: _buildStyledTextField(
-              controller: _phoneController,
-              hint: '9876543210',
-              prefixIcon: Icons.phone_android_rounded,
-              keyboardType: TextInputType.phone,
-              maxLength: 10,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              textInputAction: TextInputAction.next,
-              validator: (v) => _localizedValidator(Validators.phone(v)),
-              isDark: isDark,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          if (_role == _RegisterRole.staff) ...[
-            _buildField(
-              label: 'Alternate Number',
-              isOptional: true,
-              isDark: isDark,
-              child: _buildStyledTextField(
-                controller: _alternatePhoneController,
-                hint: '9876543211',
-                prefixIcon: Icons.phone_outlined,
-                keyboardType: TextInputType.phone,
-                maxLength: 10,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          Expanded(
+            child: _buildField(
+              label: 'City',
+              child: _textField(
+                controller: _cityController,
+                hint: 'Noida',
+                prefixIcon: Icons.location_city_outlined,
                 textInputAction: TextInputAction.next,
-                isDark: isDark,
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          _buildField(
-            label: 'Email Address',
-            isOptional: true,
-            isDark: isDark,
-            child: _buildStyledTextField(
-              controller: _emailController,
-              hint: 'you@example.com',
-              prefixIcon: Icons.mail_outline_rounded,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return null;
-                return _localizedValidator(Validators.email(v));
-              },
-              isDark: isDark,
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Section 2: Security
-          _buildSectionHeader('SECURITY', Icons.lock_outline_rounded, isDark),
-          const SizedBox(height: 14),
-
-          _buildField(
-            label: 'Password',
-            isRequired: true,
-            isDark: isDark,
-            child: _buildStyledTextField(
-              controller: _passwordController,
-              hint: '••••••••',
-              prefixIcon: Icons.lock_outline_rounded,
-              obscureText: _obscurePassword,
-              textInputAction: TextInputAction.next,
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                  size: 20,
-                ),
-                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-              ),
-              validator: (v) => _localizedValidator(Validators.registerPassword(v)),
-              isDark: isDark,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: Text(
-              'Minimum 8 characters with upper & lower case, number & symbol.',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
               ),
             ),
           ),
-          const SizedBox(height: 24),
-
-          // Section 3: Role Specific
-          if (_role == _RegisterRole.staff) ...[
-            _buildSectionHeader('PROFESSIONAL PROFILE', Icons.work_outline_rounded, isDark),
-            const SizedBox(height: 14),
-
-            _buildField(
-              label: 'Date of Birth',
-              isRequired: true,
-              isDark: isDark,
-              child: _buildDateOfBirthField(isDark),
-            ),
-            const SizedBox(height: 16),
-
-            _buildField(
-              label: 'Gender',
-              isRequired: true,
-              isDark: isDark,
-              child: _buildDropdownField(
-                value: _gender,
-                hint: 'Select gender',
-                prefixIcon: Icons.wc_rounded,
-                items: _genderOptions,
-                labelBuilder: (v) => v[0] + v.substring(1).toLowerCase(),
-                onChanged: (v) => setState(() => _gender = v),
-                isDark: isDark,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            _buildField(
-              label: 'Work Category',
-              isRequired: true,
-              isDark: isDark,
-              child: _buildDropdownField(
-                value: _series,
-                hint: 'Select work specialization',
-                prefixIcon: Icons.category_outlined,
-                items: _seriesOptions.keys.toList(),
-                labelBuilder: (v) => _seriesOptions[v]!,
-                onChanged: (v) => setState(() => _series = v),
-                isDark: isDark,
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-
-          if (_role == _RegisterRole.client) ...[
-            _buildSectionHeader('ACCOUNT & TAX DETAILS', Icons.business_outlined, isDark),
-            const SizedBox(height: 14),
-
-            _buildField(
-              label: 'Residence / Business Name',
-              isOptional: true,
-              isDark: isDark,
-              child: _buildStyledTextField(
-                controller: _businessNameController,
-                hint: 'Sharma Residence',
-                prefixIcon: Icons.storefront_outlined,
-                textCapitalization: TextCapitalization.words,
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildField(
+              label: 'State',
+              child: _textField(
+                controller: _stateController,
+                hint: 'Uttar Pradesh',
+                prefixIcon: Icons.map_outlined,
                 textInputAction: TextInputAction.next,
-                isDark: isDark,
               ),
-            ),
-            const SizedBox(height: 16),
-
-            _buildField(
-              label: 'PAN Card Number',
-              isRequired: true,
-              isDark: isDark,
-              child: _buildStyledTextField(
-                controller: _panCardController,
-                hint: 'ABCDE1234F',
-                prefixIcon: Icons.credit_card_outlined,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [UpperCaseTextFormatter()],
-                textInputAction: TextInputAction.next,
-                validator: (v) => _localizedValidator(Validators.required(v, 'panCard')),
-                isDark: isDark,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            _buildField(
-              label: 'GSTIN',
-              isOptional: true,
-              isDark: isDark,
-              child: _buildStyledTextField(
-                controller: _gstnController,
-                hint: '09ABCDE1234F1Z5',
-                prefixIcon: Icons.receipt_long_outlined,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [UpperCaseTextFormatter()],
-                textInputAction: TextInputAction.next,
-                isDark: isDark,
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-
-          // Section 4: Address
-          _buildSectionHeader('ADDRESS DETAILS', Icons.location_on_outlined, isDark),
-          const SizedBox(height: 14),
-
-          _buildField(
-            label: 'Address',
-            isRequired: true,
-            isDark: isDark,
-            child: _buildStyledTextField(
-              controller: _addressController,
-              hint: 'House / Flat No., Street, Locality',
-              prefixIcon: Icons.home_outlined,
-              maxLines: 2,
-              textInputAction: TextInputAction.next,
-              validator: (v) => _localizedValidator(Validators.required(v, 'address')),
-              isDark: isDark,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _buildField(
-                  label: 'City',
-                  isDark: isDark,
-                  child: _buildStyledTextField(
-                    controller: _cityController,
-                    hint: 'Noida',
-                    prefixIcon: Icons.location_city_outlined,
-                    textInputAction: TextInputAction.next,
-                    isDark: isDark,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: _buildField(
-                  label: 'State',
-                  isDark: isDark,
-                  child: _buildStyledTextField(
-                    controller: _stateController,
-                    hint: 'Uttar Pradesh',
-                    prefixIcon: Icons.map_outlined,
-                    textInputAction: TextInputAction.next,
-                    isDark: isDark,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          _buildField(
-            label: 'Pincode',
-            isDark: isDark,
-            child: _buildStyledTextField(
-              controller: _pincodeController,
-              hint: '201301',
-              prefixIcon: Icons.pin_drop_outlined,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              textInputAction: TextInputAction.done,
-              onFieldSubmitted: (_) => _onSubmit(),
-              isDark: isDark,
-            ),
-          ),
-          const SizedBox(height: 28),
-
-          // Submit CTA Button
-          Container(
-            width: double.infinity,
-            height: 52,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.35),
-                  blurRadius: 14,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: ElevatedButton(
-              onPressed: isLoading ? null : _onSubmit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Create Account',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.3,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.arrow_forward_rounded, size: 18),
-                      ],
-                    ),
             ),
           ),
         ],
       ),
-    );
-  }
+      const SizedBox(height: 16),
+      _buildField(
+        label: 'Pincode',
+        child: _textField(
+          controller: _pincodeController,
+          hint: '201301',
+          prefixIcon: Icons.pin_drop_outlined,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _onSubmit(),
+          letterSpacing: 1,
+        ),
+      ),
+      const SizedBox(height: 30),
 
-  Widget _buildSectionHeader(String title, IconData icon, bool isDark) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 16,
-          color: AppColors.primary,
-        ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.8,
-            color: AppColors.primary,
+      _PrimaryButton(isLoading: isLoading, onPressed: _onSubmit),
+      const SizedBox(height: 14),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.verified_user_rounded, size: 14, color: _hint),
+          const SizedBox(width: 6),
+          Text(
+            'Your details are encrypted and kept private',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: _hint,
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Container(
-            height: 1,
-            color: isDark
-                ? AppColors.darkBorder.withValues(alpha: 0.5)
-                : AppColors.lightBorder,
-          ),
-        ),
-      ],
-    );
+        ],
+      ),
+    ];
   }
 
   Widget _buildField({
     required String label,
     required Widget child,
-    required bool isDark,
     bool isRequired = false,
     bool isOptional = false,
   }) {
@@ -813,39 +644,42 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       children: [
         Row(
           children: [
-            Text(
-              label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: _ink,
+                ),
               ),
             ),
             if (isRequired) ...[
-              const SizedBox(width: 4),
+              const SizedBox(width: 3),
               Text(
                 '*',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.error,
+                  fontWeight: FontWeight.w800,
+                  color: _error,
                 ),
               ),
             ],
             if (isOptional) ...[
               const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkSurfaceVariant : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(4),
+                  color: _brandSoft,
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   'Optional',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                    fontWeight: FontWeight.w700,
+                    color: _brand,
                   ),
                 ),
               ),
@@ -858,12 +692,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
-  Widget _buildStyledTextField({
+  Widget _textField({
     required TextEditingController controller,
     required String hint,
-    required IconData prefixIcon,
-    required bool isDark,
-    Widget? suffixIcon,
+    IconData? prefixIcon,
+    Widget? prefix,
+    Widget? suffix,
     bool obscureText = false,
     TextInputType? keyboardType,
     int? maxLength,
@@ -873,109 +707,119 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     TextInputAction? textInputAction,
     void Function(String)? onFieldSubmitted,
     String? Function(String?)? validator,
+    double letterSpacing = 0,
   }) {
-    final surfaceColor = isDark ? AppColors.darkSurface : Colors.white;
-    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final iconColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-
-    return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      maxLength: maxLength,
-      maxLines: obscureText ? 1 : maxLines,
-      inputFormatters: inputFormatters,
-      textCapitalization: textCapitalization,
-      textInputAction: textInputAction,
-      onFieldSubmitted: onFieldSubmitted,
-      cursorColor: AppColors.primary,
-      style: GoogleFonts.plusJakartaSans(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+    return _GlowField(
+      child: TextFormField(
+        controller: controller,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        maxLength: maxLength,
+        maxLines: obscureText ? 1 : maxLines,
+        inputFormatters: inputFormatters,
+        textCapitalization: textCapitalization,
+        textInputAction: textInputAction,
+        onFieldSubmitted: onFieldSubmitted,
+        cursorColor: _brand,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+          color: _ink,
+          letterSpacing: letterSpacing,
+        ),
+        decoration: _inputDecoration(
+          hint: hint,
+          prefix:
+              prefix ??
+              Padding(
+                padding: const EdgeInsets.only(left: 16, right: 10),
+                child: Icon(prefixIcon, color: _iconAccent, size: 20),
+              ),
+          suffix: suffix,
+        ),
+        validator: validator,
       ),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-          color: isDark ? AppColors.darkTextHint : AppColors.lightTextHint,
-        ),
-        filled: true,
-        fillColor: surfaceColor,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-        prefixIcon: Icon(prefixIcon, color: iconColor, size: 20),
-        suffixIcon: suffixIcon,
-        counterText: '',
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor, width: 1),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor, width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.8),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.2),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.8),
-        ),
-        errorStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 12,
-          fontWeight: FontWeight.w400,
-          color: AppColors.error,
-        ),
-      ),
-      validator: validator,
     );
   }
 
-  Widget _buildDateOfBirthField(bool isDark) {
-    final surfaceColor = isDark ? AppColors.darkSurface : Colors.white;
-    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final iconColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
+  InputDecoration _inputDecoration({
+    required String hint,
+    Widget? prefix,
+    Widget? suffix,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: GoogleFonts.plusJakartaSans(
+        color: _hint,
+        fontSize: 14.5,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0,
+      ),
+      errorStyle: GoogleFonts.plusJakartaSans(
+        color: _error,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+      errorMaxLines: 3,
+      filled: true,
+      fillColor: _fieldFill,
+      counterText: '',
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+      prefixIcon: prefix,
+      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+      suffixIcon: suffix,
+      border: OutlineInputBorder(
+        borderSide: BorderSide.none,
+        borderRadius: _fieldRadius,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: Colors.transparent),
+        borderRadius: _fieldRadius,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: _brand, width: 1.6),
+        borderRadius: _fieldRadius,
+      ),
+      errorBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: _error),
+        borderRadius: _fieldRadius,
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: _error, width: 1.6),
+        borderRadius: _fieldRadius,
+      ),
+    );
+  }
 
+  Widget _buildDateOfBirthField() {
+    final hasValue = _dateOfBirth != null;
     return Material(
-      color: Colors.transparent,
+      color: _fieldFill,
+      borderRadius: _fieldRadius,
       child: InkWell(
         onTap: _pickDateOfBirth,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: surfaceColor,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor, width: 1),
-          ),
+        borderRadius: _fieldRadius,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
           child: Row(
             children: [
-              Icon(Icons.calendar_today_outlined, color: iconColor, size: 20),
-              const SizedBox(width: 12),
+              const Icon(Icons.cake_outlined, color: _iconAccent, size: 20),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  _dateOfBirth == null
-                      ? 'Select date of birth (DD/MM/YYYY)'
-                      : '${_dateOfBirth!.day.toString().padLeft(2, '0')}/${_dateOfBirth!.month.toString().padLeft(2, '0')}/${_dateOfBirth!.year}',
+                  hasValue
+                      ? '${_dateOfBirth!.day.toString().padLeft(2, '0')}/${_dateOfBirth!.month.toString().padLeft(2, '0')}/${_dateOfBirth!.year}'
+                      : 'DD / MM / YYYY',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    color: _dateOfBirth == null
-                        ? (isDark ? AppColors.darkTextHint : AppColors.lightTextHint)
-                        : (isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary),
-                    fontWeight: _dateOfBirth == null ? FontWeight.w400 : FontWeight.w500,
+                    fontSize: hasValue ? 15 : 14.5,
+                    color: hasValue ? _ink : _hint,
+                    fontWeight: hasValue ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
               ),
-              Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: iconColor,
+              const Icon(
+                Icons.calendar_month_rounded,
+                color: _iconAccent,
                 size: 20,
               ),
             ],
@@ -992,69 +836,45 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     required List<String> items,
     required String Function(String) labelBuilder,
     required ValueChanged<String?> onChanged,
-    required bool isDark,
   }) {
-    final surfaceColor = isDark ? AppColors.darkSurface : Colors.white;
-    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
-    final iconColor = isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary;
-
     return DropdownButtonFormField<String>(
       initialValue: value,
+      isExpanded: true,
       items: items
-          .map((v) => DropdownMenuItem(
-                value: v,
-                child: Text(
-                  labelBuilder(v),
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
-                  ),
+          .map(
+            (v) => DropdownMenuItem(
+              value: v,
+              child: Text(
+                labelBuilder(v),
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                  color: _ink,
                 ),
-              ))
+              ),
+            ),
+          )
           .toList(),
       onChanged: onChanged,
-      icon: Icon(Icons.keyboard_arrow_down_rounded, color: iconColor, size: 22),
-      dropdownColor: isDark ? AppColors.darkSurface : Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      style: GoogleFonts.plusJakartaSans(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-        color: isDark ? AppColors.darkTextPrimary : AppColors.lightTextPrimary,
+      icon: const Icon(
+        Icons.keyboard_arrow_down_rounded,
+        color: _iconAccent,
+        size: 24,
       ),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.plusJakartaSans(
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-          color: isDark ? AppColors.darkTextHint : AppColors.lightTextHint,
-        ),
-        filled: true,
-        fillColor: surfaceColor,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        prefixIcon: Icon(prefixIcon, color: iconColor, size: 20),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor, width: 1),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: borderColor, width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.8),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.2),
+      dropdownColor: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      decoration: _inputDecoration(
+        hint: hint,
+        prefix: Padding(
+          padding: const EdgeInsets.only(left: 16, right: 10),
+          child: Icon(prefixIcon, color: _iconAccent, size: 20),
         ),
       ),
     );
   }
 
-  Widget _buildFooter(bool isDark) {
+  Widget _buildFooter() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -1062,22 +882,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           'Already have an account? ',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
-            fontWeight: FontWeight.w400,
-            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+            fontWeight: FontWeight.w500,
+            color: _muted,
           ),
         ),
-        InkWell(
+        GestureDetector(
           onTap: () => context.go(AppRoutes.login),
-          borderRadius: BorderRadius.circular(4),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            child: Text(
-              'Sign In',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
+          child: Text(
+            'Sign in',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: _brand,
+              decoration: TextDecoration.underline,
+              decorationColor: _brand.withValues(alpha: 0.35),
+              decorationThickness: 2,
             ),
           ),
         ),
@@ -1086,10 +905,854 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Hero
+// ---------------------------------------------------------------------------
+
+class _Hero extends StatelessWidget {
+  const _Hero({required this.onBack});
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final topInset = MediaQuery.paddingOf(context).top;
+
+    return Container(
+      height: _heroHeight + topInset,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_deepNavy, _brandDark, _brand],
+        ),
+      ),
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          Positioned(
+            top: -70,
+            right: -50,
+            child: _Blob(size: 230, color: _sunYellow.withValues(alpha: 0.22)),
+          ),
+          Positioned(
+            bottom: 0,
+            left: -80,
+            child: _Blob(
+              size: 210,
+              color: Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+
+          // Floating icons
+          Positioned(
+            top: topInset + 64,
+            right: 26,
+            child: const _FloatingIcon(
+              icon: Icons.home_rounded,
+              color: _iconAccent,
+              delay: 0,
+            ),
+          ),
+          Positioned(
+            top: topInset + 140,
+            right: 92,
+            child: const _FloatingIcon(
+              icon: Icons.verified_rounded,
+              color: _iconAccent,
+              delay: 400,
+              size: 44,
+            ),
+          ),
+          Positioned(
+            top: topInset + 178,
+            right: 22,
+            child: const _FloatingIcon(
+              icon: Icons.handshake_rounded,
+              color: _iconAccent,
+              delay: 800,
+              size: 48,
+            ),
+          ),
+
+          Positioned(
+            left: 20,
+            right: 24,
+            top: topInset + 12,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _BackButton(onTap: onBack)
+                    .animate()
+                    .fadeIn(duration: 400.ms)
+                    .slideX(begin: -0.4, end: 0, curve: Curves.easeOutCubic),
+                const SizedBox(height: 34),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.auto_awesome_rounded,
+                        color: _sunYellow,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Takes under 2 minutes',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+                    .animate(delay: 150.ms)
+                    .fadeIn(duration: 400.ms)
+                    .scaleXY(begin: 0.8, end: 1, curve: Curves.easeOutBack),
+                const SizedBox(height: 14),
+                const _Headline(),
+                const SizedBox(height: 10),
+                Text(
+                  'Tell us a little about yourself\nto get started.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
+                )
+                    .animate(delay: 450.ms)
+                    .fadeIn(duration: 500.ms)
+                    .slideY(begin: 0.4, end: 0),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: const SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(
+            Icons.arrow_back_ios_new_rounded,
+            size: 17,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Headline extends StatelessWidget {
+  const _Headline();
+
+  @override
+  Widget build(BuildContext context) {
+    final base = GoogleFonts.plusJakartaSans(
+      fontSize: 32,
+      fontWeight: FontWeight.w800,
+      color: Colors.white,
+      height: 1.1,
+      letterSpacing: -1,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Create your', style: base)
+            .animate(delay: 250.ms)
+            .fadeIn(duration: 450.ms)
+            .slideY(begin: 0.5, end: 0, curve: Curves.easeOutCubic),
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: -2,
+              right: -4,
+              bottom: 2,
+              height: 10,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _sunYellow.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ).animate(delay: 750.ms).scaleX(
+                begin: 0,
+                end: 1,
+                alignment: Alignment.centerLeft,
+                duration: 500.ms,
+                curve: Curves.easeOutCubic,
+              ),
+            ),
+            Text('account.', style: base),
+          ],
+        )
+            .animate(delay: 350.ms)
+            .fadeIn(duration: 450.ms)
+            .slideY(begin: 0.5, end: 0, curve: Curves.easeOutCubic),
+      ],
+    );
+  }
+}
+
+class _Blob extends StatelessWidget {
+  const _Blob({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+    )
+        .animate(onPlay: (c) => c.repeat(reverse: true))
+        .scaleXY(
+          begin: 0.9,
+          end: 1.1,
+          duration: 4.seconds,
+          curve: Curves.easeInOut,
+        );
+  }
+}
+
+class _FloatingIcon extends StatelessWidget {
+  const _FloatingIcon({
+    required this.icon,
+    required this.color,
+    required this.delay,
+    this.size = 56,
+  });
+
+  final IconData icon;
+  final Color color;
+  final int delay;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(size * 0.32),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+      ),
+      child: Icon(icon, color: color, size: size * 0.46),
+    )
+        .animate(delay: (300 + delay).ms)
+        .fadeIn(duration: 500.ms)
+        .scaleXY(begin: 0.4, end: 1, curve: Curves.easeOutBack, duration: 600.ms)
+        .then()
+        .animate(onPlay: (c) => c.repeat(reverse: true))
+        .moveY(begin: -6, end: 6, duration: 2200.ms, curve: Curves.easeInOut)
+        .rotate(begin: -0.015, end: 0.015, duration: 2200.ms);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Form pieces
+// ---------------------------------------------------------------------------
+
+/// Segmented Client / Staff toggle with a sliding orange thumb.
+class _RoleToggle extends StatelessWidget {
+  const _RoleToggle({required this.role, required this.onChanged});
+
+  final _RegisterRole role;
+  final ValueChanged<_RegisterRole> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final isClient = role == _RegisterRole.client;
+
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: _fieldFill,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Stack(
+        children: [
+          AnimatedAlign(
+            alignment: isClient ? Alignment.centerLeft : Alignment.centerRight,
+            duration: 320.ms,
+            curve: Curves.easeOutBack,
+            child: FractionallySizedBox(
+              widthFactor: 0.5,
+              heightFactor: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [_brandLight, _brandDark],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _brand.withValues(alpha: 0.35),
+                      blurRadius: 14,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              _segment(
+                title: 'Client',
+                subtitle: 'Hire verified help',
+                icon: Icons.person_rounded,
+                selected: isClient,
+                onTap: () => onChanged(_RegisterRole.client),
+              ),
+              _segment(
+                title: 'Staff',
+                subtitle: 'Offer your services',
+                icon: Icons.badge_rounded,
+                selected: !isClient,
+                onTap: () => onChanged(_RegisterRole.staff),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segment({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final fg = selected ? Colors.white : _ink;
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedScale(
+                scale: selected ? 1.1 : 1,
+                duration: 250.ms,
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: selected ? fg : _iconAccent,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AnimatedDefaultTextStyle(
+                      duration: 220.ms,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: fg,
+                      ),
+                      child: Text(title),
+                    ),
+                    AnimatedDefaultTextStyle(
+                      duration: 220.ms,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: selected
+                            ? Colors.white.withValues(alpha: 0.85)
+                            : _muted,
+                      ),
+                      child: Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Animates size + crossfade/slide when role-specific content changes.
+class _RoleSwitcher extends StatelessWidget {
+  const _RoleSwitcher({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: 320.ms,
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: 320.ms,
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        layoutBuilder: (current, previous) => Stack(
+          alignment: Alignment.topCenter,
+          children: [...previous, ?current],
+        ),
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: SlideTransition(
+            position: Tween(
+              begin: const Offset(0, 0.06),
+              end: Offset.zero,
+            ).animate(anim),
+            child: child,
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.step,
+    required this.title,
+    required this.icon,
+  });
+
+  final int step;
+  final String title;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: _iconAccentSoft,
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Icon(icon, size: 18, color: _iconAccent),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'STEP $step OF 4',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                  color: _brand,
+                ),
+              ),
+              Text(
+                title,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: _ink,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Live checklist that ticks off password rules as the user types.
+class _PasswordStrength extends StatelessWidget {
+  const _PasswordStrength({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final p = value.text;
+        final rules = <String, bool>{
+          '8+ chars': p.length >= 8,
+          'A-Z': p.contains(RegExp(r'[A-Z]')),
+          'a-z': p.contains(RegExp(r'[a-z]')),
+          '0-9': p.contains(RegExp(r'\d')),
+          'Symbol': p.contains(RegExp(r'[^A-Za-z0-9]')),
+        };
+        final met = rules.values.where((v) => v).length;
+        final color = switch (met) {
+          <= 2 => _error,
+          < 5 => const Color(0xFFF59E0B),
+          _ => const Color(0xFF16A34A),
+        };
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: List.generate(5, (i) {
+                return Expanded(
+                  child: AnimatedContainer(
+                    duration: 250.ms,
+                    height: 5,
+                    margin: EdgeInsets.only(right: i == 4 ? 0 : 5),
+                    decoration: BoxDecoration(
+                      color: i < met ? color : const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: rules.entries.map((e) {
+                return AnimatedContainer(
+                  duration: 220.ms,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: e.value
+                        ? const Color(0xFFDCFCE7)
+                        : const Color(0xFFF3F4F6),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        e.value
+                            ? Icons.check_circle_rounded
+                            : Icons.circle_outlined,
+                        size: 12,
+                        color: e.value ? const Color(0xFF16A34A) : _hint,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        e.key,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: e.value ? const Color(0xFF15803D) : _muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _GenderChips extends StatelessWidget {
+  const _GenderChips({required this.value, required this.onChanged});
+
+  final String? value;
+  final ValueChanged<String> onChanged;
+
+  static const _icons = {
+    'MALE': Icons.male_rounded,
+    'FEMALE': Icons.female_rounded,
+    'OTHER': Icons.transgender_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final g in _genderOptions) ...[
+          Expanded(
+            child: GestureDetector(
+              onTap: () => onChanged(g),
+              child: AnimatedContainer(
+                duration: 220.ms,
+                curve: Curves.easeOut,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: value == g ? _brandSoft : _fieldFill,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: value == g ? _brand : Colors.transparent,
+                    width: 1.6,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _icons[g],
+                      size: 18,
+                      color: _iconAccent,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      g[0] + g.substring(1).toLowerCase(),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: value == g ? _brand : _ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (g != _genderOptions.last) const SizedBox(width: 8),
+        ],
+      ],
+    );
+  }
+}
+
+/// Adds a soft brand-colored glow while the wrapped field has focus.
+class _GlowField extends StatefulWidget {
+  const _GlowField({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_GlowField> createState() => _GlowFieldState();
+}
+
+class _GlowFieldState extends State<_GlowField> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      skipTraversal: true,
+      onFocusChange: (f) => setState(() => _focused = f),
+      child: AnimatedContainer(
+        duration: 220.ms,
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          borderRadius: _fieldRadius,
+          boxShadow: [
+            BoxShadow(
+              color: _brand.withValues(alpha: _focused ? 0.18 : 0),
+              blurRadius: _focused ? 18 : 0,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: AnimatedScale(
+          scale: _focused ? 1.012 : 1,
+          duration: 220.ms,
+          curve: Curves.easeOut,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+class _CountryPrefix extends StatelessWidget {
+  const _CountryPrefix();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '+91',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: _ink,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(width: 1.2, height: 22, color: const Color(0xFFD1D5DB)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pill CTA with press-scale, bouncing arrow and idle shimmer.
+class _PrimaryButton extends StatefulWidget {
+  const _PrimaryButton({required this.isLoading, required this.onPressed});
+
+  final bool isLoading;
+  final VoidCallback onPressed;
+
+  @override
+  State<_PrimaryButton> createState() => _PrimaryButtonState();
+}
+
+class _PrimaryButtonState extends State<_PrimaryButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = !widget.isLoading;
+
+    final label = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          'Create Account',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.22),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.arrow_forward_rounded,
+            size: 18,
+            color: Colors.white,
+          ),
+        )
+            .animate(onPlay: (c) => c.repeat(reverse: true))
+            .moveX(begin: 0, end: 4, duration: 700.ms, curve: Curves.easeInOut),
+      ],
+    );
+
+    return GestureDetector(
+      onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+      onTapUp: enabled ? (_) => setState(() => _pressed = false) : null,
+      onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
+      onTap: enabled ? widget.onPressed : null,
+      child: AnimatedScale(
+        scale: _pressed ? 0.96 : 1,
+        duration: 120.ms,
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: 250.ms,
+          height: 58,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            gradient: const LinearGradient(
+              colors: [
+                _brandLight,
+                _brand,
+                _brandDark,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _brand.withValues(alpha: _pressed ? 0.25 : 0.4),
+                blurRadius: _pressed ? 10 : 22,
+                offset: Offset(0, _pressed ? 4 : 10),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: 250.ms,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: ScaleTransition(scale: anim, child: child),
+              ),
+              child: widget.isLoading
+                  ? const SizedBox(
+                      key: ValueKey('loading'),
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.6,
+                        color: Colors.white,
+                      ),
+                    )
+                  : KeyedSubtree(key: const ValueKey('label'), child: label),
+            ),
+          ),
+        )
+            .animate(onPlay: (c) => c.repeat())
+            .shimmer(
+              delay: 1800.ms,
+              duration: 1400.ms,
+              color: Colors.white.withValues(alpha: 0.3),
+            ),
+      ),
+    );
+  }
+}
+
 /// Forces PAN/GSTN input to uppercase as the user types.
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }

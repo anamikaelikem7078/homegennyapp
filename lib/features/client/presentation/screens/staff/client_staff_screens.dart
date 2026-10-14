@@ -1,486 +1,527 @@
 import 'package:flutter/material.dart';
-import '../../../../../core/extensions/context_extensions.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../design_system/design_system.dart';
+import '../../../domain/models/client_models.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
+import '../../../../../core/series/series_catalog.dart';
+import '../care/client_care_screens.dart';
 
+void _staffBack(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+  } else {
+    context.go(ClientRoutes.staff);
+  }
+}
+
+bool _isLate(String status) => status.toUpperCase() == 'LATE';
+bool _isAbsent(String status) => status.toUpperCase() == 'ABSENT';
+
+/// Gradient staff header used across the staff screens.
+class _StaffHero extends StatelessWidget {
+  const _StaffHero({
+    required this.name,
+    required this.subtitle,
+    this.badge,
+    this.badgeIcon = Icons.verified_rounded,
+    this.stats = const [],
+  });
+
+  final String name;
+  final String subtitle;
+  final String? badge;
+  final IconData badgeIcon;
+  final List<Widget> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    return DsGradientCard(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: SweepGradient(
+                        colors: [AppColors.sunYellow, AppColors.secondary, AppColors.sunYellow],
+                      ),
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                      child: DsInitialsAvatar(name: name, size: 64, radius: 32),
+                    ),
+                  ).animate().scaleXY(begin: 0.6, end: 1, duration: 600.ms, curve: Curves.elasticOut),
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                      child: Icon(badgeIcon, size: 16, color: AppColors.iconAccent),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    if (badge != null) ...[
+                      const SizedBox(height: 8),
+                      DsGlassPill(badge!.toUpperCase(), icon: badgeIcon),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (stats.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                for (var i = 0; i < stats.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 10),
+                  Expanded(child: stats[i]),
+                ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Animated ring with a centered value.
+class _Ring extends StatelessWidget {
+  const _Ring({required this.value, required this.label, required this.caption, this.size = 120, this.color});
+  final double value;
+  final String label;
+  final String caption;
+  final double size;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? AppColors.primary;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: value.clamp(0, 1).toDouble()),
+        duration: 1100.ms,
+        curve: Curves.easeOutCubic,
+        builder: (_, v, _) => Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox.expand(
+              child: CircularProgressIndicator(
+                value: v,
+                strokeWidth: size * 0.08,
+                strokeCap: StrokeCap.round,
+                backgroundColor: c.withValues(alpha: 0.12),
+                color: c,
+              ),
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FittedBox(
+                  child: Text(
+                    label,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: size * 0.24,
+                      height: 1,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.lightTextPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  caption,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.lightTextSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Staff tab.
 class ClientStaffTabScreen extends ConsumerWidget {
   const ClientStaffTabScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final assignedStaff = ref.watch(clientAssignedStaffProvider);
+    final history = ref.watch(clientAttendanceHistoryProvider).valueOrNull ?? const <ClientAttendanceRecord>[];
+    final l10n = context.l10n;
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          'HomeGenny',
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
+    return DsPage(
+      title: 'Your staff',
+      subtitle: l10n.professionalProfile,
+      showBack: false,
+      extraBottomPadding: 90,
+      onRefresh: () async {
+        ref.invalidate(clientAssignedStaffProvider);
+        ref.invalidate(clientAttendanceHistoryProvider);
+      },
+      actions: [
+        DsPageAction(
+          icon: Icons.notifications_rounded,
+          tooltip: l10n.notifications,
+          onPressed: () => context.push(ClientRoutes.notifications),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: GestureDetector(
-              onTap: () => context.push(ClientRoutes.notifications),
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.blue.shade100, width: 1.5),
-                ),
-                child: Icon(
-                  Icons.notifications_none_rounded,
-                  color: Color(0xFF1A56FF),
-                  size: 20,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      body: assignedStaff.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (list) {
+      ],
+      body: dsAsyncBody(
+        assignedStaff,
+        onRetry: () => ref.invalidate(clientAssignedStaffProvider),
+        builder: (list) {
           if (list.isEmpty) {
-            return const DsEmptyState(
-              title: 'No staff assigned yet',
-              message: 'Your assigned staff will appear here once deployed.',
-              icon: Icons.people_outline,
-            );
+            return const [
+              DsEmptyBlock(
+                icon: Icons.people_alt_rounded,
+                title: 'No staff assigned yet',
+                message: 'Your assigned staff will appear here once deployed.',
+              ),
+            ];
           }
           final staff = list.first;
-          final profile = ref.watch(clientStaffProfileProvider(staff.staffId));
-          final attendancePercent = profile.valueOrNull?.attendancePercent;
-          return ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            children: [
-              // Avatar
-              Center(
-                child: Stack(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: context.theme.cardColor,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: context.theme.dividerColor,
-                          width: 1,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Image.network(
-                          'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200',
-                          width: 140,
-                          height: 140,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Color(0xFF1A56FF),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.star, color: context.theme.cardColor,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ],
+          final profile = ref.watch(clientStaffProfileProvider(staff.staffId)).valueOrNull;
+          final deployed = staff.status == 'ACTIVE_DEPLOYED';
+          final skills = (profile?.skills.isNotEmpty ?? false)
+              ? profile!.skills
+              : [l10n.skill1, l10n.skill2, l10n.skill3, l10n.skill4, l10n.skill5, l10n.skill6];
+          final recent = history.take(14).toList();
+
+          return [
+            _StaffHero(
+              name: staff.fullName ?? 'Staff',
+              subtitle: [if (staff.series != null) SeriesDisplay.label(staff.series), if (staff.staffCode != null) staff.staffCode!].join(' · '),
+              badge: deployed ? 'Actively deployed' : 'On trial',
+              badgeIcon: deployed ? Icons.verified_rounded : Icons.hourglass_top_rounded,
+              stats: [
+                DsGlassStat(
+                  value: profile?.attendancePercent != null ? '${profile!.attendancePercent!.round()}%' : '—',
+                  label: 'Attendance',
+                  icon: Icons.event_available_rounded,
                 ),
-              ),
-              SizedBox(height: 24),
-              // Name and Title
-              Center(
-                child: Text(
-                  staff.fullName ?? 'Staff',
-                  style: GoogleFonts.libreCaslonText(
-                    fontSize: 32,
-                    color: context.colors.onSurface,
-                    fontWeight: FontWeight.w600,
+                DsGlassStat(
+                  value: profile?.performanceScore != null ? profile!.performanceScore!.toStringAsFixed(1) : '—',
+                  label: 'Rating',
+                  icon: Icons.star_rounded,
+                ),
+                DsGlassStat(
+                  value: profile?.isVerified == true ? 'Yes' : '—',
+                  label: 'Verified',
+                  icon: Icons.verified_user_rounded,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ClientDailyCareLinks(staff: list),
+            Row(
+              children: [
+                Expanded(
+                  child: DsGradientButton(
+                    label: 'View profile',
+                    icon: Icons.badge_rounded,
+                    onPressed: () => context.push(ClientRoutes.staffProfile(staff.staffId)),
                   ),
                 ),
-              ),
-              SizedBox(height: 8),
-              Center(
-                child: Text(
-                  staff.series ?? '',
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF1A56FF),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DsOutlineButton(
+                    label: 'Attendance',
+                    icon: Icons.calendar_month_rounded,
+                    onPressed: () => context.push(ClientRoutes.staffAttendance(staff.staffId)),
                   ),
                 ),
+              ],
+            ),
+            DsSection(l10n.professionalProfile),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: dsCardDecoration(),
+              child: Text(
+                l10n.professionalProfileDesc,
+                style: GoogleFonts.plusJakartaSans(fontSize: 13.5, height: 1.55, color: const Color(0xFF374151)),
               ),
-              SizedBox(height: 16),
-              // Status row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            ),
+            DsSection(
+              l10n.workExperience,
+              trailing: TextButton(
+                onPressed: () => context.push(ClientRoutes.staffExperience(staff.staffId)),
+                child: Text('See all', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+              ),
+            ),
+            _TimelineEntry(
+              date: l10n.expDate1,
+              title: l10n.expTitle1,
+              company: l10n.expCompany1,
+              description: l10n.expDesc1,
+              active: true,
+              isLast: false,
+            ),
+            _TimelineEntry(
+              date: l10n.expDate2,
+              title: l10n.expTitle2,
+              company: l10n.expCompany2,
+              description: l10n.expDesc2,
+              isLast: true,
+            ),
+            DsSection(
+              l10n.expertiseSkills,
+              trailing: TextButton(
+                onPressed: () => context.push(ClientRoutes.staffSkills(staff.staffId)),
+                child: Text('See all', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+              ),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var i = 0; i < skills.length; i++)
+                  _SkillChip(label: skills[i])
+                      .animate(delay: (50 * i).ms)
+                      .fadeIn(duration: 250.ms)
+                      .scaleXY(begin: 0.85, end: 1, curve: Curves.easeOutBack),
+              ],
+            ),
+            DsSection(l10n.attendanceRecordLabel),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: dsCardDecoration(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    staff.status == 'ACTIVE_DEPLOYED' ? Icons.check_circle_outline : Icons.hourglass_empty_rounded,
-                    color: Color(0xFF1A56FF),
-                    size: 18,
-                  ),
-                  SizedBox(width: 4),
-                  Text(
-                    staff.status == 'ACTIVE_DEPLOYED' ? 'Actively Deployed' : 'On Trial',
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFF1A56FF),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (staff.staffCode != null && staff.staffCode!.isNotEmpty) ...[
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text('|', style: TextStyle(color: Colors.black26)),
-                    ),
-                    Text(
-                      staff.staffCode!,
-                      style: GoogleFonts.inter(
-                        color: context.colors.onSurfaceVariant,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              SizedBox(height: 40),
-              // Professional Profile
-              Text(
-                context.l10n.professionalProfile,
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 16,
-                  color: context.colors.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 16),
-              RichText(
-                text: TextSpan(
-                  children: [
-                    TextSpan(
-                      text: context.l10n.dDropcap,
-                      style: GoogleFonts.libreCaslonText(
-                        fontSize: 48,
-                        color: context.colors.onSurface,
-                        height: 1,
-                      ),
-                    ),
-                    TextSpan(
-                      text: context.l10n.professionalProfileDesc,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: context.colors.onSurfaceVariant,
-                        height: 1.6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 40),
-              // Work Experience
-              Text(
-                context.l10n.workExperience,
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 16,
-                  color: context.colors.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 24),
-              _TimelineItem(
-                date: context.l10n.expDate1,
-                title: context.l10n.expTitle1,
-                company: context.l10n.expCompany1,
-                description: context.l10n.expDesc1,
-                isLast: false,
-                isActive: true,
-              ),
-              _TimelineItem(
-                date: context.l10n.expDate2,
-                title: context.l10n.expTitle2,
-                company: context.l10n.expCompany2,
-                description: context.l10n.expDesc2,
-                isLast: true,
-                isActive: false,
-              ),
-              SizedBox(height: 32),
-              // Expertise & Skills
-              Text(
-                context.l10n.expertiseSkills,
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 16,
-                  color: context.colors.onSurface,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 12,
-                children: [
-                  _SkillChip(label: context.l10n.skill1),
-                  _SkillChip(label: context.l10n.skill2),
-                  _SkillChip(label: context.l10n.skill3),
-                  _SkillChip(label: context.l10n.skill4),
-                  _SkillChip(label: context.l10n.skill5),
-                  _SkillChip(label: context.l10n.skill6),
-                ],
-              ),
-              SizedBox(height: 40),
-              // Attendance Record
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: context.theme.cardColor,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      context.l10n.attendanceRecordLabel,
-                      style: GoogleFonts.libreCaslonText(
-                        fontSize: 16,
-                        color: context.colors.onSurface,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1A56FF).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Icon(
-                            Icons.calendar_month,
-                            color: Color(0xFF1A56FF),
-                            size: 20,
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          context.l10n.monthlyPunctuality,
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: context.colors.onSurface,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          attendancePercent != null ? '${attendancePercent.round()}%' : '—',
-                          style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: context.colors.onSurface,
+                  Row(
+                    children: [
+                      const DsIconTile(Icons.calendar_month_rounded, size: 40),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          l10n.monthlyPunctuality,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
+                            color: AppColors.lightTextPrimary,
                           ),
                         ),
-                      ],
-                    ),
-                    SizedBox(height: 24),
-                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                    SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        context.l10n.mon,
-                        context.l10n.tue,
-                        context.l10n.wed,
-                        context.l10n.thu,
-                        context.l10n.fri,
-                        context.l10n.sat,
-                        context.l10n.sun
-                      ].map((day) {
-                        return Text(
-                          day,
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: context.colors.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [true, true, true, true, true, false, false]
-                          .map((active) {
-                            return Container(
-                              width: 32,
-                              height: 32,
-                              color: active
-                                  ? const Color(0xFF1A56FF)
-                                  : Colors.grey.shade200,
-                            );
-                          })
-                          .toList(),
-                    ),
-                    SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [true, true, true, true, true, false, false]
-                          .map((active) {
-                            return Container(
-                              width: 32,
-                              height: 32,
-                              color: active
-                                  ? const Color(0xFF1A56FF)
-                                  : Colors.grey.shade200,
-                            );
-                          })
-                          .toList(),
-                    ),
-                    SizedBox(height: 32),
-                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
-                    SizedBox(height: 24),
-                    Text(
-                      context.l10n.recentActivity,
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        color: context.colors.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.0,
                       ),
+                      DsPill(
+                        profile?.attendancePercent != null ? '${profile!.attendancePercent!.round()}%' : '—',
+                        color: AppColors.success,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (recent.isEmpty)
+                    Text(
+                      'No attendance logged yet.',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.lightTextSecondary),
+                    )
+                  else
+                    _DayDots(records: recent),
+                  const Divider(height: 28, color: AppColors.lightBorder),
+                  Text(
+                    l10n.recentActivity,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.lightTextPrimary,
                     ),
-                    SizedBox(height: 16),
-                    _ActivityItem(
-                      title: context.l10n.activity1,
-                      time: context.l10n.activityTime1,
-                    ),
-                    SizedBox(height: 16),
-                    _ActivityItem(
-                      title: context.l10n.activity2,
-                      time: context.l10n.activityTime2,
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 10),
+                  _ActivityItem(title: l10n.activity1, time: l10n.activityTime1),
+                  const SizedBox(height: 10),
+                  _ActivityItem(title: l10n.activity2, time: l10n.activityTime2),
+                ],
               ),
-              SizedBox(height: 100), // padding for floating bottom nav
-            ],
-          );
+            ),
+          ];
         },
       ),
     );
   }
 }
 
-class _TimelineItem extends StatelessWidget {
-  const _TimelineItem({
+class _DayDots extends StatelessWidget {
+  const _DayDots({required this.records});
+  final List<ClientAttendanceRecord> records;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (var i = 0; i < records.length; i++)
+          Tooltip(
+            message: '${records[i].date} · ${records[i].status}',
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: _isAbsent(records[i].status)
+                    ? AppColors.error.withValues(alpha: 0.15)
+                    : _isLate(records[i].status)
+                        ? AppColors.warning
+                        : AppColors.primary,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(
+                _isAbsent(records[i].status) ? Icons.close_rounded : Icons.check_rounded,
+                size: 15,
+                color: _isAbsent(records[i].status) ? AppColors.error : Colors.white,
+              ),
+            ).animate(delay: (30 * i).ms).scaleXY(begin: 0.4, end: 1, curve: Curves.easeOutBack),
+          ),
+      ],
+    );
+  }
+}
+
+class _TimelineEntry extends StatelessWidget {
+  const _TimelineEntry({
     required this.date,
     required this.title,
     required this.company,
     required this.description,
     required this.isLast,
-    required this.isActive,
+    this.active = false,
   });
+
   final String date;
   final String title;
   final String company;
   final String description;
   final bool isLast;
-  final bool isActive;
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: isActive
-                    ? const Color(0xFF1A56FF)
-                    : Colors.grey.shade300,
-                shape: BoxShape.circle,
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 26,
+            child: Column(
+              children: [
+                const SizedBox(height: 18),
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.primary : Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.primary, width: 3),
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: dsCardDecoration(radius: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DsPill(date, color: active ? AppColors.primary : AppColors.lightTextSecondary),
+                  const SizedBox(height: 8),
+                  Text(
+                    title,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.lightTextPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      const Icon(Icons.business_rounded, size: 14, color: AppColors.iconAccent),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          company,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.lightTextSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (description.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      description,
+                      style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.5, color: const Color(0xFF374151)),
+                    ),
+                  ],
+                ],
               ),
             ),
-            if (!isLast)
-              Container(
-                width: 2,
-                height: 100,
-                color: Colors.grey.shade200,
-                margin: const EdgeInsets.symmetric(vertical: 4),
-              ),
-          ],
-        ),
-        SizedBox(width: 20),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                date,
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF1A56FF),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.0,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                title,
-                style: GoogleFonts.libreCaslonText(
-                  color: context.colors.onSurface,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                company,
-                style: GoogleFonts.inter(
-                  color: context.colors.onSurfaceVariant,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              SizedBox(height: 12),
-              Text(
-                description,
-                style: GoogleFonts.inter(
-                  color: context.colors.onSurfaceVariant,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-              if (!isLast) SizedBox(height: 32),
-            ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -492,18 +533,26 @@ class _SkillChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade200, // very light grey for chips
-        borderRadius: BorderRadius.circular(4),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: AppColors.lightBorder),
       ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          color: context.colors.onSurface,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_circle_rounded, size: 15, color: AppColors.iconAccent),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.lightTextPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -518,25 +567,28 @@ class _ActivityItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(Icons.circle_outlined, color: const Color(0xFF1A56FF), size: 14),
-        SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                color: context.colors.onSurface,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.primary, width: 2.5),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.lightTextPrimary,
             ),
-            SizedBox(height: 2),
-            Text(
-              time,
-              style: GoogleFonts.inter(color: context.colors.onSurfaceVariant, fontSize: 11),
-            ),
-          ],
+          ),
+        ),
+        Text(
+          time,
+          style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.lightTextSecondary),
         ),
       ],
     );
@@ -551,385 +603,80 @@ class ClientStaffProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(clientStaffProfileProvider(staffId));
+    final l10n = context.l10n;
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.colors.onSurface),
-          onPressed: () {
-            if (context.canPop()) context.pop();
-          },
-        ),
-        centerTitle: true,
-        title: Text(
-          'HomeGenny',
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
+    return DsPage(
+      title: l10n.staffProfile,
+      onBack: () => _staffBack(context),
+      onRefresh: () async => ref.invalidate(clientStaffProfileProvider(staffId)),
+      body: dsAsyncBody(
+        profile,
+        onRetry: () => ref.invalidate(clientStaffProfileProvider(staffId)),
+        builder: (s) => [
+          _StaffHero(
+            name: s.fullName,
+            subtitle: '${SeriesDisplay.label(s.series)} · ${s.staffCode}',
+            badge: s.isVerified ? 'Verified' : 'Verification pending',
+            badgeIcon: s.isVerified ? Icons.verified_rounded : Icons.hourglass_top_rounded,
+            stats: [
+              DsGlassStat(
+                value: s.isVerified ? 'Verified' : 'Pending',
+                label: 'Verification',
+                icon: Icons.verified_user_rounded,
+              ),
+              DsGlassStat(value: s.pvStatus, label: 'Police check', icon: Icons.security_rounded),
+            ],
           ),
-        ),
-      ),
-      body: profile.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (s) => ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          children: [
-            // Avatar
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: context.theme.cardColor,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: context.theme.dividerColor, width: 1),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.network(
-                    'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200',
-                    width: 140,
-                    height: 140,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: 24),
-            // Name and Title
-            Center(
-              child: Text(
-                s.fullName,
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 32,
-                  color: context.colors.onSurface,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            SizedBox(height: 4),
-            Center(
-              child: Text(
-                s.series,
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF9E7C5D),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
-            SizedBox(height: 32),
-            // Quick Stats
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: context.theme.cardColor,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: context.theme.dividerColor),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.02),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              s.isVerified ? Icons.verified_outlined : Icons.hourglass_empty_rounded,
-                              color: Color(0xFF1A56FF),
-                              size: 18,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              s.isVerified ? 'Verified' : 'Pending',
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: const Color(0xFF1A56FF),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'VERIFICATION',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            color: context.colors.onSurface,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: context.theme.cardColor,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: context.theme.dividerColor),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.02),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.security_outlined,
-                              color: Color(0xFF1A56FF),
-                              size: 18,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              s.pvStatus,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                color: const Color(0xFF1A56FF),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'PV STATUS',
-                          style: GoogleFonts.inter(
-                            fontSize: 10,
-                            color: context.colors.onSurface,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 32),
-            // Navigation Blocks
-            _NavCard(
-              icon: Icons.work_outline,
-              title: context.l10n.experience,
-              subtitle: context.l10n.yearsInCare,
-              onTap: () => context.push(ClientRoutes.staffExperience(staffId)),
-            ),
-            SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _NavCardSquare(
-                    icon: Icons.verified_outlined,
-                    title: context.l10n.skills,
-                    subtitle: context.l10n.specialized,
-                    onTap: () =>
-                        context.push(ClientRoutes.staffSkills(staffId)),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _NavCardSquare(
-                    icon: Icons.calendar_today_outlined,
-                    title: context.l10n.attendance,
-                    subtitle: context.l10n.attendanceRecordSub,
-                    onTap: () =>
-                        context.push(ClientRoutes.staffAttendance(staffId)),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _NavCardSquare(
-                    icon: Icons.insights,
-                    title: context.l10n.performance,
-                    subtitle: context.l10n.topTier,
-                    onTap: () =>
-                        context.push(ClientRoutes.staffPerformance(staffId)),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: _NavCardSquare(
-                    icon: Icons.person_remove_alt_1_outlined,
-                    title: context.l10n.replacement,
-                    subtitle: context.l10n.manage,
-                    onTap: () => context.push(ClientRoutes.replacementRequest),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-            SizedBox(height: 100), // padding for bottom nav if any
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NavCard extends StatelessWidget {
-  const _NavCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: context.theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: context.theme.dividerColor),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+          if (s.videoCertAvailable) ...[
+            const SizedBox(height: 14),
+            const DsNote(
+              tone: DsNoteTone.success,
+              title: 'Video certified',
+              text: 'This staff member has completed HomeGenny\'s video training.',
             ),
           ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FF),
-                borderRadius: BorderRadius.circular(12),
+          const DsSection('Explore'),
+          DsAdaptiveGrid(
+            children: [
+              DsListCard(
+                margin: EdgeInsets.zero,
+                icon: Icons.work_history_rounded,
+                title: l10n.experience,
+                subtitle: l10n.yearsInCare,
+                onTap: () => context.push(ClientRoutes.staffExperience(staffId)),
               ),
-              child: Icon(icon, color: const Color(0xFF1A56FF), size: 24),
-            ),
-            SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: context.colors.onSurface,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: const Color(0xFF1A56FF),
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
+              DsListCard(
+                margin: EdgeInsets.zero,
+                icon: Icons.psychology_rounded,
+                title: l10n.skills,
+                subtitle: l10n.specialized,
+                onTap: () => context.push(ClientRoutes.staffSkills(staffId)),
               ),
-            ),
-            Icon(Icons.chevron_right, color: Colors.black26),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NavCardSquare extends StatelessWidget {
-  const _NavCardSquare({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: context.theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: context.theme.dividerColor),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FF),
-                borderRadius: BorderRadius.circular(12),
+              DsListCard(
+                margin: EdgeInsets.zero,
+                icon: Icons.calendar_month_rounded,
+                title: l10n.attendance,
+                subtitle: l10n.attendanceRecordSub,
+                onTap: () => context.push(ClientRoutes.staffAttendance(staffId)),
               ),
-              child: Icon(icon, color: const Color(0xFF1A56FF), size: 22),
-            ),
-            SizedBox(height: 16),
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: context.colors.onSurface,
+              DsListCard(
+                margin: EdgeInsets.zero,
+                icon: Icons.insights_rounded,
+                title: l10n.performance,
+                subtitle: l10n.topTier,
+                onTap: () => context.push(ClientRoutes.staffPerformance(staffId)),
               ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: const Color(0xFF1A56FF),
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
+            ],
+          ),
+          const DsSection('Need a change?'),
+          DsListCard(
+            icon: Icons.swap_horiz_rounded,
+            iconColor: AppColors.error,
+            title: l10n.replacement,
+            subtitle: l10n.manage,
+            onTap: () => context.push(ClientRoutes.replacementRequest),
+          ),
+        ],
       ),
     );
   }
@@ -943,259 +690,81 @@ class ClientStaffExperienceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(clientStaffProfileProvider(staffId));
+    final l10n = context.l10n;
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.colors.onSurface),
-          onPressed: () {
-            if (context.canPop()) context.pop();
-          },
-        ),
-        centerTitle: true,
-        title: Text(
-          'HomeGenny',
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-      body: profile.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (s) => ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          children: [
-            Center(
-              child: Text(
-                context.l10n.curatedCareer,
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF9E7C5D), // A sophisticated brown/gold
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
-            SizedBox(height: 8),
-            Center(
-              child: Text(
-                context.l10n.profJourneyExp,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 32,
-                  color: context.colors.onSurface,
-                  fontWeight: FontWeight.w500,
-                  height: 1.1,
-                ),
-              ),
-            ),
-            SizedBox(height: 16),
-            Center(
-              child: Container(
-                width: 40,
-                height: 1,
-                color: context.theme.dividerColor,
-              ),
-            ),
-            SizedBox(height: 32),
-            // Journey Tags
-            Wrap(
-              spacing: 8,
-              runSpacing: 12,
-              alignment: WrapAlignment.center,
+    return DsPage(
+      title: l10n.experience,
+      subtitle: l10n.curatedCareer,
+      onBack: () => _staffBack(context),
+      onRefresh: () async => ref.invalidate(clientStaffProfileProvider(staffId)),
+      body: dsAsyncBody(
+        profile,
+        onRetry: () => ref.invalidate(clientStaffProfileProvider(staffId)),
+        builder: (s) => [
+          DsGradientCard(
+            child: Row(
               children: [
-                _JourneyTag(label: context.l10n.clinicalCare, isActive: true),
-                _JourneyTag(label: context.l10n.patientAdvocacy),
-                _JourneyTag(label: context.l10n.gerontology),
-                _JourneyTag(label: context.l10n.caseManagement),
-                _JourneyTag(label: context.l10n.medicationAdmin),
-              ],
-            ),
-            SizedBox(height: 40),
-            // Timeline
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: s.experience.length,
-              itemBuilder: (context, index) {
-                final exp = s.experience[index];
-                return _TimelineCard(
-                  dateRange: exp.duration, // usually "2018 - PRESENT" etc
-                  title: exp.title,
-                  company: exp.organization,
-                  description: exp.description,
-                  isLast: index == s.experience.length - 1,
-                );
-              },
-            ),
-            SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    Colors.black, // From the image, the button is black
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              child: Text(
-                context.l10n.downloadDossier,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
-            SizedBox(height: 16),
-            Center(
-              child: Text(
-                context.l10n.referencesAvailable,
-                style: GoogleFonts.inter(
-                  color: context.colors.onSurfaceVariant,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.0,
-                ),
-              ),
-            ),
-            SizedBox(height: 100),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _JourneyTag extends StatelessWidget {
-  const _JourneyTag({required this.label, this.isActive = false});
-  final String label;
-  final bool isActive;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: isActive ? const Color(0xFFF3E8DA) : Colors.white,
-        border: Border.all(
-          color: isActive ? const Color(0xFFDEBFA3) : Colors.grey.shade300,
-        ),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 10,
-          color: context.colors.onSurface,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-}
-
-class _TimelineCard extends StatelessWidget {
-  const _TimelineCard({
-    required this.dateRange,
-    required this.title,
-    required this.company,
-    required this.description,
-    this.isLast = false,
-  });
-  final String dateRange;
-  final String title;
-  final String company;
-  final String description;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: 24,
-            child: Column(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(color: context.colors.onSurface,
-                    shape: BoxShape.circle,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DsGlassPill('${s.experience.length} ROLES', icon: Icons.work_history_rounded),
+                      const SizedBox(height: 12),
+                      Text(
+                        l10n.profJourneyExp,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 20,
+                          height: 1.2,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        s.fullName,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                if (!isLast)
-                  Expanded(
-                    child: Container(width: 1, color: context.theme.dividerColor),
-                  ),
+                const SizedBox(width: 12),
+                const DsFloatingIconTile(icon: Icons.workspace_premium_rounded),
               ],
             ),
           ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 32),
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      dateRange.toUpperCase(),
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        color: const Color(0xFF9E7C5D),
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      title,
-                      style: GoogleFonts.libreCaslonText(
-                        fontSize: 20,
-                        color: context.colors.onSurface,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      company,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: const Color(0xFF9E7C5D),
-                        fontStyle: FontStyle.italic,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      description,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: context.colors.onSurfaceVariant,
-                        height: 1.6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          const DsSection('Focus areas'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              DsChoiceChip(label: l10n.clinicalCare, selected: true, onTap: () {}),
+              for (final t in [l10n.patientAdvocacy, l10n.gerontology, l10n.caseManagement, l10n.medicationAdmin])
+                _SkillChip(label: t),
+            ],
           ),
+          const DsSection('Journey'),
+          if (s.experience.isEmpty)
+            const DsEmptyBlock(
+              icon: Icons.work_off_rounded,
+              title: 'No experience listed',
+              message: 'Work history will appear here once it is added.',
+            )
+          else
+            for (var i = 0; i < s.experience.length; i++)
+              _TimelineEntry(
+                date: s.experience[i].duration,
+                title: s.experience[i].title,
+                company: s.experience[i].organization,
+                description: s.experience[i].description,
+                active: i == 0,
+                isLast: i == s.experience.length - 1,
+              ),
+          const SizedBox(height: 8),
+          DsNote(text: l10n.referencesAvailable),
         ],
       ),
     );
@@ -1207,345 +776,109 @@ class ClientStaffSkillsScreen extends ConsumerWidget {
   const ClientStaffSkillsScreen({super.key, required this.staffId});
   final String staffId;
 
+  static const _expertise = [
+    (
+      'Culinary & fine dining',
+      'Gourmet international cuisines, dietary specialisations including keto and vegan, and formal table service for entertaining.',
+      'Elite',
+      Icons.restaurant_rounded,
+      ['Cordon Bleu certified', 'Sommelier basics', 'Event management'],
+    ),
+    (
+      'Emergency response',
+      'Trauma response, paediatric CPR and chronic illness management, with complete discretion in health coordination.',
+      'Expert',
+      Icons.medical_services_rounded,
+      ['First aid', 'CPR certified'],
+    ),
+    (
+      'Estate stewardship',
+      'Specialist care for textiles, marble surfaces and art, plus wardrobe management and inventory of high-value perishables.',
+      'Elite',
+      Icons.cleaning_services_rounded,
+      ['Antique care', 'Organisation'],
+    ),
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(clientStaffProfileProvider(staffId));
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.colors.onSurface),
-          onPressed: () {
-            if (context.canPop()) context.pop();
-          },
-        ),
-        centerTitle: true,
-        title: Text(
-          'HomeGenny',
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
+    return DsPage(
+      title: context.l10n.skills,
+      subtitle: 'Expertise & specialised skills',
+      onBack: () => _staffBack(context),
+      onRefresh: () async => ref.invalidate(clientStaffProfileProvider(staffId)),
+      body: dsAsyncBody(
+        profile,
+        onRetry: () => ref.invalidate(clientStaffProfileProvider(staffId)),
+        builder: (s) => [
+          DsGradientCard(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const DsGlassPill('CURATION OF EXCELLENCE', icon: Icons.auto_awesome_rounded),
+                      const SizedBox(height: 12),
+                      Text(
+                        '${s.skills.length} verified ${s.skills.length == 1 ? 'skill' : 'skills'}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        s.fullName,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const DsFloatingIconTile(icon: Icons.psychology_rounded),
+              ],
+            ),
           ),
-        ),
-      ),
-      body: profile.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (s) => ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          children: [
-            Text(
-              'CURATION OF EXCELLENCE',
-              style: GoogleFonts.inter(
-                color: const Color(0xFF1A56FF),
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.5,
-              ),
+          if (s.skills.isNotEmpty) ...[
+            const DsSection('Verified skills'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var i = 0; i < s.skills.length; i++)
+                  _SkillChip(label: s.skills[i])
+                      .animate(delay: (40 * i).ms)
+                      .fadeIn(duration: 250.ms)
+                      .scaleXY(begin: 0.85, end: 1, curve: Curves.easeOutBack),
+              ],
             ),
-            SizedBox(height: 8),
-            Text(
-              'Expertise &\nSpecialized Skills',
-              style: GoogleFonts.libreCaslonText(
-                fontSize: 32,
-                color: const Color(0xFF1A56FF),
-                height: 1.1,
-              ),
-            ),
-            SizedBox(height: 16),
-            Container(width: 40, height: 1, color: context.theme.dividerColor),
-            SizedBox(height: 32),
-            // Category Scroll
-            SizedBox(
-              height: 100,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: const [
-                  _CategoryCard(icon: Icons.restaurant, label: 'COOKING'),
-                  SizedBox(width: 12),
-                  _CategoryCard(
-                    icon: Icons.elderly,
-                    label: 'ELDERLY CARE',
-                    isActive: true,
-                  ),
-                  SizedBox(width: 12),
-                  _CategoryCard(
-                    icon: Icons.cleaning_services,
-                    label: 'ESTATE CARE',
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 32),
-            // Detailed Cards
-            const _ExpertiseCard(
-              title: 'Culinary & Fine Dining',
-              description:
-                  'Mastery of gourmet international cuisines, dietary specialization including keto and vegan transitions, and formal table service for high-profile entertaining.',
-              level: 'ELITE LEVEL',
-              icon: Icons.restaurant,
-              tags: ['CORDON BLEU CERTIFIED', 'SOMMELIER BASICS', 'EVENT MGMT'],
-            ),
-            SizedBox(height: 16),
-            const _ExpertiseCard(
-              title: 'Emergency Response',
-              description:
-                  'Advanced trauma response, pediatric CPR, and chronic illness management. Absolute discretion in medical advocacy and health record coordination.',
-              level: 'EXPERT',
-              icon: Icons.medical_services,
-              tags: ['VIEW CERTIFICATIONS'],
-              isDark: true,
-            ),
-            SizedBox(height: 16),
-            // Third card layout
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: context.colors.surfaceVariant,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Estate Stewardship',
-                    style: GoogleFonts.libreCaslonText(
-                      fontSize: 22,
-                      color: const Color(0xFF1A56FF),
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Beyond cleaning—this is the preservation of luxury assets. Specialist care for rare textiles, marble surfaces, and museum-grade art collections.',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: context.colors.onSurfaceVariant,
-                      height: 1.5,
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_outline,
-                        size: 14,
-                        color: Color(0xFF1A56FF),
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Wardrobe management',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: const Color(0xFF1A56FF),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_outline,
-                        size: 14,
-                        color: Color(0xFF1A56FF),
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Inventory of high-value perishables',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: const Color(0xFF1A56FF),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: context.theme.cardColor,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'ANTIQUE CARE',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                color: const Color(0xFF1A56FF),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              'ELITE',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                color: const Color(0xFF1A56FF),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 8),
-                        const Divider(color: Color(0xFFE5E7EB)),
-                        SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'ORGANIZATION',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                color: const Color(0xFF1A56FF),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              'EXPERT',
-                              style: GoogleFonts.inter(
-                                fontSize: 10,
-                                color: const Color(0xFF1A56FF),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 40),
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FF),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    'Refine Your\nSearch',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.libreCaslonText(
-                      fontSize: 24,
-                      color: const Color(0xFF1A56FF),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Looking for a specific certification? Filter our pool of specialists to find the perfect match for your home\'s unique requirements.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: const Color(0xFF1A56FF).withOpacity(0.7),
-                      height: 1.5,
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A56FF),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: Text(
-                        'REQUEST SPECIALIST',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () {},
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF1A56FF),
-                        side: const BorderSide(
-                          color: Color(0xFF1A56FF),
-                          width: 1,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      child: Text(
-                        'DOWNLOAD CATALOG',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 100),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({
-    required this.icon,
-    required this.label,
-    this.isActive = false,
-  });
-  final IconData icon;
-  final String label;
-  final bool isActive;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 100,
-      decoration: BoxDecoration(
-        color: context.theme.cardColor,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: isActive ? const Color(0xFF1A56FF) : const Color(0xFFE5E7EB),
-          width: isActive ? 2 : 1,
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: const Color(0xFF1A56FF), size: 24),
-          SizedBox(height: 12),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              color: const Color(0xFF1A56FF),
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
+          const DsSection('Areas of expertise'),
+          DsAdaptiveGrid(
+            minItemWidth: 300,
+            children: [
+              for (var i = 0; i < _expertise.length; i++)
+                _ExpertiseCard(
+                  title: _expertise[i].$1,
+                  description: _expertise[i].$2,
+                  level: _expertise[i].$3,
+                  icon: _expertise[i].$4,
+                  tags: _expertise[i].$5,
+                  highlight: i == 1,
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          DsNote(
+            title: 'Looking for a specific certification?',
+            text: 'Ask your Relationship Manager — we can match a specialist to your home\'s needs.',
           ),
         ],
       ),
@@ -1560,115 +893,62 @@ class _ExpertiseCard extends StatelessWidget {
     required this.level,
     required this.icon,
     required this.tags,
-    this.isDark = false,
+    this.highlight = false,
   });
+
   final String title;
   final String description;
   final String level;
   final IconData icon;
   final List<String> tags;
-  final bool isDark;
+  final bool highlight;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1A56FF) : Colors.white,
-        borderRadius: BorderRadius.circular(4),
-        border: isDark ? null : Border.all(color: context.theme.dividerColor),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -20,
-            bottom: -20,
-            child: Icon(
-              icon,
-              size: 150,
-              color: isDark
-                  ? Colors.white.withOpacity(0.05)
-                  : const Color(0xFFF0F4FF),
+    final fg = highlight ? Colors.white : AppColors.lightTextPrimary;
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: highlight ? Colors.white : AppColors.iconAccentSoft,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: AppColors.iconAccent),
             ),
+            const Spacer(),
+            highlight ? DsGlassPill(level.toUpperCase()) : DsPill(level, color: AppColors.primary),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 16.5, fontWeight: FontWeight.w800, color: fg)),
+        const SizedBox(height: 6),
+        Text(
+          description,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            height: 1.5,
+            color: highlight ? Colors.white.withValues(alpha: 0.85) : const Color(0xFF374151),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withOpacity(0.2)
-                      : const Color(0xFFF0F4FF),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  level,
-                  style: GoogleFonts.inter(
-                    fontSize: 9,
-                    color: isDark ? Colors.white : const Color(0xFF1A56FF),
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-              Text(
-                title,
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 22,
-                  color: isDark ? Colors.white : const Color(0xFF1A56FF),
-                ),
-              ),
-              SizedBox(height: 12),
-              Text(
-                description,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.9)
-                      : Colors.black54,
-                  height: 1.5,
-                ),
-              ),
-              SizedBox(height: 24),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: tags.map((tag) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.transparent
-                          : const Color(0xFFF9FAFB),
-                      border: Border.all(
-                        color: isDark
-                            ? Colors.white.withOpacity(0.5)
-                            : const Color(0xFFE5E7EB),
-                      ),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      tag,
-                      style: GoogleFonts.inter(
-                        fontSize: 9,
-                        color: isDark ? Colors.white : const Color(0xFF1A56FF),
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final t in tags)
+              highlight ? DsGlassPill(t.toUpperCase()) : DsPill(t, color: AppColors.iconAccent),
+          ],
+        ),
+      ],
     );
+
+    if (highlight) return DsGradientCard(padding: const EdgeInsets.all(16), radius: 22, child: body);
+    return Container(padding: const EdgeInsets.all(16), decoration: dsCardDecoration(), child: body);
   }
 }
 
@@ -1680,447 +960,147 @@ class ClientStaffAttendanceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(clientAttendanceHistoryProvider);
-    final profile = ref.watch(clientStaffProfileProvider(staffId));
+    final profile = ref.watch(clientStaffProfileProvider(staffId)).valueOrNull;
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.menu, color: Color(0xFF000101)),
-          onPressed: () {
-            if (context.canPop()) context.pop();
-          },
-        ),
-        centerTitle: true,
-        title: Text(
-          'HOMEGENNY',
-          style: GoogleFonts.libreCaslonText(
-            color: const Color(0xFF000101),
-            fontSize: 24,
-            letterSpacing: 2.0,
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFC5C6CA).withOpacity(0.3)),
-              ),
-              child: ClipOval(
-                child: Image.network(
-                  'https://lh3.googleusercontent.com/aida-public/AB6AXuCxtVzxlyV3icOcviLju7HptJMxuDFi8wgrt2z913KhU_vhM3UbG2et7RXuJI3IVwIpoQkgAauyGqecm97ffSLLIXxxJHcmrHk9oEpM9hUtwx1GX3fJFYLj4qspXtLFvVSRXnnmf7STG2lsb4ViwAQ8Z87ct8pldMuXeGP3apmGtEX0wfEfhf8_JLKNfox7_nA8dCAn-nAemGtAcgntbwP_t7dPvCpQTUCWyy73GMyTUqsMa8tgeiNi',
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-        ],
+    return DsPage(
+      title: context.l10n.attendance,
+      subtitle: profile?.fullName,
+      onBack: () => _staffBack(context),
+      onRefresh: () async {
+        ref.invalidate(clientAttendanceHistoryProvider);
+        ref.invalidate(clientStaffProfileProvider(staffId));
+      },
+      bottom: DsGradientButton(
+        label: 'Raise an issue',
+        icon: Icons.flag_rounded,
+        onPressed: () => context.push(ClientRoutes.attendanceRaiseIssue),
       ),
-      body: profile.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (s) => ListView(
-          padding: const EdgeInsets.only(top: 24, bottom: 100),
-          children: [
-            // Efficiency Visualization
-            Center(
-              child: Container(
-                width: 256,
-                height: 256,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFFE2E2E5).withOpacity(0.4),
-                      const Color(0xFFFBF9F8).withOpacity(0),
-                    ],
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: SizedBox(
-                        width: 220,
-                        height: 220,
-                        child: CircularProgressIndicator(
-                          value: (s.attendancePercent ?? 0) / 100,
-                          strokeWidth: 2,
-                          backgroundColor: const Color(0xFFE9E8E7),
-                          color: const Color(0xFF000101),
-                        ),
-                      ),
-                    ),
-                    Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'EFFICIENCY',
-                            style: GoogleFonts.manrope(
-                              fontSize: 12,
-                              color: const Color(0xFF735A3A).withOpacity(0.7),
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.96,
-                            ),
-                          ),
-                          Text(
-                            s.attendancePercent != null ? '${s.attendancePercent!.round()}%' : '—',
-                            style: GoogleFonts.libreCaslonText(
-                              fontSize: 40,
-                              color: const Color(0xFF000101),
-                              letterSpacing: -0.8,
-                            ),
-                          ),
-                          Text(
-                            'PRESENT',
-                            style: GoogleFonts.manrope(
-                              fontSize: 12,
-                              color: const Color(0xFF735A3A),
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.96,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-            // Summary Chips
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      body: dsAsyncBody(
+        history,
+        onRetry: () => ref.invalidate(clientAttendanceHistoryProvider),
+        builder: (list) {
+          final late = list.where((r) => _isLate(r.status)).length;
+          final absent = list.where((r) => _isAbsent(r.status)).length;
+          final onTime = list.length - late - absent;
+          final percent = profile?.attendancePercent ??
+              (list.isEmpty ? null : (onTime + late) / list.length * 100);
+
+          return [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: dsCardDecoration(),
               child: Row(
                 children: [
+                  _Ring(
+                    value: (percent ?? 0) / 100,
+                    label: percent != null ? '${percent.round()}%' : '—',
+                    caption: 'PRESENT',
+                    color: AppColors.success,
+                  ),
+                  const SizedBox(width: 18),
                   Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: context.theme.cardColor.withOpacity(0.4),
-                        border: Border.all(color: const Color(0xFFC5C6CA).withOpacity(0.3)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Positioned(
-                            left: -24,
-                            top: -24,
-                            bottom: -24,
-                            child: Container(
-                              width: 4,
-                              color: const Color(0xFF000101),
-                            ),
-                          ),
-                          Center(
-                            child: Column(
-                              children: [
-                                Text(
-                                  'ON TIME',
-                                  style: GoogleFonts.manrope(
-                                    fontSize: 12,
-                                    color: const Color(0xFF735A3A),
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.96,
-                                  ),
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  '21 DAYS',
-                                  style: GoogleFonts.libreCaslonText(
-                                    fontSize: 22,
-                                    color: const Color(0xFF000101),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: context.theme.cardColor.withOpacity(0.4),
-                        border: Border.all(color: const Color(0xFFC5C6CA).withOpacity(0.3)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Positioned(
-                            left: -24,
-                            top: -24,
-                            bottom: -24,
-                            child: Container(
-                              width: 4,
-                              color: const Color(0xFF735A3A),
-                            ),
-                          ),
-                          Center(
-                            child: Column(
-                              children: [
-                                Text(
-                                  'DELAYED',
-                                  style: GoogleFonts.manrope(
-                                    fontSize: 12,
-                                    color: const Color(0xFF735A3A),
-                                    fontWeight: FontWeight.w700,
-                                    letterSpacing: 0.96,
-                                  ),
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  '02 DAYS',
-                                  style: GoogleFonts.libreCaslonText(
-                                    fontSize: 22,
-                                    color: const Color(0xFF735A3A),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                    child: Column(
+                      children: [
+                        _StatLine(color: AppColors.success, label: 'On time', value: '$onTime days'),
+                        const SizedBox(height: 10),
+                        _StatLine(color: AppColors.warning, label: 'Delayed', value: '$late days'),
+                        const SizedBox(height: 10),
+                        _StatLine(color: AppColors.error, label: 'Absent', value: '$absent days'),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-
-            // Record Listing
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Recent Logs',
-                        style: GoogleFonts.libreCaslonText(
-                          fontSize: 22,
-                          color: const Color(0xFF000101),
-                        ),
-                      ),
-                      Container(
-                        decoration: BoxDecoration(
-                          border: Border(bottom: BorderSide(color: const Color(0xFF735A3A).withOpacity(0.3))),
-                        ),
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          'VIEW ALL',
-                          style: GoogleFonts.manrope(
-                            fontSize: 12,
-                            color: const Color(0xFF735A3A),
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.96,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-                  
-                  // History List
-                  history.when(
-                    loading: () => const DsLoadingWidget(),
-                    error: (_, __) => const DsErrorState(title: 'Error'),
-                    data: (list) {
-                      return ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: list.length,
-                        separatorBuilder: (_, __) => SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final r = list[index];
-                          final isLate = r.status == 'Late';
-
-                          return Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: context.theme.cardColor.withOpacity(0.4),
-                              border: Border.all(color: const Color(0xFFC5C6CA).withOpacity(0.3)),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      r.date,
-                                      style: GoogleFonts.manrope(
-                                        fontSize: 16,
-                                        color: const Color(0xFF000101),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      'LOGGED',
-                                      style: GoogleFonts.manrope(
-                                        fontSize: 10,
-                                        color: const Color(0xFF735A3A),
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 0.96,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          r.checkIn ?? '--',
-                                          style: GoogleFonts.manrope(
-                                            fontSize: 14,
-                                            color: isLate ? const Color(0xFF735A3A) : const Color(0xFF000101),
-                                            fontWeight: FontWeight.w600,
-                                            letterSpacing: 0.7,
-                                          ),
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          '/',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: const Color(0xFFC5C6CA),
-                                          ),
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          r.checkOut ?? '--',
-                                          style: GoogleFonts.manrope(
-                                            fontSize: 14,
-                                            color: isLate ? const Color(0xFF735A3A) : const Color(0xFF000101),
-                                            fontWeight: FontWeight.w600,
-                                            letterSpacing: 0.7,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      'IN / OUT',
-                                      style: GoogleFonts.manrope(
-                                        fontSize: 10,
-                                        color: const Color(0xFF735A3A),
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 0.8,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: isLate ? Colors.transparent : const Color(0xFF000101),
-                                    border: isLate ? Border.all(color: const Color(0xFF735A3A)) : null,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Text(
-                                    isLate ? 'DELAYED' : 'ON TIME',
-                                    style: GoogleFonts.manrope(
-                                      fontSize: 10,
-                                      color: isLate ? const Color(0xFF735A3A) : Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ],
-              ),
+            DsSection('Recent logs', trailing: DsPill('${list.length}')),
+            if (list.isEmpty)
+              const DsEmptyBlock(
+                icon: Icons.event_busy_rounded,
+                title: 'No logs yet',
+                message: 'Attendance logs will appear here after the first shift.',
+              )
+            else
+              for (var i = 0; i < list.length; i++)
+                _LogCard(record: list[i])
+                    .animate(delay: (40 * i.clamp(0, 10)).ms)
+                    .fadeIn(duration: 280.ms)
+                    .slideX(begin: 0.05, end: 0),
+            const SizedBox(height: 6),
+            const DsNote(
+              title: 'Notice a discrepancy?',
+              text: 'If attendance records don\'t match what you saw, raise an issue and we\'ll audit it.',
             ),
-            SizedBox(height: 48),
+          ];
+        },
+      ),
+    );
+  }
+}
 
-            // CTA Section
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1B1C1B),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black26,
-                    blurRadius: 32,
-                    offset: Offset(0, 16),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.report_problem_outlined,
-                    color: Color(0xFFFFDDB6),
-                    size: 36,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Notice a discrepancy?',
-                    style: GoogleFonts.libreCaslonText(
-                      fontSize: 22,
-                      color: const Color(0xFFE3E2E0),
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    'If your attendance records don\'t align with your logs, please raise an issue for audit.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.manrope(
-                      fontSize: 16,
-                      color: const Color(0xFF838486),
-                      height: 1.5,
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () => context.push(ClientRoutes.attendanceRaiseIssue),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFDDB6),
-                      foregroundColor: const Color(0xFF291801),
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      'RAISE ISSUE',
-                      style: GoogleFonts.manrope(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.7,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+class _StatLine extends StatelessWidget {
+  const _StatLine({required this.color, required this.label, required this.value});
+  final Color color;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.lightTextSecondary),
+          ),
         ),
+        Text(
+          value,
+          style: GoogleFonts.plusJakartaSans(fontSize: 13.5, fontWeight: FontWeight.w800, color: AppColors.lightTextPrimary),
+        ),
+      ],
+    );
+  }
+}
+
+class _LogCard extends StatelessWidget {
+  const _LogCard({required this.record});
+  final ClientAttendanceRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = record;
+    final (color, label, icon) = _isAbsent(r.status)
+        ? (AppColors.error, 'Absent', Icons.cancel_rounded)
+        : _isLate(r.status)
+            ? (AppColors.warning, 'Delayed', Icons.schedule_rounded)
+            : (AppColors.success, 'On time', Icons.check_circle_rounded);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: dsCardDecoration(radius: 20),
+      child: Row(
+        children: [
+          DsIconTile(icon, color: color, size: 42),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  r.date,
+                  style: GoogleFonts.plusJakartaSans(fontSize: 14.5, fontWeight: FontWeight.w800, color: AppColors.lightTextPrimary),
+                ),
+                Text(
+                  'In ${r.checkIn ?? '—'}  ·  Out ${r.checkOut ?? '—'}',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
+                ),
+              ],
+            ),
+          ),
+          DsPill(label, color: color),
+        ],
       ),
     );
   }
@@ -2135,350 +1115,174 @@ class ClientStaffPerformanceScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(clientStaffProfileProvider(staffId));
 
-    return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new_rounded, color: context.colors.onSurface),
-          onPressed: () {
-            if (context.canPop()) context.pop();
-          },
-        ),
-        centerTitle: true,
-        title: Text(
-          'HOMEGENNY',
-          style: GoogleFonts.libreCaslonText(
-            color: context.colors.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundImage: const NetworkImage(
-                'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150',
-              ),
-              backgroundColor: Colors.grey.shade200,
-            ),
-          ),
-        ],
-      ),
-      body: profile.when(
-        loading: () => const DsLoadingWidget(),
-        error: (_, __) => const DsErrorState(title: 'Error'),
-        data: (s) => ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          children: [
-            Center(
-              child: Text(
-                'INTERNAL REPORT',
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF9E7C5D),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
-            SizedBox(height: 8),
-            Center(
-              child: Text(
-                'Service\nExcellence',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 36,
-                  color: context.colors.onSurface,
-                  height: 1.1,
-                ),
-              ),
-            ),
-            SizedBox(height: 16),
-            Center(
-              child: Text(
-                'Quantifying performance across all luxury\ntouchpoints.',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: context.colors.onSurfaceVariant,
-                  height: 1.5,
-                ),
-              ),
-            ),
-            SizedBox(height: 48),
-            // Circular Gauge
-            Center(
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                clipBehavior: Clip.none,
+    return DsPage(
+      title: context.l10n.performance,
+      subtitle: 'Service excellence report',
+      onBack: () => _staffBack(context),
+      onRefresh: () async => ref.invalidate(clientStaffProfileProvider(staffId)),
+      body: dsAsyncBody(
+        profile,
+        onRetry: () => ref.invalidate(clientStaffProfileProvider(staffId)),
+        builder: (s) {
+          final score = s.performanceScore;
+          return [
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
+              decoration: dsCardDecoration(),
+              child: Column(
                 children: [
-                  SizedBox(
-                    width: 220,
-                    height: 220,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: CircularProgressIndicator(
-                            value: s.performanceScore != null ? s.performanceScore! / 5 : 0,
-                            strokeWidth: 3,
-                            backgroundColor: Colors.grey.shade200,
-                            color: context.colors.onSurface,
-                          ),
-                        ),
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                s.performanceScore != null ? s.performanceScore!.toStringAsFixed(1) : '—',
-                                style: GoogleFonts.libreCaslonText(
-                                  fontSize: 64,
-                                  color: context.colors.onSurface,
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.0,
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                'SCORE / 5',
-                                style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  color: const Color(0xFF9E7C5D),
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                  _Ring(
+                    value: score != null ? score / 5 : 0,
+                    label: score != null ? score.toStringAsFixed(1) : '—',
+                    caption: 'SCORE / 5',
+                    size: 150,
                   ),
-                  Positioned(
-                    bottom: -16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.star, color: context.theme.cardColor,
-                            size: 14,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'ELITE PARTNER',
-                            style: GoogleFonts.inter(
-                              color: context.theme.cardColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      for (var i = 0; i < 5; i++)
+                        Icon(
+                          score != null && i < score.round() ? Icons.star_rounded : Icons.star_outline_rounded,
+                          color: AppColors.sunYellow,
+                          size: 26,
+                        ).animate(delay: (100 * i).ms).scaleXY(begin: 0, end: 1, curve: Curves.elasticOut, duration: 600.ms),
+                    ],
                   ),
+                  const SizedBox(height: 10),
+                  if (score != null && score >= 4.5)
+                    const DsPill('Elite partner', color: AppColors.secondary, icon: Icons.workspace_premium_rounded),
                 ],
               ),
             ),
-            SizedBox(height: 56),
-            // Summary Cards
+            const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 24,
-                      horizontal: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: context.theme.dividerColor),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.schedule,
-                          color: Color(0xFF9E7C5D),
-                          size: 20,
-                        ),
-                        SizedBox(height: 12),
-                        Text(
-                          s.attendancePercent != null ? '${s.attendancePercent!.round()}%' : '—',
-                          style: GoogleFonts.libreCaslonText(
-                            fontSize: 24,
-                            color: context.colors.onSurface,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'PUNCTUALITY',
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            color: context.colors.onSurface,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: _MetricTile(
+                    icon: Icons.schedule_rounded,
+                    value: s.attendancePercent != null ? '${s.attendancePercent!.round()}%' : '—',
+                    label: 'Punctuality',
                   ),
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 24,
-                      horizontal: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: context.theme.dividerColor),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.speed,
-                          color: Color(0xFF9E7C5D),
-                          size: 20,
-                        ),
-                        SizedBox(height: 12),
-                        Text(
-                          '2h',
-                          style: GoogleFonts.libreCaslonText(
-                            fontSize: 24,
-                            color: context.colors.onSurface,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'RESPONSE\nTIME',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            fontSize: 9,
-                            color: context.colors.onSurface,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.0,
-                            height: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
+                  child: _MetricTile(
+                    icon: Icons.reviews_rounded,
+                    value: '${s.reviews.length}',
+                    label: 'Reviews',
                   ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: _MetricTile(icon: Icons.speed_rounded, value: '2h', label: 'Response'),
                 ),
               ],
             ),
-            SizedBox(height: 48),
-            // Recent Reviews
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recent Reviews',
-                  style: GoogleFonts.libreCaslonText(
-                    fontSize: 22,
-                    color: context.colors.onSurface,
-                  ),
-                ),
-                Text(
-                  'VIEW ALL',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    color: const Color(0xFF9E7C5D),
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 24),
+            DsSection('Recent reviews', trailing: DsPill('${s.reviews.length}')),
             if (s.reviews.isEmpty)
-              Text(
-                'No reviews yet.',
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: context.colors.onSurfaceVariant,
-                ),
-              ),
-            ...s.reviews.map(
-              (r) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: context.theme.cardColor,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: context.theme.dividerColor),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          ...List.generate(
-                            5,
-                            (i) => Icon(
-                              i < r.rating.round()
-                                  ? Icons.star_rounded
-                                  : Icons.star_outline_rounded,
-                              color: const Color(0xFF9E7C5D),
-                              size: 14,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            r.date.toUpperCase(),
-                            style: GoogleFonts.inter(
-                              fontSize: 9,
-                              color: context.colors.onSurfaceVariant,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        '"${r.comment}"',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: context.colors.onSurface,
-                          fontStyle: FontStyle.italic,
-                          height: 1.6,
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        '— ${r.reviewerName.toUpperCase()}',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          color: const Color(0xFF9E7C5D),
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              const DsEmptyBlock(
+                icon: Icons.rate_review_rounded,
+                title: 'No reviews yet',
+                message: 'Reviews from your household will show up here.',
+              )
+            else
+              for (final r in s.reviews) _ReviewCard(review: r),
+          ];
+        },
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({required this.icon, required this.value, required this.label});
+  final IconData icon;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      decoration: dsCardDecoration(radius: 20),
+      child: Column(
+        children: [
+          DsIconTile(icon, size: 38),
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.lightTextPrimary),
             ),
-            SizedBox(height: 100),
-          ],
-        ),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w600, color: AppColors.lightTextSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewCard extends StatelessWidget {
+  const _ReviewCard({required this.review});
+  final ClientReview review;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = review;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: dsCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              DsInitialsAvatar(name: r.reviewerName, size: 38),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      r.reviewerName,
+                      style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.lightTextPrimary),
+                    ),
+                    Text(r.date, style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: AppColors.lightTextSecondary)),
+                  ],
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < 5; i++)
+                    Icon(
+                      i < r.rating.round() ? Icons.star_rounded : Icons.star_outline_rounded,
+                      color: AppColors.sunYellow,
+                      size: 16,
+                    ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '“${r.comment}”',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 13.5,
+              height: 1.55,
+              fontStyle: FontStyle.italic,
+              color: const Color(0xFF374151),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../../core/extensions/context_extensions.dart';
@@ -9,6 +8,7 @@ import '../../../../../core/router/app_routes.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
+import '../../../../../core/series/series_catalog.dart';
 
 class StaffProfileScreen extends ConsumerWidget {
   const StaffProfileScreen({super.key});
@@ -16,421 +16,128 @@ class StaffProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(staffProfileProvider);
-    final authUser = ref.watch(authProvider).user;
-    final completionPct = ref.watch(staffDashboardProvider).valueOrNull?.completionPct ?? 0;
+    final completionPct =
+        ref.watch(staffDashboardProvider).valueOrNull?.completionPct ?? 0;
+    final l10n = context.l10n;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F8),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Color(0xFF1A56FF),
-          ),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            }
-          },
-        ),
-        centerTitle: true,
-        title: Text(
-          context.l10n.profile,
-          style: GoogleFonts.inter(
-            color: const Color(0xFF0F172A),
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Color(0xFF1A56FF)),
-            onPressed: () => context.push(StaffRoutes.settings),
-          ),
-        ],
-      ),
       body: profileAsync.when(
         loading: () => const DsLoadingWidget(),
         error: (e, _) => DsErrorState(
-          title: context.l10n.errorLoadingProfile,
+          title: l10n.errorLoadingProfile,
           onRetry: () => ref.invalidate(staffProfileProvider),
         ),
-        data: (profile) => ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            // Profile Header
-            Center(
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      image: const DecorationImage(
-                        image: NetworkImage(
-                          'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=400',
-                        ),
-                        fit: BoxFit.cover,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A56FF),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.edit,
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                  ),
-                ],
+        data: (profile) => DsProfileView(
+          title: l10n.profile,
+          name: profile.fullName,
+          role: SeriesDisplay.label(profile.series),
+          idLabel: 'Staff code',
+          idValue: profile.staffCode,
+          tagline: 'HomeGenny Pro',
+          onBack: context.canPop() ? () => context.pop() : null,
+          onSettings: () => context.push(StaffRoutes.settings),
+          facts: [
+            if (profile.mobile.isNotEmpty)
+              DsProfileFact(
+                icon: Icons.phone_rounded,
+                label: 'Mobile',
+                value: profile.mobile,
               ),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Text(
-                profile.fullName,
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF0F172A),
-                ),
+            if (profile.email.isNotEmpty)
+              DsProfileFact(
+                icon: Icons.mail_rounded,
+                label: 'Email',
+                value: profile.email,
               ),
+            DsProfileFact(
+              icon: Icons.route_rounded,
+              label: 'Stage',
+              value: profile.pipelineStage
+                  .replaceAll('_', ' ')
+                  .toLowerCase()
+                  .split(' ')
+                  .where((w) => w.isNotEmpty)
+                  .map((w) => w[0].toUpperCase() + w.substring(1))
+                  .join(' '),
             ),
-            const SizedBox(height: 4),
-            Center(
-              child: Text(
-                profile.series.toUpperCase(),
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF64748B),
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Profile Completion Card
-            GestureDetector(
-              onTap: () => context.push(StaffRoutes.profileCompletion),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 24,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFF7ED), // Soft orange bg
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.verified_user_outlined,
-                            color: Color(0xFFF97316),
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                context.l10n.profileCompletion,
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF0F172A),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                context.l10n.unlockPremiumFeatures,
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Text(
-                          '$completionPct%',
-                          style: GoogleFonts.inter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF1A56FF),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Stack(
-                      children: [
-                        Container(
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: completionPct / 100,
-                          child: Container(
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1A56FF),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Management Modules
-            Text(
-              context.l10n.managementModules,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF64748B),
-                letterSpacing: 1.5,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            _ModuleTile(
-              icon: Icons.description_outlined,
-              iconColor: const Color(0xFF1A56FF),
-              iconBgColor: const Color(0xFFEFF6FF),
-              title: context.l10n.documents,
-              subtitle: context.l10n.verifiedIdTaxForms,
-              onTap: () => context.push(StaffRoutes.documents),
-            ),
-            _ModuleTile(
-              icon: Icons.school_outlined,
-              iconColor: const Color(0xFFF97316),
-              iconBgColor: const Color(0xFFFFF7ED),
-              title: context.l10n.training,
-              subtitle: context.l10n.modulesInProgress,
-              onTap: () => context.push(StaffRoutes.training),
-            ),
-            _ModuleTile(
-              icon: Icons.videocam_outlined,
-              iconColor: const Color(0xFF0EA5E9),
-              iconBgColor: const Color(0xFFF0F9FF),
-              title: context.l10n.videoCertification,
-              subtitle: context.l10n.awaitingSubmission,
-              onTap: () => context.push(StaffRoutes.videoCertification),
-            ),
-            _ModuleTile(
-              icon: Icons.edit_document,
-              iconColor: const Color(0xFFEF4444),
-              iconBgColor: const Color(0xFFFEF2F2),
-              title: context.l10n.agreement,
-              subtitle: context.l10n.signatureRequired,
-              subtitleColor: const Color(0xFFEF4444),
-              onTap: () => context.push(StaffRoutes.agreement),
-            ),
-            _ModuleTile(
-              icon: Icons.location_on_outlined,
-              iconColor: const Color(0xFF10B981),
-              iconBgColor: const Color(0xFFECFDF5),
-              title: context.l10n.deployment,
-              subtitle: context.l10n.viewCurrentAssignment,
-              onTap: () => context.push(StaffRoutes.deployment),
-            ),
-            _ModuleTile(
-              icon: Icons.payments_outlined,
-              iconColor: const Color(0xFFEAB308),
-              iconBgColor: const Color(0xFFFEFCE8),
-              title: context.l10n.salary,
-              subtitle: context.l10n.financialOverview,
-              onTap: () => context.push(StaffRoutes.salary),
-            ),
-            _ModuleTile(
-              icon: Icons.support_agent_outlined,
-              iconColor: const Color(0xFF8B5CF6),
-              iconBgColor: const Color(0xFFF5F3FF),
-              title: context.l10n.helpSupport,
-              subtitle: context.l10n.conciergeAssistance,
-              onTap: () => context.push(StaffRoutes.help),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Bottom Actions
-            GestureDetector(
-              onTap: () => context.push(StaffRoutes.settings),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.settings_outlined,
-                    color: Color(0xFF64748B),
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    context.l10n.systemSettings,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            GestureDetector(
-              onTap: () async {
-                await ref.read(authProvider.notifier).logout();
-                if (context.mounted) context.go(AppRoutes.login);
-              },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.logout_rounded,
-                    color: Color(0xFFEF4444),
-                    size: 18,
-                  ),
-                  // const SizedBox(width: 8),
-                  Text(
-                    context.l10n.logoutFromDevice,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFFEF4444),
-                    ),
-                  ),
-                  const SizedBox(width: 18),
-                ],
-              ),
-            ),
-            const SizedBox(height: 68),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ModuleTile extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBgColor;
-  final String title;
-  final String subtitle;
-  final Color? subtitleColor;
-  final VoidCallback onTap;
-
-  const _ModuleTile({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    this.subtitleColor,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
+          highlight: DsProfileProgressCard(
+            percent: completionPct,
+            title: l10n.profileCompletion,
+            subtitle: l10n.unlockPremiumFeatures,
+            onTap: () => context.push(StaffRoutes.profileCompletion),
           ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: iconBgColor,
-                  borderRadius: BorderRadius.circular(10),
+          sections: [
+            DsProfileSection(
+              title: l10n.managementModules,
+              items: [
+                DsProfileMenuItem(
+                  icon: Icons.description_rounded,
+                  title: l10n.documents,
+                  subtitle: l10n.verifiedIdTaxForms,
+                  onTap: () => context.push(StaffRoutes.documents),
                 ),
-                child: Icon(icon, color: iconColor, size: 22),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: subtitleColor ?? const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
+                DsProfileMenuItem(
+                  icon: Icons.school_rounded,
+                  title: l10n.training,
+                  subtitle: l10n.modulesInProgress,
+                  onTap: () => context.push(StaffRoutes.training),
                 ),
-              ),
-              const Icon(
-                Icons.chevron_right,
-                color: Color(0xFF94A3B8),
-                size: 20,
-              ),
-            ],
-          ),
+                DsProfileMenuItem(
+                  icon: Icons.videocam_rounded,
+                  title: l10n.videoCertification,
+                  subtitle: l10n.awaitingSubmission,
+                  onTap: () => context.push(StaffRoutes.videoCertification),
+                ),
+                DsProfileMenuItem(
+                  icon: Icons.edit_document,
+                  title: l10n.agreement,
+                  subtitle: l10n.signatureRequired,
+                  badge: 'Action needed',
+                  urgent: true,
+                  onTap: () => context.push(StaffRoutes.agreement),
+                ),
+              ],
+            ),
+            DsProfileSection(
+              title: 'Work & pay',
+              items: [
+                DsProfileMenuItem(
+                  icon: Icons.location_on_rounded,
+                  title: l10n.deployment,
+                  subtitle: l10n.viewCurrentAssignment,
+                  onTap: () => context.push(StaffRoutes.deployment),
+                ),
+                DsProfileMenuItem(
+                  icon: Icons.payments_rounded,
+                  title: l10n.salary,
+                  subtitle: l10n.financialOverview,
+                  onTap: () => context.push(StaffRoutes.salary),
+                ),
+              ],
+            ),
+            DsProfileSection(
+              title: 'Support',
+              items: [
+                DsProfileMenuItem(
+                  icon: Icons.support_agent_rounded,
+                  title: l10n.helpSupport,
+                  subtitle: l10n.conciergeAssistance,
+                  onTap: () => context.push(StaffRoutes.help),
+                ),
+                DsProfileMenuItem(
+                  icon: Icons.settings_rounded,
+                  title: l10n.systemSettings,
+                  onTap: () => context.push(StaffRoutes.settings),
+                ),
+              ],
+            ),
+          ],
+          logoutLabel: l10n.logoutFromDevice,
+          onLogout: () async {
+            await ref.read(authProvider.notifier).logout();
+            if (context.mounted) context.go(AppRoutes.login);
+          },
         ),
       ),
     );

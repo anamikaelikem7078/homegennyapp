@@ -250,6 +250,7 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
       formData: FormData.fromMap({
         'name': name,
         'type': type,
+        'document_type': type,
         'file': multipartFile,
       }),
     );

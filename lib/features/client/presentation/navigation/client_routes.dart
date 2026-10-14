@@ -39,6 +39,21 @@ abstract final class ClientRoutes {
   static const String replacementRequest = '/client/replacement/request';
   static const String replacementStatus = '/client/replacement/status';
 
+  // Staff requests
+  static const String staffRequests = '/client/staff-requests';
+  static const String staffRequestNew = '/client/staff-requests/new';
+  static String staffRequestDetail(String id) => '/client/staff-requests/$id';
+
+  // Daily care (per placement)
+  static String careHome(String pid) => '/client/care/$pid';
+  static String carePlan(String pid) => '/client/care/$pid/plan';
+  static String careHistory(String pid) => '/client/care/$pid/history';
+  static String menu(String pid) => '/client/care/$pid/menu';
+  static String meals(String pid) => '/client/care/$pid/meals';
+  static const String foodProfile = '/client/food-profile';
+  static String instructions(String pid) => '/client/care/$pid/instructions';
+  static String instructionNew(String pid) => '/client/care/$pid/instructions/new';
+
   // Profile
   static const String personalDetails = '/client/profile/personal';
   static const String address = '/client/profile/address';

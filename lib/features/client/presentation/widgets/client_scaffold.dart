@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../../core/extensions/context_extensions.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/extensions/context_extensions.dart';
 import '../../../../design_system/design_system.dart';
 import '../../../../design_system/widgets/layout/ds_role_layout.dart';
 import '../../domain/models/client_models.dart';
@@ -22,7 +23,7 @@ class ClientPageScaffold extends DsPageScaffold {
   }) : super(useGradient: true);
 }
 
-/// Premium client navigation tile.
+/// Client navigation tile — white rounded card, orange icon tile.
 class ClientMenuTile extends StatelessWidget {
   const ClientMenuTile({
     super.key,
@@ -45,59 +46,77 @@ class ClientMenuTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: context.theme.cardColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.black12),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: context.colors.surfaceVariant,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: accentColor ?? Colors.black87, size: 24),
-            ),
-            SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                      color: context.colors.onSurface,
-                    ),
+    final accent = accentColor ?? AppColors.iconAccent;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: AppDecorations.softCard(context),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: AppDecorations.iconTile(color: accent, radius: 14),
+                  child: Icon(icon, color: accent, size: 22),
+                ),
+                SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: context.colors.onSurface,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle!,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: context.colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  if (subtitle != null) ...[
-                    SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: TextStyle(color: context.colors.onSurfaceVariant,
+                ),
+                if (badge != null) badge!,
+                trailing ??
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: const BoxDecoration(
+                        color: AppColors.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.secondary,
+                        size: 20,
                       ),
                     ),
-                  ],
-                ],
-              ),
+              ],
             ),
-            if (badge != null) badge!,
-            trailing ?? Icon(Icons.info, color: context.colors.onSurfaceVariant),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
+/// Section header — bold title with a short orange accent bar.
 class ClientSectionHeader extends StatelessWidget {
   const ClientSectionHeader({super.key, required this.title});
   final String title;
@@ -106,20 +125,35 @@ class ClientSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(bottom: AppSpacing.md, top: AppSpacing.sm),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: context.colors.onSurfaceVariant,
-          letterSpacing: 1.2,
-        ),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 18,
+            decoration: BoxDecoration(
+              color: AppColors.iconAccent,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+                color: context.colors.onSurface,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Premium KPI card for client dashboard.
+/// KPI card for the client dashboard.
 class ClientKpiCard extends StatelessWidget {
   const ClientKpiCard({
     super.key,
@@ -140,64 +174,59 @@ class ClientKpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = color ?? AppColors.iconAccent;
     return Semantics(
       button: onTap != null,
       label: '$label: $value',
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: context.theme.cardColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.black12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 8,
-                spreadRadius: 1,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+          padding: EdgeInsets.all(AppSpacing.lg),
+          decoration: AppDecorations.softCard(context),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: color?.withValues(alpha: 0.2) ?? Colors.orange.shade100.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Icon(icon, color: context.colors.onSurface, size: 20),
+                width: 40,
+                height: 40,
+                decoration: AppDecorations.iconTile(color: accent),
+                child: Icon(icon, color: accent, size: 21),
               ),
               SizedBox(height: AppSpacing.md),
               Text(
                 value,
-                style: GoogleFonts.playfairDisplay(
+                style: GoogleFonts.plusJakartaSans(
                   fontSize: 22,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
                   color: context.colors.onSurface,
                 ),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
-                label.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                   color: context.colors.onSurfaceVariant,
-                  letterSpacing: 0.5,
                 ),
               ),
               if (subtitle != null) ...[
-                SizedBox(height: 6),
-                Text(
-                  subtitle!,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: color ?? Colors.brown.shade700,
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    subtitle!,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
               ],
@@ -205,11 +234,11 @@ class ClientKpiCard extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ).animate().fadeIn(duration: 350.ms).slideY(begin: 0.15, end: 0);
   }
 }
 
-/// Assigned staff hero card for premium home UI.
+/// Assigned staff hero card — blue gradient card with on-duty pulse.
 class ClientStaffHeroCard extends StatelessWidget {
   const ClientStaffHeroCard({
     super.key,
@@ -235,15 +264,13 @@ class ClientStaffHeroCard extends StatelessWidget {
       child: Container(
         padding: EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          color: context.theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange.shade200, width: 1.5),
+          gradient: AppColors.brandGradient,
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 15,
-              spreadRadius: 2,
-              offset: const Offset(0, 5),
+              color: AppColors.primary.withValues(alpha: 0.3),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
@@ -253,20 +280,29 @@ class ClientStaffHeroCard extends StatelessWidget {
               children: [
                 Stack(
                   children: [
-                    DsHeroAvatar(tag: heroTag, name: name, radius: 26),
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: AppColors.sunYellow,
+                        shape: BoxShape.circle,
+                      ),
+                      child: DsHeroAvatar(tag: heroTag, name: name, radius: 26),
+                    ),
                     if (isOnDuty)
                       Positioned(
-                        bottom: 0,
-                        right: 0,
+                        bottom: 1,
+                        right: 1,
                         child: Container(
                           width: 14,
                           height: 14,
                           decoration: BoxDecoration(
-                            color: Colors.green.shade600,
+                            color: const Color(0xFF22C55E),
                             shape: BoxShape.circle,
-                            border: Border.all(color: context.theme.cardColor, width: 2),
+                            border: Border.all(color: Colors.white, width: 2),
                           ),
-                        ),
+                        )
+                            .animate(onPlay: (c) => c.repeat(reverse: true))
+                            .scaleXY(begin: 1, end: 1.2, duration: 900.ms),
                       ),
                   ],
                 ),
@@ -275,58 +311,100 @@ class ClientStaffHeroCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              name,
-                              style: GoogleFonts.playfairDisplay(
-                                color: context.colors.onSurface,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: context.colors.surfaceVariant,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              isOnDuty ? 'ON DUTY' : 'OFF DUTY',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: context.colors.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         series,
-                        style: TextStyle(color: context.colors.onSurfaceVariant, fontSize: 13),
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isOnDuty
+                        ? const Color(0xFF22C55E).withValues(alpha: 0.2)
+                        : Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isOnDuty
+                          ? const Color(0xFF4ADE80)
+                          : Colors.white.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    isOnDuty ? 'On duty' : 'Off duty',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: isOnDuty ? const Color(0xFFBBF7D0) : Colors.white,
+                    ),
                   ),
                 ),
               ],
             ),
             SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Icon(Icons.badge_outlined, color: context.colors.onSurface, size: 18),
-                SizedBox(width: 4),
-                Text(staffCode, style: TextStyle(color: context.colors.onSurface, fontSize: 13)),
-                const Spacer(),
-                Icon(Icons.info, color: context.colors.onSurfaceVariant),
-              ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.badge_rounded,
+                    color: AppColors.sunYellow,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    staffCode,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'View profile',
+                    style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
-    );
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 }
 

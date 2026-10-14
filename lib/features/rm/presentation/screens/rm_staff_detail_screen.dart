@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
-import '../../../../design_system/foundations/rm_theme.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 import '../../../../core/presentation/async_value_widget.dart';
+import '../../../../design_system/foundations/rm_theme.dart';
+import '../../../../design_system/widgets/buttons/ds_buttons.dart';
 import '../../domain/models/pipeline_stage.dart';
 import '../../domain/models/rm_models.dart';
 import '../navigation/rm_routes.dart';
 import '../providers/rm_providers.dart';
 import '../widgets/advance_stage_action.dart';
+import '../widgets/rm_stage_ui.dart';
 
 /// Stage-aware staff detail hub — every action here depends on the staff's
 /// real `pipeline_stage` and placement status; the screen never shows every
@@ -27,350 +31,313 @@ class RmStaffDetailScreen extends ConsumerWidget {
     final asyncStaff = ref.watch(staffByIdProvider(staffId));
     final staff = asyncStaff.maybeWhen(data: (d) => d, orElse: () => initialStaff);
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(
+    if (staff == null) {
+      return Scaffold(
         backgroundColor: RmTheme.offWhite,
-        elevation: 0,
-        title: Text('Staff Details', style: RmTheme.headline(context).copyWith(fontSize: 18)),
-        centerTitle: true,
-      ),
-      body: staff == null
-          ? AsyncValueWidget<StaffRow?>(
-              value: asyncStaff,
-              onRetry: () => ref.invalidate(staffByIdProvider(staffId)),
-              builder: (data) => data == null
-                  ? const Center(child: Text('Staff not found'))
-                  : _StaffDetailBody(staff: data),
-            )
-          : RefreshIndicator(
-              onRefresh: () async => ref.invalidate(staffByIdProvider(staffId)),
-              child: _StaffDetailBody(staff: staff),
-            ),
-    );
+        appBar: AppBar(title: const Text('Staff details')),
+        body: AsyncValueWidget<StaffRow?>(
+          value: asyncStaff,
+          onRetry: () => ref.invalidate(staffByIdProvider(staffId)),
+          builder: (data) => data == null
+              ? const Center(child: Text('Staff not found'))
+              : _StaffDetailView(staff: data),
+        ),
+      );
+    }
+    return _StaffDetailView(staff: staff);
   }
 }
 
-class _StaffDetailBody extends ConsumerWidget {
-  const _StaffDetailBody({required this.staff});
+class _StaffDetailView extends ConsumerWidget {
+  const _StaffDetailView({required this.staff});
   final StaffRow staff;
+
+  // Ranked on the full flow so the indices below stay stable whether or not
+  // S2.5 is shown.
+  int get _idx => PipelineStages.orderWithS25.indexOf(staff.pipelineStage);
+
+  /// S2.5 is switched off; show its tile only for a staff member still in it.
+  bool get _showS25 => staff.pipelineStage == PipelineStages.s25Assess;
+
+  RmStepState _stateFor(int stageIndex) {
+    if (_idx > stageIndex) return RmStepState.done;
+    if (_idx == stageIndex) return RmStepState.active;
+    return RmStepState.pending;
+  }
+
+  String? _statusFor(int stageIndex) => switch (_stateFor(stageIndex)) {
+        RmStepState.done => 'Completed',
+        RmStepState.active => 'In progress',
+        _ => 'Up next',
+      };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final placementAsync = ref.watch(staffPlacementProvider(staff.id));
+    final primary = _buildPrimaryAction(context, placementAsync);
 
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildProfileSummary(context),
-          const SizedBox(height: 16),
-          _buildStageProgress(context),
-          const SizedBox(height: 16),
-          _buildSectionCard(
-            context,
-            title: 'Verification · S2_VERIFY',
-            status: staff.pvStatus == null ? 'Not started' : 'PV: ${staff.pvStatus}',
-            done: PipelineStages.order.indexOf(staff.pipelineStage) > 1,
-            onTap: () => context.push(RmRoutes.verificationDashboard(staff.id)),
-          ),
-          _buildSectionCard(
-            context,
-            title: 'Assessment · S2.5',
-            status: staff.pipelineStage == PipelineStages.s25Assess ? 'In progress' : null,
-            done: PipelineStages.order.indexOf(staff.pipelineStage) > 2,
-            onTap: () => context.push(RmRoutes.stage25Assessment(staff.id)),
-          ),
-          _buildSectionCard(
-            context,
-            title: 'Training · S3',
-            status: staff.pipelineStage == PipelineStages.s3Train ? 'In progress' : null,
-            done: PipelineStages.order.indexOf(staff.pipelineStage) > 3,
-            onTap: () => context.push(RmRoutes.stage3Training(staff.id)),
-          ),
-          _buildSectionCard(
-            context,
-            title: 'Agreements · S4',
-            status: staff.pipelineStage == PipelineStages.s4Agreements ? 'In progress' : null,
-            done: PipelineStages.order.indexOf(staff.pipelineStage) > 4,
-            onTap: () => context.push(RmRoutes.stage4Hub(staff.id)),
-          ),
-          const SizedBox(height: 16),
-          _buildPlacementSection(context, ref, placementAsync),
-          const SizedBox(height: 16),
-          _buildQuickLinks(context),
-          const SizedBox(height: 24),
-          _buildPrimaryAction(context, ref, placementAsync),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileSummary(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: RmTheme.sophisticatedShadow,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(color: RmTheme.electricBlue.withOpacity(0.1), shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: Text(staff.initials, style: GoogleFonts.libreCaslonText(fontSize: 28, color: RmTheme.electricBlue)),
-          ),
-          const SizedBox(height: 16),
-          Text(staff.fullName, style: RmTheme.headline(context).copyWith(color: RmTheme.electricBlue, fontSize: 18), textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          Wrap(
-            alignment: WrapAlignment.center,
+    return RmStageScaffold(
+      title: 'Staff details',
+      onRefresh: () async => ref.invalidate(staffByIdProvider(staff.id)),
+      bottom: primary,
+      body: [
+        RmStaffBanner(
+          staff: staff,
+          extra: Wrap(
             spacing: 8,
-            runSpacing: 4,
+            runSpacing: 8,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: RmTheme.textSecondary.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                child: Text(staff.staffCode, style: RmTheme.label(context).copyWith(color: RmTheme.electricBlue, fontSize: 12)),
-              ),
-              Text(staff.mobile, style: RmTheme.body(context).copyWith(fontSize: 12)),
-              Text(StaffSeries.label(staff.series), style: RmTheme.body(context).copyWith(fontSize: 12)),
+              RmBannerChip(icon: Icons.phone_rounded, label: staff.mobile),
+              if (staff.pvStatus != null)
+                RmBannerChip(
+                  icon: Icons.shield_rounded,
+                  label: 'PV ${rmTitleCase(staff.pvStatus!)}',
+                ),
             ],
           ),
+        ),
+        if (staff.pipelineStage == PipelineStages.terminal) ...[
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: _stageBgColor(staff.pipelineStage).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _stageBgColor(staff.pipelineStage).withOpacity(0.3)),
-            ),
-            child: Text(
-              PipelineStages.label(staff.pipelineStage),
-              style: RmTheme.label(context).copyWith(color: _stageBgColor(staff.pipelineStage), fontSize: 11, fontWeight: FontWeight.w700),
-            ),
+          RmNote(
+            tone: RmNoteTone.danger,
+            title: 'Exited the pipeline',
+            text: 'Terminal outcome: ${staff.terminalOutcome ?? 'unspecified'}',
           ),
         ],
-      ),
-    );
-  }
-
-  Color _stageBgColor(String stage) {
-    if (stage == PipelineStages.terminal) return RmTheme.crimsonDanger;
-    if (stage == PipelineStages.deferred) return RmTheme.amberWarning;
-    if (stage == PipelineStages.s5Deploy) return RmTheme.emeraldGreen;
-    return RmTheme.electricBlue;
-  }
-
-  Widget _buildStageProgress(BuildContext context) {
-    if (staff.pipelineStage == PipelineStages.terminal) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: RmTheme.crimsonDanger.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: RmTheme.crimsonDanger.withOpacity(0.2)),
+        if (staff.pipelineStage == PipelineStages.deferred) ...[
+          const SizedBox(height: 16),
+          const RmNote(
+            tone: RmNoteTone.warning,
+            title: 'Deferred',
+            text: 'Resume from the Deferred queue to continue the pipeline.',
+          ),
+        ],
+        const RmSectionTitle(title: 'Pipeline steps'),
+        RmStepTile(
+          code: 'S2',
+          icon: rmStageIcon(PipelineStages.s2Verify),
+          title: 'Verification',
+          subtitle: staff.pvStatus == null
+              ? 'Identity, police & medical checks'
+              : 'Police verification: ${rmTitleCase(staff.pvStatus!)}',
+          state: _stateFor(1),
+          statusLabel: _statusFor(1),
+          onTap: () => context.push(RmRoutes.verificationDashboard(staff.id)),
         ),
-        child: Row(
+        if (_showS25) RmStepTile(
+          code: 'S2.5',
+          icon: rmStageIcon(PipelineStages.s25Assess),
+          title: 'Assessment',
+          subtitle: 'Practical skills check',
+          state: _stateFor(2),
+          statusLabel: _statusFor(2),
+          onTap: () => context.push(RmRoutes.stage25Assessment(staff.id)),
+        ),
+        RmStepTile(
+          code: 'S3',
+          icon: rmStageIcon(PipelineStages.s3Train),
+          title: 'Training',
+          subtitle: 'Modules & video certification',
+          state: _stateFor(3),
+          statusLabel: _statusFor(3),
+          onTap: () => context.push(RmRoutes.stage3Training(staff.id)),
+        ),
+        RmStepTile(
+          code: 'S4',
+          icon: rmStageIcon(PipelineStages.s4Agreements),
+          title: 'Agreements',
+          subtitle: 'Employment agreement e-sign',
+          state: _stateFor(4),
+          statusLabel: _statusFor(4),
+          onTap: () => context.push(RmRoutes.stage4Hub(staff.id)),
+        ),
+        _buildPlacement(context, placementAsync),
+        const RmSectionTitle(title: 'Records'),
+        Row(
           children: [
-            const Icon(Icons.block, color: RmTheme.crimsonDanger),
+            Expanded(
+              child: _QuickLink(
+                icon: Icons.report_rounded,
+                label: 'Incidents',
+                hint: 'Logged issues',
+                onTap: () => context.push(RmRoutes.staffIncidents(staff.id)),
+              ),
+            ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                'Terminal outcome: ${staff.terminalOutcome ?? 'unspecified'}',
-                style: RmTheme.body(context).copyWith(color: RmTheme.crimsonDanger, fontWeight: FontWeight.w600),
+              child: _QuickLink(
+                icon: Icons.event_available_rounded,
+                label: 'Attendance',
+                hint: 'Days & invoice',
+                onTap: () => context.push(RmRoutes.staffInvoicePreview(staff.id)),
               ),
             ),
           ],
         ),
-      );
-    }
-    if (staff.pipelineStage == PipelineStages.deferred) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: RmTheme.amberWarning.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: RmTheme.amberWarning.withOpacity(0.2)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.pause_circle_outline, color: RmTheme.amberWarning),
-            const SizedBox(width: 12),
-            const Expanded(child: Text('Deferred — resume from the Deferred queue to continue the pipeline.')),
-          ],
-        ),
-      );
-    }
-    final currentIndex = PipelineStages.order.indexOf(staff.pipelineStage);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: RmTheme.cardSurface, borderRadius: BorderRadius.circular(16), boxShadow: RmTheme.sophisticatedShadow),
-      child: Row(
-        children: [
-          for (var i = 0; i < PipelineStages.order.length; i++) ...[
-            Expanded(
-              child: Container(
-                height: 6,
-                decoration: BoxDecoration(
-                  color: i <= currentIndex ? RmTheme.electricBlue : RmTheme.borderSubtle,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-            ),
-            if (i < PipelineStages.order.length - 1) const SizedBox(width: 4),
-          ],
-        ],
-      ),
+      ],
     );
   }
 
-  Widget _buildSectionCard(BuildContext context, {required String title, String? status, required bool done, required VoidCallback onTap}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: RmTheme.borderSubtle)),
-            child: Row(
-              children: [
-                Icon(
-                  done ? Icons.check_circle : Icons.radio_button_unchecked,
-                  color: done ? RmTheme.emeraldGreen : RmTheme.textSecondary,
-                  size: 22,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: RmTheme.label(context).copyWith(fontWeight: FontWeight.w600, fontSize: 14)),
-                      if (status != null) Text(status, style: RmTheme.body(context).copyWith(fontSize: 12)),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right, color: RmTheme.textSecondary),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPlacementSection(BuildContext context, WidgetRef ref, AsyncValue<PlacementRow?> placementAsync) {
+  Widget _buildPlacement(BuildContext context, AsyncValue<PlacementRow?> placementAsync) {
     return placementAsync.when(
-      loading: () => const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: LinearProgressIndicator()),
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: LinearProgressIndicator(),
+      ),
       error: (e, _) => const SizedBox.shrink(),
       data: (placement) {
         if (placement == null) {
-          if (staff.pipelineStage != PipelineStages.s5Deploy) return const SizedBox.shrink();
-          return _buildSectionCard(
-            context,
+          if (staff.pipelineStage != PipelineStages.s5Deploy) {
+            return const SizedBox.shrink();
+          }
+          return RmStepTile(
+            code: 'S5',
+            icon: Icons.handshake_rounded,
             title: 'Placement',
-            status: 'Ready for placement — no placement created yet',
-            done: false,
+            subtitle: 'Ready for placement — none created yet',
+            state: RmStepState.active,
+            statusLabel: 'Action needed',
             onTap: () => context.push(RmRoutes.stage5Hub(staff.id)),
           );
         }
-        return _buildSectionCard(
-          context,
-          title: 'Placement · ${placement.status}',
-          status: placement.isTrial
-              ? 'TRIAL — pending confirmation'
+        return RmStepTile(
+          code: 'S5',
+          icon: Icons.handshake_rounded,
+          title: 'Placement',
+          subtitle: placement.isTrial
+              ? 'Trial — pending confirmation'
               : placement.isConfirmed
-                  ? 'CONFIRMED — attendance & invoicing unlocked'
-                  : placement.status,
-          done: placement.isConfirmed,
+                  ? 'Confirmed — attendance & invoicing unlocked'
+                  : rmTitleCase(placement.status),
+          state: placement.isConfirmed ? RmStepState.done : RmStepState.warning,
+          statusLabel: rmTitleCase(placement.status),
           onTap: () => context.push(RmRoutes.placementDetail(placement.id), extra: staff.id),
         );
       },
     );
   }
 
-  Widget _buildQuickLinks(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => context.push(RmRoutes.staffIncidents(staff.id)),
-            icon: const Icon(Icons.report_problem_outlined, size: 18),
-            label: const Text('Incidents'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => context.push(RmRoutes.staffInvoicePreview(staff.id)),
-            icon: const Icon(Icons.event_available_outlined, size: 18),
-            label: const Text('Attendance'),
-          ),
-        ),
-      ],
-    );
-  }
+  Widget? _buildPrimaryAction(BuildContext context, AsyncValue<PlacementRow?> placementAsync) {
+    Widget go(String label, VoidCallback onTap, {IconData? icon}) =>
+        DsGradientButton(label: label, icon: icon, onPressed: onTap);
 
-  Widget _buildPrimaryAction(BuildContext context, WidgetRef ref, AsyncValue<PlacementRow?> placementAsync) {
     switch (staff.pipelineStage) {
       case PipelineStages.s1Intake:
         return AdvanceStageButton(
           staffId: staff.id,
           fromStage: staff.pipelineStage,
           toStage: PipelineStages.s2Verify,
-          label: 'Complete Intake',
+          label: 'Complete intake',
           reasonCode: 'INTAKE_COMPLETE',
         );
       case PipelineStages.s2Verify:
-        return FilledButton(
-          onPressed: () => context.push(RmRoutes.verificationDashboard(staff.id)),
-          style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue, minimumSize: const Size.fromHeight(52)),
-          child: const Text('Continue Verification'),
-        );
+        return go('Continue verification',
+            () => context.push(RmRoutes.verificationDashboard(staff.id)));
       case PipelineStages.s25Assess:
-        return FilledButton(
-          onPressed: () => context.push(RmRoutes.stage25Assessment(staff.id)),
-          style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue, minimumSize: const Size.fromHeight(52)),
-          child: const Text('Continue Assessment'),
-        );
+        return go('Continue assessment',
+            () => context.push(RmRoutes.stage25Assessment(staff.id)));
       case PipelineStages.s3Train:
-        return FilledButton(
-          onPressed: () => context.push(RmRoutes.stage3Training(staff.id)),
-          style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue, minimumSize: const Size.fromHeight(52)),
-          child: const Text('Continue Training'),
-        );
+        return go('Continue training',
+            () => context.push(RmRoutes.stage3Training(staff.id)));
       case PipelineStages.s4Agreements:
-        return FilledButton(
-          onPressed: () => context.push(RmRoutes.stage4Hub(staff.id)),
-          style: FilledButton.styleFrom(backgroundColor: RmTheme.electricBlue, minimumSize: const Size.fromHeight(52)),
-          child: const Text('Continue Agreements'),
-        );
+        return go('Continue agreements',
+            () => context.push(RmRoutes.stage4Hub(staff.id)));
       case PipelineStages.s5Deploy:
         final placement = placementAsync.valueOrNull;
+        const green = LinearGradient(colors: [Color(0xFF34D399), Color(0xFF059669)]);
         if (placement == null) {
-          return FilledButton(
+          return DsGradientButton(
+            label: 'Create placement',
+            icon: Icons.handshake_rounded,
+            gradient: green,
             onPressed: () => context.push(RmRoutes.stage5Hub(staff.id)),
-            style: FilledButton.styleFrom(backgroundColor: RmTheme.emeraldGreen, minimumSize: const Size.fromHeight(52)),
-            child: const Text('Create Placement'),
           );
         }
-        return FilledButton(
-          onPressed: () => context.push(RmRoutes.placementDetail(placement.id), extra: staff.id),
-          style: FilledButton.styleFrom(backgroundColor: RmTheme.emeraldGreen, minimumSize: const Size.fromHeight(52)),
-          child: Text(placement.isTrial ? 'Manage Trial Placement' : 'View Placement'),
+        return DsGradientButton(
+          label: placement.isTrial ? 'Manage trial placement' : 'View placement',
+          gradient: green,
+          onPressed: () =>
+              context.push(RmRoutes.placementDetail(placement.id), extra: staff.id),
         );
       default:
-        return const SizedBox.shrink();
+        return null;
     }
+  }
+}
+
+class _QuickLink extends StatelessWidget {
+  const _QuickLink({
+    required this.icon,
+    required this.label,
+    required this.hint,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String hint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: RmTheme.borderSubtle.withValues(alpha: 0.7)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: RmTheme.iconAccentSoft,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, size: 20, color: RmTheme.iconAccent),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: RmTheme.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      hint,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: RmTheme.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

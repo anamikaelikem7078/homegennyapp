@@ -39,7 +39,7 @@ class AsyncValueWidget<T> extends StatelessWidget {
         }
         return DsErrorState(
           title: errorTitle ?? context.l10n.errorGeneric,
-          message: error.toString(),
+          message: error is Failure ? error.message : error.toString(),
           onRetry: onRetry,
         );
       },

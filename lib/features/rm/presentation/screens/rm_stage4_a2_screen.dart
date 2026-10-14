@@ -10,6 +10,7 @@ import '../../../../design_system/foundations/rm_theme.dart';
 import '../../domain/models/pipeline_stage.dart';
 import '../../domain/models/rm_models.dart';
 import '../providers/rm_providers.dart';
+import '../widgets/rm_stage_ui.dart';
 
 /// A2 — Scope of Work. A placement-scoped document (`POST /sow`), tied to
 /// the TRIAL placement created right after A1 is signed — not an
@@ -108,149 +109,40 @@ class _RmStage4A2ScreenState extends ConsumerState<RmStage4A2Screen> {
 
   @override
   Widget build(BuildContext context) {
-    final sowAsync = ref.watch(rmSowListProvider(widget.placementId));
-    final staffAsync = ref.watch(staffByIdProvider(widget.staffId));
+    final listAsync = ref.watch(rmSowListProvider(widget.placementId));
+    final staff = ref.watch(staffByIdProvider(widget.staffId)).valueOrNull;
 
-    return Scaffold(
-      backgroundColor: RmTheme.offWhite,
-      appBar: AppBar(
-        backgroundColor: RmTheme.offWhite,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: RmTheme.textPrimary),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          'A2 · Scope of Work',
-          style: RmTheme.headline(context).copyWith(fontSize: 18),
-        ),
-      ),
-      body: staffAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (staff) {
-          final staffName = staff?.fullName ?? widget.staffId;
-          final staffCode = staff?.staffCode;
-          final staffSeries = staff != null ? StaffSeries.label(staff.series).toUpperCase() : null;
-
-          return sowAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('$e')),
-            data: (items) {
-              final sow = _latest(items);
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Premium Staff Header Card
-                    _buildStaffHeader(staffName, staffCode, staffSeries),
-                    const SizedBox(height: 20),
-
-                    // Document Card / View
-                    if (sow == null)
-                      _buildCreateCard()
-                    else
-                      _buildDocumentDetailCard(sow),
-
-                    if (_error != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: RmTheme.crimsonDanger.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: RmTheme.crimsonDanger.withOpacity(0.2)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline, color: RmTheme.crimsonDanger, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _error!,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: RmTheme.crimsonDanger,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ).animate().shake(duration: 400.ms),
-                    ],
-                  ],
-                ),
-              );
-            },
-          );
+    return RmStageScaffold(
+      title: 'A2 · Scope of work',
+      stageCode: 'S5',
+      stageColor: rmStageColor(PipelineStages.s5Deploy),
+      onBack: () => context.pop(),
+      onRefresh: () async => ref.invalidate(rmSowListProvider(widget.placementId)),
+      body: rmAsyncBody(
+        listAsync,
+        onRetry: () => ref.invalidate(rmSowListProvider(widget.placementId)),
+        builder: (items) {
+          final doc = _latest(items);
+          return [
+            if (staff != null)
+              RmStaffBanner(staff: staff, showTracker: false)
+            else
+              const SizedBox(
+                height: 80,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            RmSectionTitle(title: doc == null ? 'Create document' : 'Document'),
+            if (doc == null) _buildCreateCard() else _buildDocumentDetailCard(doc),
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              RmNote(tone: RmNoteTone.danger, title: 'Something went wrong', text: _error!)
+                  .animate()
+                  .shake(duration: 400.ms),
+            ],
+          ];
         },
       ),
     );
-  }
-
-  Widget _buildStaffHeader(String name, String? code, String? series) {
-    final firstLetter = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: RmTheme.cardSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: RmTheme.borderSubtle.withOpacity(0.5),
-          width: 1.5,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: RmTheme.electricBlue.withOpacity(0.1),
-            child: Text(
-              firstLetter,
-              style: GoogleFonts.inter(
-                color: RmTheme.electricBlue,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.inter(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 17,
-                    color: RmTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${code ?? "ID: " + widget.staffId}${series != null ? " • $series" : ""}',
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: RmTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.02, end: 0, duration: 400.ms);
   }
 
   Widget _buildCreateCard() {
@@ -273,7 +165,7 @@ class _RmStage4A2ScreenState extends ConsumerState<RmStage4A2Screen> {
         children: [
           Text(
             'Create Scope of Work',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontWeight: FontWeight.w700,
               fontSize: 15.5,
               color: RmTheme.textPrimary,
@@ -291,7 +183,7 @@ class _RmStage4A2ScreenState extends ConsumerState<RmStage4A2Screen> {
           const SizedBox(height: 14),
           Text(
             'Define clear job responsibilities, working hours, and schedules below for the trial period.',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               color: RmTheme.textSecondary,
               fontSize: 13,
               height: 1.4,
@@ -301,10 +193,10 @@ class _RmStage4A2ScreenState extends ConsumerState<RmStage4A2Screen> {
           TextField(
             controller: _contentController,
             maxLines: 5,
-            style: GoogleFonts.inter(fontSize: 14.5, color: RmTheme.textPrimary),
+            style: GoogleFonts.plusJakartaSans(fontSize: 14.5, color: RmTheme.textPrimary),
             decoration: InputDecoration(
               hintText: 'Describe details such as task lists, weekly schedules, specific timings...',
-              hintStyle: GoogleFonts.inter(color: RmTheme.textSecondary.withOpacity(0.5), fontSize: 13.5),
+              hintStyle: GoogleFonts.plusJakartaSans(color: RmTheme.textSecondary.withOpacity(0.5), fontSize: 13.5),
               filled: true,
               fillColor: RmTheme.offWhite,
               alignLabelWithHint: true,
@@ -331,9 +223,7 @@ class _RmStage4A2ScreenState extends ConsumerState<RmStage4A2Screen> {
               onPressed: _busy ? null : _create,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: const StadiumBorder(),
               ),
               child: _busy
                   ? const SizedBox(
@@ -343,7 +233,7 @@ class _RmStage4A2ScreenState extends ConsumerState<RmStage4A2Screen> {
                     )
                   : Text(
                       'Create SOW (Draft)',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14.5),
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14.5),
                     ),
             ),
           ),
@@ -378,7 +268,7 @@ class _RmStage4A2ScreenState extends ConsumerState<RmStage4A2Screen> {
             children: [
               Text(
                 'Scope of Work Document',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                   fontWeight: FontWeight.w700,
                   fontSize: 15.5,
                   color: RmTheme.textPrimary,
@@ -392,7 +282,7 @@ class _RmStage4A2ScreenState extends ConsumerState<RmStage4A2Screen> {
                 ),
                 child: Text(
                   sow.status,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     color: statusColor,
                     fontWeight: FontWeight.bold,
                     fontSize: 11,
@@ -422,7 +312,7 @@ class _RmStage4A2ScreenState extends ConsumerState<RmStage4A2Screen> {
             ),
             child: Text(
               sow.content,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 color: RmTheme.textPrimary,
                 height: 1.45,
@@ -439,13 +329,11 @@ class _RmStage4A2ScreenState extends ConsumerState<RmStage4A2Screen> {
                 icon: const Icon(Icons.send_rounded, size: 18),
                 label: Text(
                   'Send to Client',
-                  style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14.5),
+                  style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.bold, fontSize: 14.5),
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: const StadiumBorder(),
                 ),
               ),
             ),

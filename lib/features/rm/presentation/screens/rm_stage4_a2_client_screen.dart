@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../design_system/widgets/navigation/ds_navigation.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -123,20 +124,25 @@ class _Header extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            onPressed: onBack,
-            icon: const Icon(
-              Icons.arrow_back_rounded,
-              color: RmTheme.textPrimary,
-              size: 22,
-            ),
-            splashRadius: 20,
-            tooltip: 'Back',
+          Padding(
+            padding: const EdgeInsets.only(left: 12),
+            child: DsBackButton(onPressed: onBack),
           ),
-          SizedBox(width: AppSpacing.xs),
-          Text(
-            'Select Client',
-            style: RmTheme.headline(context).copyWith(fontSize: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select client',
+                  style: RmTheme.headline(context).copyWith(fontSize: 21),
+                ),
+                Text(
+                  'Placement, A2 and A3 will use this client',
+                  style: RmTheme.body(context).copyWith(fontSize: 12.5),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -192,14 +198,14 @@ class _SearchFieldState extends State<_SearchField> {
             widget.onChanged(v);
             setState(() {});
           },
-          style: GoogleFonts.inter(
+          style: GoogleFonts.plusJakartaSans(
             fontSize: 15,
             fontWeight: FontWeight.w400,
             color: RmTheme.textPrimary,
           ),
           decoration: InputDecoration(
             hintText: 'Search clients',
-            hintStyle: GoogleFonts.inter(
+            hintStyle: GoogleFonts.plusJakartaSans(
               fontSize: 15,
               fontWeight: FontWeight.w400,
               color: const Color(0xFF94A3B8), // textHint
@@ -300,7 +306,7 @@ class _ClientRow extends StatelessWidget {
                   children: [
                     Text(
                       customer.customerName,
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: RmTheme.textPrimary,
@@ -310,7 +316,7 @@ class _ClientRow extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         metadata,
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w500,
                           color: RmTheme.textSecondary,
@@ -393,7 +399,7 @@ class _EmptyState extends StatelessWidget {
                   ? 'No clients match "$searchQuery"'
                   : 'No clients found',
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 color: RmTheme.textSecondary,
@@ -402,7 +408,7 @@ class _EmptyState extends StatelessWidget {
             SizedBox(height: AppSpacing.xxs),
             Text(
               'Try a different search term',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 color: RmTheme.textSecondary.withValues(alpha: 0.7),
               ),

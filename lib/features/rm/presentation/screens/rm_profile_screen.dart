@@ -1,13 +1,13 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../core/router/app_routes.dart';
+import '../../../../design_system/design_system.dart';
 import '../../../../design_system/foundations/rm_theme.dart';
 import '../../domain/models/rm_models.dart';
+import '../navigation/rm_routes.dart';
 import '../providers/rm_providers.dart';
 import '../widgets/rm_bottom_navigation.dart';
 
@@ -16,307 +16,122 @@ class RmProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-    final user = authState.user;
-    final dashboard = ref.watch(rmDashboardProvider);
-    final kpis = dashboard.maybeWhen(data: (d) => d.kpis, orElse: () => const RmDashboardKpis());
+    final user = ref.watch(authProvider).user;
+    final kpis = ref.watch(rmDashboardProvider).maybeWhen(
+          data: (d) => d.kpis,
+          orElse: () => const RmDashboardKpis(),
+        );
+    final name =
+        (user?.name.trim().isNotEmpty ?? false) ? user!.name.trim() : 'RM';
+    final compactId = (user?.id ?? '').replaceAll('-', '').toUpperCase();
+    final idValue = compactId.isEmpty
+        ? 'RM-0000'
+        : 'RM-${compactId.substring(0, compactId.length < 6 ? compactId.length : 6)}';
 
     return Scaffold(
       backgroundColor: RmTheme.offWhite,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: RmTheme.textPrimary),
-            onPressed: () {},
+      body: DsProfileView(
+        name: name,
+        role: 'Relationship Manager',
+        idLabel: 'RM ID',
+        idValue: idValue,
+        tagline: 'HomeGenny Partner',
+        onSettings: () => context.push(RmRoutes.security),
+        facts: [
+          if (user?.email.isNotEmpty ?? false)
+            DsProfileFact(
+              icon: Icons.mail_rounded,
+              label: 'Email',
+              value: user!.email,
+            ),
+          if (user?.phone?.isNotEmpty ?? false)
+            DsProfileFact(
+              icon: Icons.phone_rounded,
+              label: 'Mobile',
+              value: user!.phone!,
+            ),
+          const DsProfileFact(
+            icon: Icons.workspace_premium_rounded,
+            label: 'Access',
+            value: 'Relationship Manager',
           ),
-          const SizedBox(width: 8),
         ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildProfileHeader(context, user),
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _buildStatsCard(kpis),
-            ),
-            const SizedBox(height: 32),
-            _buildSectionTitle('Account Settings'),
-            _buildListTile(Icons.person_outline, 'Personal Information', 'Update your details', () {
-              _showComingSoon(context, 'Personal Information');
-            }),
-            _buildListTile(Icons.security, 'Security & Privacy', 'Password and authentication', () {
-              _showComingSoon(context, 'Security & Privacy');
-            }),
-            _buildListTile(Icons.notifications_none, 'Notifications', 'Manage alert preferences', () {
-              _showComingSoon(context, 'Notifications');
-            }),
-            const SizedBox(height: 24),
-            _buildSectionTitle('Support'),
-            _buildListTile(Icons.help_outline, 'Help Center', 'FAQs and contact support', () {
-              _showComingSoon(context, 'Help Center');
-            }),
-            _buildListTile(Icons.info_outline, 'About HomeGenny', 'Version 1.0.0', () {
-              _showAboutDialog(context);
-            }),
-            const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  // Must await logout (clears tokens + calls the real
-                  // /auth/logout) before navigating — firing context.go
-                  // immediately let the login screen render while the app
-                  // still had a valid session, and if the async logout
-                  // failed it would fail out of sight, unobserved.
-                  await ref.read(authProvider.notifier).logout();
-                  if (!context.mounted) return;
-                  context.go(AppRoutes.login);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: RmTheme.crimsonDanger.withOpacity(0.1),
-                  foregroundColor: RmTheme.crimsonDanger,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                icon: const Icon(Icons.logout),
-                label: Text('Log Out', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 16)),
+        stats: [
+          DsProfileStat(
+            label: 'Total staff',
+            value: kpis.totalStaff,
+            icon: Icons.groups_rounded,
+          ),
+          DsProfileStat(
+            label: 'Active trials',
+            value: kpis.trialPlacements,
+            icon: Icons.play_circle_rounded,
+          ),
+          DsProfileStat(
+            label: 'To verify',
+            value: kpis.pendingVerification,
+            icon: Icons.fact_check_rounded,
+          ),
+        ],
+        sections: [
+          DsProfileSection(
+            title: 'Account settings',
+            items: [
+              DsProfileMenuItem(
+                icon: Icons.person_rounded,
+                title: 'Personal information',
+                subtitle: 'View your details',
+                onTap: () => context.push(RmRoutes.personalInfo),
               ),
-            ),
-            const SizedBox(height: 48),
-          ],
-        ),
+              DsProfileMenuItem(
+                icon: Icons.shield_rounded,
+                title: 'Security & privacy',
+                subtitle: 'Password and authentication',
+                onTap: () => context.push(RmRoutes.security),
+              ),
+              DsProfileMenuItem(
+                icon: Icons.notifications_rounded,
+                title: 'Notifications',
+                subtitle: 'Manage alert preferences',
+                onTap: () => context.push(RmRoutes.notificationSettings),
+              ),
+            ],
+          ),
+          DsProfileSection(
+            title: 'Support',
+            items: [
+              DsProfileMenuItem(
+                icon: Icons.support_agent_rounded,
+                title: 'Help center',
+                subtitle: 'FAQs and contact support',
+                onTap: () => context.push(RmRoutes.support),
+              ),
+              DsProfileMenuItem(
+                icon: Icons.info_rounded,
+                title: 'About HomeGenny',
+                subtitle: 'Version 1.0.0',
+                onTap: () => DsSuccessDialog.show(
+                  context: context,
+                  title: 'HomeGenny',
+                  message: 'Version 1.0.0\n\n'
+                      'The premium domestic staff management platform.',
+                  buttonLabel: 'Close',
+                ),
+              ),
+            ],
+          ),
+        ],
+        // Must await logout (clears tokens + calls the real /auth/logout)
+        // before navigating — firing context.go immediately let the login
+        // screen render while the app still had a valid session, and if the
+        // async logout failed it would fail out of sight, unobserved.
+        onLogout: () async {
+          await ref.read(authProvider.notifier).logout();
+          if (!context.mounted) return;
+          context.go(AppRoutes.login);
+        },
       ),
       bottomNavigationBar: const RmBottomNavigation(currentIndex: 4),
-    );
-  }
-
-  Widget _buildProfileHeader(BuildContext context, user) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Background gradient
-        Container(
-          height: 240,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                RmTheme.electricBlue.withOpacity(0.15),
-                RmTheme.offWhite,
-              ],
-            ),
-          ),
-        ),
-        // Profile Info
-        Positioned(
-          bottom: 0,
-          child: Column(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 4),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x1A000000),
-                      blurRadius: 16,
-                      offset: Offset(0, 8),
-                    )
-                  ],
-                ),
-                child: CircleAvatar(
-                  radius: 56,
-                  backgroundImage: user?.avatarUrl != null ? NetworkImage(user!.avatarUrl!) : null,
-                  backgroundColor: RmTheme.surfaceSecondary,
-                  child: user?.avatarUrl == null
-                      ? Text(
-                          (user?.name.trim().isNotEmpty ?? false) ? user!.name.trim()[0].toUpperCase() : 'R',
-                          style: GoogleFonts.libreCaslonText(fontSize: 40, color: RmTheme.electricBlue),
-                        )
-                      : null,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                user?.name ?? 'RM',
-                style: GoogleFonts.libreCaslonText(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  color: RmTheme.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: RmTheme.electricBlue.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Relationship Manager',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: RmTheme.electricBlue,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                user?.email ?? '',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: RmTheme.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatsCard(RmDashboardKpis kpis) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1A56FF).withOpacity(0.05),
-                blurRadius: 24,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStatItem('Total Staff', kpis.totalStaff, Icons.people_outline),
-              _buildDivider(),
-              _buildStatItem('Active Trials', kpis.trialPlacements, Icons.play_circle_outline),
-              _buildDivider(),
-              _buildStatItem('Pending Verify', kpis.pendingVerification, Icons.pending_actions),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, int value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: RmTheme.electricBlue, size: 28),
-        const SizedBox(height: 12),
-        Text(
-          value.toString(),
-          style: GoogleFonts.libreCaslonText(
-            fontSize: 24,
-            fontWeight: FontWeight.w600,
-            color: RmTheme.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: RmTheme.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDivider() {
-    return Container(
-      height: 48,
-      width: 1,
-      color: RmTheme.borderSubtle,
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 8),
-      child: Text(
-        title,
-        style: GoogleFonts.inter(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: RmTheme.textSecondary,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildListTile(IconData icon, String title, String subtitle, VoidCallback onTap) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: RmTheme.surfaceSecondary,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, color: RmTheme.textPrimary),
-      ),
-      title: Text(
-        title,
-        style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: RmTheme.textPrimary),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: GoogleFonts.inter(fontSize: 13, color: RmTheme.textSecondary),
-      ),
-      trailing: const Icon(Icons.chevron_right, color: RmTheme.borderSubtle),
-      onTap: onTap,
-    );
-  }
-
-  void _showComingSoon(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature settings are coming soon!'),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        backgroundColor: RmTheme.electricBlue,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _showAboutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('About HomeGenny', style: GoogleFonts.libreCaslonText(fontWeight: FontWeight.bold)),
-        content: Text('Version 1.0.0\n\nThe premium domestic staff management platform.', style: GoogleFonts.inter()),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Close', style: GoogleFonts.inter(color: RmTheme.electricBlue, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
     );
   }
 }

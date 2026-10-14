@@ -66,8 +66,8 @@ class DsStatusChip extends StatelessWidget {
           AppColors.error,
         ),
       DsStatusType.info => (
-          AppColors.secondaryContainer,
-          AppColors.secondary,
+          const Color(0xFFE0F2FE),
+          const Color(0xFF0284C7),
         ),
       DsStatusType.primary => (
           AppColors.primaryContainer,
