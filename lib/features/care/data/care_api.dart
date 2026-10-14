@@ -122,6 +122,33 @@ class CareApi extends BaseRemoteDataSource {
   Future<Result<void>> suggestMenu(String pid, List<Map<String, dynamic>> items) =>
       _guard(() => postJson('/staff/care/cook/menu-suggestions', data: {'placement_id': pid, 'items': items}));
 
+  // ── Cook: dishes ──
+  /// The dish dropdown: filtered by the food profile, ordered for [meal].
+  Future<Result<DishSearch>> searchDishes({String? q, String? meal, int? limit}) =>
+      _guard(() async => DishSearch.fromJson(await getJson('/care/dishes', queryParameters: {
+            if (q != null && q.trim().isNotEmpty) 'q': q.trim(),
+            'meal': ?meal,
+            'limit': ?limit,
+          })));
+
+  /// "Add as my dish". A name already on the list comes back with
+  /// `existing: true` — just select it.
+  Future<Result<Dish>> addOwnDish({
+    required String name,
+    required String category,
+    required String diet,
+    List<String> meals = const [],
+  }) =>
+      _guard(() async {
+        final j = await postJson('/client/dishes', data: {
+          'name': name,
+          'category': category,
+          'diet': diet,
+          if (meals.isNotEmpty) 'meals': meals,
+        });
+        return Dish.fromJson(j['dish'] is Map<String, dynamic> ? j['dish'] as Map<String, dynamic> : j);
+      });
+
   // ── Cook: meals ──
   Future<Result<CookToday>> cookToday() => _guard(() async => CookToday.fromJson(await getJson('/staff/care/cook/today')));
 

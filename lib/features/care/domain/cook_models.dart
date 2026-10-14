@@ -368,3 +368,64 @@ class CookToday {
   final String date;
   final List<CookPlacement> placements;
 }
+
+// ── Dishes ────────────────────────────────────────────────────────────────
+
+/// A dish from the shared list (`GET /care/dishes`) or the client's own.
+class Dish {
+  const Dish({
+    required this.id,
+    required this.name,
+    this.category,
+    this.diet,
+    this.meals = const [],
+    this.own = false,
+  });
+
+  factory Dish.fromJson(Map<String, dynamic> j) => Dish(
+        id: '${j['id'] ?? ''}',
+        name: '${j['name'] ?? ''}',
+        category: _str(j['category']),
+        diet: _str(j['diet']),
+        meals: _strings(j['meals']),
+        own: j['own'] == true,
+      );
+
+  final String id;
+  final String name;
+  final String? category;
+
+  /// VEG / EGG / NON_VEG.
+  final String? diet;
+  final List<String> meals;
+
+  /// The client's own dish.
+  final bool own;
+
+  /// Category values for "Add as my dish", with the words to show.
+  static const categories = {
+    'BREAKFAST': 'Breakfast',
+    'DAL': 'Dal',
+    'SABZI': 'Sabzi',
+    'ROTI_PARATHA': 'Roti/Paratha',
+    'RICE': 'Rice',
+    'SNACK': 'Snack',
+    'SALAD': 'Salad',
+    'SWEET': 'Sweet',
+    'DRINK': 'Drink',
+    'OTHER': 'Other',
+  };
+
+  static const diets = ['VEG', 'EGG', 'NON_VEG'];
+}
+
+/// `GET /care/dishes` — [canAdd] means offer "+ Add (typed text) as my dish".
+class DishSearch {
+  const DishSearch({this.items = const [], this.canAdd = false});
+  factory DishSearch.fromJson(Map<String, dynamic> j) => DishSearch(
+        items: [for (final m in _maps(j['items'])) Dish.fromJson(m)],
+        canAdd: j['can_add'] == true,
+      );
+  final List<Dish> items;
+  final bool canAdd;
+}

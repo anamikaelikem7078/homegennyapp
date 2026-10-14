@@ -384,7 +384,7 @@ class _CarePlanEditorState extends ConsumerState<_CarePlanEditor> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _MedicineSheet(placementId: widget.placementId, initial: existing),
+      builder: (_) => CareMedicineSheet(placementId: widget.placementId, initial: existing),
     );
     if (edited == null) return;
     setState(() {
@@ -401,7 +401,7 @@ class _CarePlanEditorState extends ConsumerState<_CarePlanEditor> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _VitalSheet(types: widget.view.vitalTypes, initial: existing),
+      builder: (_) => CareVitalSheet(types: widget.view.vitalTypes, initial: existing),
     );
     if (edited == null) return;
     setState(() {
@@ -418,7 +418,7 @@ class _CarePlanEditorState extends ConsumerState<_CarePlanEditor> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _ActivitySheet(initial: existing),
+      builder: (_) => CareActivitySheet(initial: existing),
     );
     if (edited == null) return;
     setState(() {
@@ -504,7 +504,7 @@ class _CarePlanEditorState extends ConsumerState<_CarePlanEditor> {
         ] else ...[
           DsSection('Medicines', trailing: DsPill('${p.medications.length}')),
           for (final m in p.medications)
-            _ItemCard(
+            CareItemCard(
               icon: Icons.medication_rounded,
               title: m.summary,
               subtitle: [
@@ -516,10 +516,10 @@ class _CarePlanEditorState extends ConsumerState<_CarePlanEditor> {
               onEdit: () => _editMedicine(m),
               onRemove: () => setState(() => p.medications.remove(m)),
             ),
-          _AddButton(label: 'Add medicine', onTap: () => _editMedicine()),
+          CareAddButton(label: 'Add medicine', onTap: () => _editMedicine()),
           DsSection('Checks', trailing: DsPill('${p.vitals.length}')),
           for (final v in p.vitals)
-            _ItemCard(
+            CareItemCard(
               icon: Icons.monitor_heart_rounded,
               title: _vitalLabel(v),
               subtitle: [
@@ -530,19 +530,19 @@ class _CarePlanEditorState extends ConsumerState<_CarePlanEditor> {
               onEdit: () => _editVital(v),
               onRemove: () => setState(() => p.vitals.remove(v)),
             ),
-          _AddButton(label: 'Add check (BP, sugar…)', onTap: () => _editVital()),
+          CareAddButton(label: 'Add check (BP, sugar…)', onTap: () => _editVital()),
         ],
 
         DsSection('Activities', trailing: DsPill('${p.activities.length}')),
         for (final a in p.activities)
-          _ItemCard(
+          CareItemCard(
             icon: Icons.directions_walk_rounded,
             title: a.title.isEmpty ? carePretty(a.type) : a.title,
             subtitle: [a.times.join(', '), if (a.durationMin != null) '${a.durationMin} min'].join(' · '),
             onEdit: () => _editActivity(a),
             onRemove: () => setState(() => p.activities.remove(a)),
           ),
-        _AddButton(label: 'Add activity', onTap: () => _editActivity()),
+        CareAddButton(label: 'Add activity', onTap: () => _editActivity()),
 
         const DsSection('Notes'),
         DsLabeledField(label: 'Diet', controller: _diet, icon: Icons.restaurant_rounded, hint: 'e.g. Low salt', optional: true, maxLines: 3, textCapitalization: TextCapitalization.sentences),
@@ -618,8 +618,8 @@ class _ChoiceRow extends StatelessWidget {
       );
 }
 
-class _ItemCard extends StatelessWidget {
-  const _ItemCard({required this.icon, required this.title, required this.subtitle, required this.onEdit, required this.onRemove});
+class CareItemCard extends StatelessWidget {
+  const CareItemCard({super.key, required this.icon, required this.title, required this.subtitle, required this.onEdit, required this.onRemove});
   final IconData icon;
   final String title;
   final String subtitle;
@@ -641,8 +641,8 @@ class _ItemCard extends StatelessWidget {
       );
 }
 
-class _AddButton extends StatelessWidget {
-  const _AddButton({required this.label, required this.onTap});
+class CareAddButton extends StatelessWidget {
+  const CareAddButton({super.key, required this.label, required this.onTap});
   final String label;
   final VoidCallback onTap;
 
@@ -732,16 +732,19 @@ class _TimesField extends StatelessWidget {
       );
 }
 
-class _MedicineSheet extends ConsumerStatefulWidget {
-  const _MedicineSheet({required this.placementId, this.initial});
-  final String placementId;
+class CareMedicineSheet extends ConsumerStatefulWidget {
+  const CareMedicineSheet({super.key, this.placementId, this.initial});
+
+  /// Needed to upload a prescription. Null (a staff request, before any
+  /// placement exists) hides the upload.
+  final String? placementId;
   final CareMedication? initial;
 
   @override
-  ConsumerState<_MedicineSheet> createState() => _MedicineSheetState();
+  ConsumerState<CareMedicineSheet> createState() => _MedicineSheetState();
 }
 
-class _MedicineSheetState extends ConsumerState<_MedicineSheet> {
+class _MedicineSheetState extends ConsumerState<CareMedicineSheet> {
   late final CareMedication _m = widget.initial == null
       ? CareMedication(startDate: careTodayIst())
       : CareMedication.fromJson(widget.initial!.toJson());
@@ -773,6 +776,8 @@ class _MedicineSheetState extends ConsumerState<_MedicineSheet> {
   }
 
   Future<void> _attachPrescription() async {
+    final placementId = widget.placementId;
+    if (placementId == null) return;
     final picked = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
@@ -781,7 +786,7 @@ class _MedicineSheetState extends ConsumerState<_MedicineSheet> {
     if (file?.path == null) return;
     setState(() => _uploading = true);
     final result = await ref.read(careApiProvider).uploadFile(
-          placementId: widget.placementId,
+          placementId: placementId,
           kind: 'PRESCRIPTION',
           path: file!.path!,
           filename: file.name,
@@ -857,6 +862,9 @@ class _MedicineSheetState extends ConsumerState<_MedicineSheet> {
           ),
           DsLabeledField(label: 'Instructions', controller: _instructions, icon: Icons.notes_rounded, hint: 'e.g. With water', optional: true),
           const SizedBox(height: 12),
+          if (widget.placementId == null)
+            const DsNote(text: 'You can add the prescription after the booking is confirmed.')
+          else
           DsListCard(
             icon: _m.prescriptionFileId == null ? Icons.upload_file_rounded : Icons.check_circle_rounded,
             iconColor: _m.prescriptionFileId == null ? null : AppColors.success,
@@ -875,16 +883,16 @@ class _MedicineSheetState extends ConsumerState<_MedicineSheet> {
       );
 }
 
-class _VitalSheet extends StatefulWidget {
-  const _VitalSheet({required this.types, this.initial});
+class CareVitalSheet extends StatefulWidget {
+  const CareVitalSheet({super.key, required this.types, this.initial});
   final List<VitalType> types;
   final CareVital? initial;
 
   @override
-  State<_VitalSheet> createState() => _VitalSheetState();
+  State<CareVitalSheet> createState() => _VitalSheetState();
 }
 
-class _VitalSheetState extends State<_VitalSheet> {
+class _VitalSheetState extends State<CareVitalSheet> {
   late final CareVital _v = widget.initial == null
       ? CareVital(type: '')
       : CareVital.fromJson(widget.initial!.toJson());
@@ -1001,15 +1009,15 @@ class _VitalSheetState extends State<_VitalSheet> {
   }
 }
 
-class _ActivitySheet extends StatefulWidget {
-  const _ActivitySheet({this.initial});
+class CareActivitySheet extends StatefulWidget {
+  const CareActivitySheet({super.key, this.initial});
   final CareActivity? initial;
 
   @override
-  State<_ActivitySheet> createState() => _ActivitySheetState();
+  State<CareActivitySheet> createState() => _ActivitySheetState();
 }
 
-class _ActivitySheetState extends State<_ActivitySheet> {
+class _ActivitySheetState extends State<CareActivitySheet> {
   late final CareActivity _a = widget.initial == null ? CareActivity() : CareActivity.fromJson(widget.initial!.toJson());
   late final _title = TextEditingController(text: _a.title);
   late final _duration = TextEditingController(text: _a.durationMin?.toString());

@@ -96,4 +96,86 @@ void main() {
     expect(done.isOpen, isFalse);
     expect(done.canChoose, isFalse);
   });
+
+  test('decodes a one-time cook booking', () {
+    final r = StaffRequestDtoCodec.decodeRequest({
+      ...detail,
+      'series': 'CK',
+      'visit_type': 'ONE_TIME',
+      'duration_min': 120,
+      'placement_type': 'TEMPORARY',
+      'shift_hours': 2,
+      'start_date': '2026-10-16',
+      'start_time': '19:30',
+      'lat': 28.5592,
+      'lng': 77.2066,
+      'menu': {
+        'meal': 'DINNER',
+        'meal_time': '19:30',
+        'dishes': [
+          {'name': 'Dal Makhani'},
+          {'name': 'Butter Roti'},
+        ],
+        'dish_ids': ['a', 'b'],
+        'special_instruction': 'Less oil',
+      },
+      'care_needs': null,
+    });
+    expect(r.isOneTime, isTrue);
+    expect(r.durationMin, 120);
+    expect(r.startTime, '19:30');
+    expect(r.lat, 28.5592);
+    expect(r.menu!.dishes, ['Dal Makhani', 'Butter Roti']);
+    expect(r.menu!.weekly, isEmpty);
+    expect(r.careNeeds, isNull);
+  });
+
+  test('decodes a regular cook weekly menu and UC care needs', () {
+    final cook = StaffRequestDtoCodec.decodeRequest({
+      ...detail,
+      'menu': {
+        'items': [
+          {'dow': 'THU', 'meal': 'DINNER', 'dishes': ['Grandma Khichdi']},
+        ],
+      },
+    });
+    expect(cook.isOneTime, isFalse);
+    expect(cook.menu!.weekly.single.dishes, ['Grandma Khichdi']);
+
+    final care = StaffRequestDtoCodec.decodeRequest({
+      ...detail,
+      'care_needs': {
+        'patient': {'name': 'Papa', 'age': 80},
+        'activities': [
+          {'type': 'WALK', 'times': ['17:00'], 'duration_min': 20},
+        ],
+        'dos': 'Help him walk',
+      },
+    });
+    expect(care.careNeeds!.patient.name, 'Papa');
+    expect(care.careNeeds!.activities.single.durationMin, 20);
+    expect(care.careNeeds!.dos, 'Help him walk');
+  });
+
+  test('booking rules match the brief', () {
+    expect([for (final d in BookingRules.durations) BookingRules.maxDishes(d)], [3, 4, 5, 7]);
+    expect(BookingRules.mealForTime('10:59'), 'BREAKFAST');
+    expect(BookingRules.mealForTime('11:00'), 'LUNCH');
+    expect(BookingRules.mealForTime('16:00'), 'SNACKS');
+    expect(BookingRules.mealForTime('19:00'), 'DINNER');
+    expect(BookingRules.durationLabel(60), '1 hour');
+    expect(BookingRules.durationLabel(90), '1.5 hours');
+    expect(StaffRequestStatus.label('FULFILLED'), 'Booking confirmed');
+  });
+
+  test('weekly menu entry body', () {
+    final e = WeeklyMenuEntry(dow: 'MON', meal: 'LUNCH', dishIds: ['x'], mealTime: '13:00');
+    expect(e.toJson(typed: ['Kadhi']), {
+      'dow': 'MON',
+      'meal': 'LUNCH',
+      'dish_ids': ['x'],
+      'dishes': ['Kadhi'],
+      'meal_time': '13:00',
+    });
+  });
 }

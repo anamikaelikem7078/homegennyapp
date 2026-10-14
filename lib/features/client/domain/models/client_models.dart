@@ -381,6 +381,8 @@ class ClientNotification {
     required this.time,
     required this.isRead,
     required this.type,
+    this.template,
+    this.payload = const {},
   });
 
   final String id;
@@ -389,6 +391,12 @@ class ClientNotification {
   final String time;
   final bool isRead;
   final String type;
+
+  /// Server template name, e.g. `STAFF_REQUEST_CONFIRMED`.
+  final String? template;
+
+  /// Template data, e.g. `{ request_id, placement_id }`.
+  final Map<String, dynamic> payload;
 }
 
 /// Client profile data — matches `GET /client/profile` exactly. Payment

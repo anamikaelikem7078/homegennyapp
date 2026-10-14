@@ -353,6 +353,7 @@ abstract final class ClientDtoCodec {
   static Map<String, dynamic> encodeNotification(ClientNotification n) => {
         'id': n.id, 'title': n.title, 'message': n.message,
         'time': n.time, 'is_read': n.isRead, 'type': n.type,
+        'template': n.template, 'payload': n.payload,
       };
 
   static ClientNotification decodeNotification(Map<String, dynamic> json) =>
@@ -363,6 +364,11 @@ abstract final class ClientDtoCodec {
         time: json['time'] as String? ?? '',
         isRead: json['is_read'] as bool? ?? json['isRead'] as bool? ?? false,
         type: json['type'] as String? ?? '',
+        template: json['template'] as String?,
+        payload: switch (json['payload'] ?? json['data']) {
+          final Map<dynamic, dynamic> m => Map<String, dynamic>.from(m),
+          _ => const {},
+        },
       );
 
   static List<Map<String, dynamic>> encodeList<T>(

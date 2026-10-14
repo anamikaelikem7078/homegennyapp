@@ -1,3 +1,5 @@
+import '../../../care/domain/care_models.dart';
+
 /// A client's request for staff (`/client/staff-requests`).
 ///
 /// Flow: ASSIGNED → (RM shortlists) SHORTLISTED → (client chooses)
@@ -20,7 +22,7 @@ abstract final class StaffRequestStatus {
         assigned => 'Finding staff',
         shortlisted => 'Ready to choose',
         clientSelected => 'You chose',
-        fulfilled => 'Staff placed',
+        fulfilled => 'Booking confirmed',
         cancelled => 'Cancelled',
         _ => status,
       };
@@ -31,9 +33,96 @@ abstract final class StaffRequestStatus {
         assigned => 'Your RM is finding staff for you',
         shortlisted => 'Staff ready for you to choose',
         clientSelected => 'You chose — your RM is setting up the trial',
-        fulfilled => 'Staff placed',
+        fulfilled => 'Booking confirmed',
         cancelled => 'Cancelled',
         _ => status,
+      };
+}
+
+/// `visit_type` on a request: a single visit, or staff who come every day.
+abstract final class VisitType {
+  static const oneTime = 'ONE_TIME';
+  static const regular = 'REGULAR';
+}
+
+/// Booking rules the backend enforces, mirrored for the form.
+abstract final class BookingRules {
+  /// `duration_min` choices for a one-time visit.
+  static const durations = [60, 90, 120, 180];
+
+  /// How many dishes a one-time cook visit of [durationMin] covers.
+  static int maxDishes(int durationMin) => switch (durationMin) {
+        60 => 3,
+        90 => 4,
+        120 => 5,
+        _ => 7,
+      };
+
+  /// The meal the server picks from a visit's start time (`HH:MM`).
+  static String mealForTime(String hhmm) {
+    final parts = hhmm.split(':');
+    final minutes = (int.tryParse(parts.first) ?? 0) * 60 + (parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0);
+    if (minutes < 11 * 60) return 'BREAKFAST';
+    if (minutes < 16 * 60) return 'LUNCH';
+    if (minutes < 19 * 60) return 'SNACKS';
+    return 'DINNER';
+  }
+
+  /// 60 → "1 hour", 90 → "1.5 hours".
+  static String durationLabel(int durationMin) {
+    final h = hours(durationMin / 60);
+    return h == '1' ? '1 hour' : '$h hours';
+  }
+
+  /// 2 → "2", 1.5 → "1.5".
+  static String hours(num h) => h == h.roundToDouble() ? '${h.round()}' : '$h';
+}
+
+/// A request's `menu`: the dishes for a one-time cook visit, or a regular
+/// cook's weekly menu ([weekly] non-empty).
+class StaffRequestMenu {
+  const StaffRequestMenu({
+    this.meal,
+    this.mealTime,
+    this.dishes = const [],
+    this.specialInstruction,
+    this.weekly = const [],
+  });
+
+  final String? meal;
+  final String? mealTime;
+  final List<String> dishes;
+  final String? specialInstruction;
+  final List<WeeklyMenuEntry> weekly;
+}
+
+/// One `menu.items[]` entry of a regular cook's weekly menu.
+class WeeklyMenuEntry {
+  WeeklyMenuEntry({
+    required this.dow,
+    required this.meal,
+    List<String>? dishIds,
+    List<String>? dishes,
+    this.mealTime,
+  })  : dishIds = dishIds ?? [],
+        dishes = dishes ?? [];
+
+  static const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+  String dow;
+  String meal;
+  List<String> dishIds;
+
+  /// Display names (decoded) or typed names (sent).
+  List<String> dishes;
+  String? mealTime;
+
+  Map<String, dynamic> toJson({List<String> typed = const []}) => {
+        'dow': dow,
+        'meal': meal,
+        if (dishIds.isNotEmpty) 'dish_ids': dishIds,
+        if (typed.isNotEmpty) 'dishes': typed,
+        'meal_time': ?mealTime,
       };
 }
 
@@ -57,11 +146,16 @@ class StaffRequest {
     required this.headcount,
     required this.genderPref,
     required this.requirements,
+    this.visitType = VisitType.regular,
+    this.durationMin,
     this.startDate,
+    this.startTime,
     this.address,
+    this.lat,
+    this.lng,
     this.language,
-    this.budgetMin,
-    this.budgetMax,
+    this.menu,
+    this.careNeeds,
     this.notes,
     this.cancelReason,
     this.createdAt,
@@ -85,11 +179,26 @@ class StaffRequest {
   final int headcount;
   final String genderPref;
   final Map<String, dynamic> requirements;
+
+  /// ONE_TIME or REGULAR.
+  final String visitType;
+
+  /// One-time visits only: 60 / 90 / 120 / 180.
+  final int? durationMin;
   final String? startDate;
+
+  /// `HH:MM`, 24 h.
+  final String? startTime;
   final String? address;
+  final double? lat;
+  final double? lng;
   final String? language;
-  final num? budgetMin;
-  final num? budgetMax;
+
+  /// Cook only.
+  final StaffRequestMenu? menu;
+
+  /// UC/SC only — the care-plan shape.
+  final CarePlan? careNeeds;
   final String? notes;
   final String? cancelReason;
   final DateTime? createdAt;
@@ -101,6 +210,8 @@ class StaffRequest {
   /// Detail view only.
   final StaffRequestRm? rm;
   final List<StaffRequestCandidate> candidates;
+
+  bool get isOneTime => visitType == VisitType.oneTime;
 
   bool get isOpen => StaffRequestStatus.open.contains(status);
   bool get canChoose => status == StaffRequestStatus.shortlisted;

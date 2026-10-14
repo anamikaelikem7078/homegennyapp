@@ -1,3 +1,4 @@
+import '../../../care/domain/care_models.dart';
 import '../../domain/models/staff_request_models.dart';
 
 /// Decodes `/client/staff-requests` responses (list items and detail share
@@ -17,11 +18,18 @@ abstract final class StaffRequestDtoCodec {
         requirements: j['requirements'] is Map<String, dynamic>
             ? j['requirements'] as Map<String, dynamic>
             : const {},
+        visitType: j['visit_type'] as String? ?? VisitType.regular,
+        durationMin: (j['duration_min'] as num?)?.toInt(),
         startDate: j['start_date'] as String?,
+        startTime: j['start_time'] as String?,
         address: j['address'] as String?,
+        lat: (j['lat'] as num?)?.toDouble(),
+        lng: (j['lng'] as num?)?.toDouble(),
         language: j['language'] as String?,
-        budgetMin: j['budget_min'] as num?,
-        budgetMax: j['budget_max'] as num?,
+        menu: j['menu'] is Map<String, dynamic> ? decodeMenu(j['menu'] as Map<String, dynamic>) : null,
+        careNeeds: j['care_needs'] is Map<String, dynamic>
+            ? CarePlan.fromJson(j['care_needs'] as Map<String, dynamic>)
+            : null,
         notes: j['notes'] as String?,
         cancelReason: j['cancel_reason'] as String?,
         createdAt: DateTime.tryParse(j['created_at'] as String? ?? '')?.toLocal(),
@@ -38,6 +46,33 @@ abstract final class StaffRequestDtoCodec {
             if (c is Map<String, dynamic>) decodeCandidate(c),
         ],
       );
+
+  /// One-time `{ meal, meal_time, dishes, special_instruction }` or regular
+  /// `{ items: [{ dow, meal, dishes, meal_time }] }`. Dishes come back as
+  /// `{ name }` objects (strings are accepted too).
+  static StaffRequestMenu decodeMenu(Map<String, dynamic> j) {
+    List<String> names(Object? v) => [
+          for (final d in (v is List ? v : const []))
+            if (d is Map && d['name'] != null) '${d['name']}' else if (d is String) d,
+        ];
+    return StaffRequestMenu(
+      meal: j['meal'] as String?,
+      mealTime: j['meal_time'] as String?,
+      dishes: names(j['dishes']),
+      specialInstruction: j['special_instruction'] as String?,
+      weekly: [
+        for (final e in (j['items'] as List?) ?? const [])
+          if (e is Map<String, dynamic>)
+            WeeklyMenuEntry(
+              dow: e['dow'] as String? ?? '',
+              meal: e['meal'] as String? ?? '',
+              dishIds: [for (final id in (e['dish_ids'] as List?) ?? const []) '$id'],
+              dishes: names(e['dishes']),
+              mealTime: e['meal_time'] as String?,
+            ),
+      ],
+    );
+  }
 
   static StaffRequestCandidate decodeCandidate(Map<String, dynamic> j) {
     final s = j['staff'] is Map<String, dynamic>

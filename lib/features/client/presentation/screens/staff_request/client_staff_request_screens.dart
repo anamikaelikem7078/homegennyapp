@@ -3,13 +3,23 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 
+import '../../../../../core/presentation/widgets/location_address_widget.dart';
 import '../../../../../core/series/series_catalog.dart';
 import '../../../../../core/utils/communication_helper.dart';
 import '../../../../../design_system/design_system.dart';
+import '../../../../care/domain/care_models.dart';
+import '../../../../care/presentation/care_widgets.dart';
 import '../../../domain/models/staff_request_models.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
+import '../../widgets/dish_picker.dart';
+import '../../widgets/map_pin_picker.dart';
+import '../care/client_care_screens.dart'
+    show CareActivitySheet, CareAddButton, CareItemCard, CareMedicineSheet, CareVitalSheet;
+
+part 'client_staff_request_form.dart';
 
 void _backOrHome(BuildContext context) {
   if (context.canPop()) {
@@ -30,6 +40,48 @@ List<String> _splitList(String text) =>
 
 String _ymd(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+String _hhmm(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+/// "2026-10-16" → "16 Oct".
+String _dayMonth(String ymd) {
+  final d = DateTime.tryParse(ymd);
+  if (d == null) return ymd;
+  const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${d.day} ${m[d.month - 1]}';
+}
+
+/// "19:30" → "7:30 PM".
+String _time12(String hhmm) {
+  final parts = hhmm.split(':');
+  final h = int.tryParse(parts.first);
+  if (h == null || parts.length < 2) return hhmm;
+  final h12 = h % 12 == 0 ? 12 : h % 12;
+  return '$h12:${parts[1]} ${h < 12 ? 'AM' : 'PM'}';
+}
+
+/// "16 Oct, 7:30 PM" (or just the date when there is no time).
+String _when(StaffRequest r) => [
+      if (r.startDate != null) _dayMonth(r.startDate!),
+      if (r.startTime != null) _time12(r.startTime!),
+    ].join(', ');
+
+/// The list card's booking line:
+/// "One-time visit · 2 h · 16 Oct, 7:30 PM" or
+/// "Regular · Permanent · 12 h · from 16 Oct, 8:00 AM".
+String _bookingLine(StaffRequest r) {
+  final when = _when(r);
+  if (r.isOneTime) {
+    final h = BookingRules.hours((r.durationMin ?? (r.shiftHours * 60)) / 60);
+    return ['One-time visit', '$h h', if (when.isNotEmpty) when].join(' · ');
+  }
+  return [
+    'Regular',
+    r.placementType == 'TEMPORARY' ? 'Hourly' : 'Permanent',
+    '${BookingRules.hours(r.shiftHours)} h',
+    if (when.isNotEmpty) 'from $when',
+  ].join(' · ');
+}
 
 Color _statusColor(String status) => switch (status) {
       StaffRequestStatus.shortlisted => AppColors.warning,
@@ -101,410 +153,6 @@ Future<String?> _askReason(
   );
 }
 
-// ---------------------------------------------------------------------------
-// Request Staff form
-// ---------------------------------------------------------------------------
-
-class ClientStaffRequestFormScreen extends ConsumerStatefulWidget {
-  const ClientStaffRequestFormScreen({super.key});
-
-  @override
-  ConsumerState<ClientStaffRequestFormScreen> createState() => _ClientStaffRequestFormScreenState();
-}
-
-class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffRequestFormScreen> {
-  static const _mobility = ['WALKING', 'ASSISTED', 'BEDRIDDEN'];
-  static const _medicalNeeds = ['MEDICATION', 'VITALS', 'WOUND_CARE', 'INJECTION', 'CLINICAL_ESCALATION'];
-  static const _dietTypes = ['VEG', 'EGG', 'NON_VEG', 'JAIN', 'VEGAN'];
-  static const _meals = ['BREAKFAST', 'LUNCH', 'SNACKS', 'DINNER'];
-
-  String? _series;
-  String _placementType = 'PERMANENT';
-  String _genderPref = 'ANY';
-  int _headcount = 1;
-  DateTime? _startDate;
-  bool _submitting = false;
-
-  final _shiftHours = TextEditingController(text: '8');
-  final _address = TextEditingController();
-  final _language = TextEditingController();
-  final _notes = TextEditingController();
-  final _budgetMin = TextEditingController();
-  final _budgetMax = TextEditingController();
-
-  // Care (UC / SC)
-  final _patientAge = TextEditingController();
-  final _conditions = TextEditingController();
-  String? _mobilityValue;
-  String? _patientGender;
-  bool _nightCare = false;
-  final Set<String> _medical = {};
-
-  // Cook (CK)
-  final _familySize = TextEditingController();
-  final _cuisines = TextEditingController();
-  final _healthConditions = TextEditingController();
-  String? _dietType;
-  final Set<String> _mealsPerDay = {};
-
-  bool get _isCook => _series == 'CK';
-  bool get _isCare => _series == 'UC' || _series == 'SC';
-
-  @override
-  void dispose() {
-    for (final c in [
-      _shiftHours, _address, _language, _notes, _budgetMin, _budgetMax,
-      _patientAge, _conditions, _familySize, _cuisines, _healthConditions,
-    ]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  Future<void> _pickDate() async {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _startDate ?? today,
-      firstDate: today,
-      lastDate: today.add(const Duration(days: 365)),
-    );
-    if (picked != null) setState(() => _startDate = picked);
-  }
-
-  /// Client-side checks for the required fields; the server re-checks and
-  /// its message is shown as-is.
-  String? _validate() {
-    if (_series == null) return 'Please choose the kind of staff you need.';
-    if (_isCare) {
-      if (int.tryParse(_patientAge.text.trim()) == null) return 'Please enter the patient\'s age.';
-      if (_mobilityValue == null) return 'Please choose how the patient moves around.';
-    }
-    if (_isCook) {
-      if (_dietType == null) return 'Please choose the diet type.';
-      if ((int.tryParse(_familySize.text.trim()) ?? 0) < 1) return 'Please enter how many people the cook feeds.';
-      if (_mealsPerDay.isEmpty) return 'Please choose at least one meal.';
-    }
-    return null;
-  }
-
-  Map<String, dynamic> _body() {
-    num? n(TextEditingController c) => num.tryParse(c.text.trim());
-    String? t(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
-
-    final requirements = <String, dynamic>{
-      if (_isCare) ...{
-        'patient_age': int.parse(_patientAge.text.trim()),
-        'mobility': _mobilityValue,
-        if (_patientGender != null) 'patient_gender': _patientGender,
-        'conditions': _splitList(_conditions.text),
-        'night_care': _nightCare,
-        // Medical duties only for SC — the backend refuses them for UC.
-        if (_series == 'SC') 'medical_needs': _medical.toList(),
-      },
-      if (_isCook) ...{
-        'diet_type': _dietType,
-        'family_size': int.parse(_familySize.text.trim()),
-        'meals_per_day': [for (final m in _meals) if (_mealsPerDay.contains(m)) m],
-        'cuisines': _splitList(_cuisines.text),
-        'health_conditions': _splitList(_healthConditions.text),
-      },
-    };
-
-    return {
-      'series': _series,
-      'placement_type': _placementType,
-      'shift_hours': n(_shiftHours) ?? 8,
-      if (_startDate != null) 'start_date': _ymd(_startDate!),
-      if (t(_address) != null) 'address': t(_address),
-      if (t(_language) != null) 'language': t(_language),
-      if (t(_notes) != null) 'notes': t(_notes),
-      'gender_pref': _genderPref,
-      if (n(_budgetMin) != null) 'budget_min': n(_budgetMin),
-      if (n(_budgetMax) != null) 'budget_max': n(_budgetMax),
-      'headcount': _headcount,
-      'requirements': requirements,
-    };
-  }
-
-  Future<void> _submit() async {
-    final problem = _validate();
-    if (problem != null) {
-      context.showDsSnackBar(problem, type: DsSnackBarType.warning);
-      return;
-    }
-    setState(() => _submitting = true);
-    final result = await ref.read(clientRepositoryProvider).createStaffRequest(_body());
-    if (!mounted) return;
-    setState(() => _submitting = false);
-    result.fold(
-      onSuccess: (request) {
-        ref.invalidate(clientStaffRequestsProvider);
-        context.showDsSnackBar('Request ${request.requestNo} sent', type: DsSnackBarType.success);
-        context.pushReplacement(ClientRoutes.staffRequestDetail(request.id));
-      },
-      onError: (f) => context.showDsSnackBar(f.message, type: DsSnackBarType.error),
-    );
-  }
-
-  Widget _chips<T>({
-    required List<T> values,
-    required bool Function(T) isSelected,
-    required void Function(T) onTap,
-    required String Function(T) label,
-  }) =>
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final v in values)
-            DsChoiceChip(
-              label: label(v),
-              selected: isSelected(v),
-              onTap: () {
-                HapticFeedback.selectionClick();
-                onTap(v);
-              },
-            ),
-        ],
-      );
-
-  Widget _gap() => const SizedBox(height: 14);
-
-  @override
-  Widget build(BuildContext context) {
-    final active = ref.watch(seriesCatalogProvider).active;
-
-    return DsPage(
-      title: 'Request staff',
-      onBack: () => _backOrHome(context),
-      bottom: DsGradientButton(
-        label: 'Send request',
-        icon: Icons.send_rounded,
-        isLoading: _submitting,
-        onPressed: _submitting ? null : _submit,
-      ),
-      body: [
-        const DsSection('What kind of staff?', top: 4),
-        for (final s in active)
-          _SeriesOptionCard(
-            option: s,
-            selected: _series == s.short,
-            onTap: () => setState(() {
-              _series = s.short;
-              if (s.short != 'SC') _medical.clear();
-            }),
-          ),
-        if (_isCare) ..._careFields(),
-        if (_isCook) ..._cookFields(),
-        if (_series != null) ..._commonFields(),
-      ],
-    );
-  }
-
-  List<Widget> _careFields() => [
-        const DsSection('About the patient'),
-        DsLabeledField(
-          label: 'Patient\'s age',
-          controller: _patientAge,
-          icon: Icons.cake_rounded,
-          hint: 'e.g. 78',
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        ),
-        _gap(),
-        _FieldLabel('How do they move around?'),
-        _chips<String>(
-          values: _mobility,
-          isSelected: (v) => _mobilityValue == v,
-          onTap: (v) => setState(() => _mobilityValue = v),
-          label: _pretty,
-        ),
-        _gap(),
-        _FieldLabel('Patient\'s gender', optional: true),
-        _chips<String>(
-          values: const ['FEMALE', 'MALE'],
-          isSelected: (v) => _patientGender == v,
-          onTap: (v) => setState(() => _patientGender = _patientGender == v ? null : v),
-          label: _pretty,
-        ),
-        _gap(),
-        DsLabeledField(
-          label: 'Health conditions',
-          controller: _conditions,
-          icon: Icons.healing_rounded,
-          hint: 'e.g. Diabetes, Arthritis (comma separated)',
-          optional: true,
-          textCapitalization: TextCapitalization.words,
-        ),
-        _gap(),
-        _SwitchRow(
-          title: 'Night care needed',
-          value: _nightCare,
-          onChanged: (v) => setState(() => _nightCare = v),
-        ),
-        if (_series == 'SC') ...[
-          _gap(),
-          _FieldLabel('Medical duties', optional: true),
-          _chips<String>(
-            values: _medicalNeeds,
-            isSelected: _medical.contains,
-            onTap: (v) => setState(() => _medical.contains(v) ? _medical.remove(v) : _medical.add(v)),
-            label: _pretty,
-          ),
-        ] else ...[
-          _gap(),
-          const DsNote(
-            text: 'An Unskilled Caretaker cannot do medical duties such as medicines, '
-                'injections or vitals. Choose Skilled Caretaker if you need them.',
-          ),
-        ],
-      ];
-
-  List<Widget> _cookFields() => [
-        const DsSection('About your kitchen'),
-        _FieldLabel('Diet type'),
-        _chips<String>(
-          values: _dietTypes,
-          isSelected: (v) => _dietType == v,
-          onTap: (v) => setState(() => _dietType = v),
-          label: _pretty,
-        ),
-        _gap(),
-        DsLabeledField(
-          label: 'People to cook for',
-          controller: _familySize,
-          icon: Icons.groups_rounded,
-          hint: 'e.g. 4',
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        ),
-        _gap(),
-        _FieldLabel('Meals each day'),
-        _chips<String>(
-          values: _meals,
-          isSelected: _mealsPerDay.contains,
-          onTap: (v) => setState(() => _mealsPerDay.contains(v) ? _mealsPerDay.remove(v) : _mealsPerDay.add(v)),
-          label: _pretty,
-        ),
-        _gap(),
-        DsLabeledField(
-          label: 'Cuisines',
-          controller: _cuisines,
-          icon: Icons.restaurant_menu_rounded,
-          hint: 'e.g. North Indian, South Indian',
-          optional: true,
-          textCapitalization: TextCapitalization.words,
-        ),
-        _gap(),
-        DsLabeledField(
-          label: 'Health needs',
-          controller: _healthConditions,
-          icon: Icons.favorite_rounded,
-          hint: 'e.g. Diabetic, Low sodium',
-          optional: true,
-          textCapitalization: TextCapitalization.words,
-        ),
-      ];
-
-  List<Widget> _commonFields() => [
-        const DsSection('Work details'),
-        _FieldLabel('Type of work'),
-        _chips<String>(
-          values: const ['PERMANENT', 'TEMPORARY'],
-          isSelected: (v) => _placementType == v,
-          onTap: (v) => setState(() => _placementType = v),
-          label: (v) => v == 'TEMPORARY' ? 'Temporary (hourly)' : 'Permanent',
-        ),
-        _gap(),
-        DsLabeledField(
-          label: 'Hours per day',
-          controller: _shiftHours,
-          icon: Icons.schedule_rounded,
-          hint: '8',
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        ),
-        _gap(),
-        _FieldLabel('Start date', optional: true),
-        DsListCard(
-          icon: Icons.event_rounded,
-          title: _startDate == null ? 'Choose a date' : _ymd(_startDate!),
-          subtitle: _startDate == null ? 'As soon as possible' : 'Tap to change',
-          onTap: _pickDate,
-        ),
-        _FieldLabel('How many staff?'),
-        _Stepper(
-          value: _headcount,
-          min: 1,
-          max: 20,
-          onChanged: (v) => setState(() => _headcount = v),
-        ),
-        _gap(),
-        _FieldLabel('Staff gender'),
-        _chips<String>(
-          values: const ['ANY', 'FEMALE', 'MALE'],
-          isSelected: (v) => _genderPref == v,
-          onTap: (v) => setState(() => _genderPref = v),
-          label: (v) => v == 'ANY' ? 'No preference' : _pretty(v),
-        ),
-        _gap(),
-        DsLabeledField(
-          label: 'Language',
-          controller: _language,
-          icon: Icons.translate_rounded,
-          hint: 'e.g. Hindi',
-          optional: true,
-          textCapitalization: TextCapitalization.words,
-        ),
-        const DsSection('Budget (₹ per month)', trailing: DsPill('Optional', color: AppColors.lightTextSecondary)),
-        Row(
-          children: [
-            Expanded(
-              child: DsLabeledField(
-                label: 'From',
-                controller: _budgetMin,
-                hint: '15000',
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: DsLabeledField(
-                label: 'To',
-                controller: _budgetMax,
-                hint: '20000',
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              ),
-            ),
-          ],
-        ),
-        const DsSection('Anything else'),
-        DsLabeledField(
-          label: 'Address',
-          controller: _address,
-          icon: Icons.home_rounded,
-          hint: 'Leave empty to use your saved address',
-          optional: true,
-          maxLines: 2,
-        ),
-        _gap(),
-        DsLabeledField(
-          label: 'Notes for your RM',
-          controller: _notes,
-          icon: Icons.edit_note_rounded,
-          hint: 'e.g. Father needs help walking',
-          optional: true,
-          maxLines: 4,
-          minLines: 3,
-          textCapitalization: TextCapitalization.sentences,
-        ),
-      ];
-}
-
 class _SeriesOptionCard extends StatelessWidget {
   const _SeriesOptionCard({required this.option, required this.selected, required this.onTap});
   final SeriesOption option;
@@ -553,8 +201,14 @@ class _FieldLabel extends StatelessWidget {
 }
 
 class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({required this.title, required this.value, required this.onChanged});
+  const _SwitchRow({
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.icon = Icons.nightlight_round,
+  });
   final String title;
+  final IconData icon;
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -564,7 +218,7 @@ class _SwitchRow extends StatelessWidget {
         decoration: dsCardDecoration(),
         child: Row(
           children: [
-            const DsIconTile(Icons.nightlight_round, size: 36),
+            DsIconTile(icon, size: 36),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -707,6 +361,23 @@ class _RequestListCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.event_rounded, size: 16, color: AppColors.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _bookingLine(r),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.lightTextPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
             Text(
               StaffRequestStatus.message(r.status),
               style: GoogleFonts.plusJakartaSans(
@@ -859,6 +530,18 @@ class _ClientStaffRequestDetailScreenState extends ConsumerState<ClientStaffRequ
                 canChoose: r.canChoose && !_busy,
                 onChoose: () => _choose(c.staff),
               ),
+          ],
+          const DsSection('Your booking'),
+          _YourBooking(request: r),
+          if (r.menu != null) ...[
+            DsSection(r.menu!.weekly.isNotEmpty
+                ? 'Weekly menu'
+                : '${r.menu!.meal == null ? 'Visit' : _pretty(r.menu!.meal!)} menu'),
+            _BookingMenu(menu: r.menu!),
+          ],
+          if (r.careNeeds != null) ...[
+            const DsSection('Care needs'),
+            _BookingCareNeeds(needs: r.careNeeds!),
           ],
           const DsSection('What you asked for'),
           _AskedFor(request: r),
@@ -1024,6 +707,107 @@ class _CandidateCard extends StatelessWidget {
   }
 }
 
+/// Visit type, when, how long and where.
+class _YourBooking extends StatelessWidget {
+  const _YourBooking({required this.request});
+  final StaffRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = request;
+    final when = _when(r);
+    final howLong = r.isOneTime
+        ? BookingRules.durationLabel(r.durationMin ?? (r.shiftHours * 60).round())
+        : '${r.placementType == 'TEMPORARY' ? 'Hourly' : 'Permanent'} · ${BookingRules.hours(r.shiftHours)} h a day';
+    return DsInfoCard(
+      lines: [
+        DsInfoLine(Icons.badge_rounded, 'Staff', '${SeriesDisplay.label(r.series)} × ${r.headcount}'),
+        DsInfoLine(Icons.event_available_rounded, 'Visit', r.isOneTime ? 'One-time visit' : 'Regular staff'),
+        if (when.isNotEmpty) DsInfoLine(Icons.event_rounded, r.isOneTime ? 'When' : 'Starts', when),
+        DsInfoLine(Icons.timelapse_rounded, 'How long', howLong),
+        if ((r.address ?? '').isNotEmpty) DsInfoLine(Icons.home_rounded, 'Address', r.address!),
+      ],
+    );
+  }
+}
+
+/// A cook request's dishes (one-time) or weekly menu (regular).
+class _BookingMenu extends StatelessWidget {
+  const _BookingMenu({required this.menu});
+  final StaffRequestMenu menu;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = menu;
+    if (m.weekly.isNotEmpty) {
+      return DsInfoCard(
+        lines: [
+          for (final e in m.weekly)
+            DsInfoLine(
+              Icons.restaurant_rounded,
+              '${_pretty(e.dow)} ${_pretty(e.meal)}${e.mealTime != null ? ' ${_time12(e.mealTime!)}' : ''}',
+              e.dishes.join(', '),
+            ),
+        ],
+      );
+    }
+    return DsInfoCard(
+      lines: [
+        if (m.mealTime != null) DsInfoLine(Icons.schedule_rounded, 'Meal time', _time12(m.mealTime!)),
+        DsInfoLine(Icons.restaurant_rounded, 'Dishes', m.dishes.join(', ')),
+        if ((m.specialInstruction ?? '').isNotEmpty)
+          DsInfoLine(Icons.edit_note_rounded, 'Note', m.specialInstruction!),
+      ],
+    );
+  }
+}
+
+/// A care request's needs — the care-plan shape.
+class _BookingCareNeeds extends StatelessWidget {
+  const _BookingCareNeeds({required this.needs});
+  final CarePlan needs;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = needs;
+    String times(List<String> t) => t.isEmpty ? '' : ' (${t.join(', ')})';
+    final patient = [
+      ?n.patient.name,
+      if (n.patient.age != null) '${n.patient.age} yrs',
+    ].join(' · ');
+    return DsInfoCard(
+      lines: [
+        if (patient.isNotEmpty) DsInfoLine(Icons.person_rounded, 'Patient', patient),
+        if (n.medications.isNotEmpty)
+          DsInfoLine(
+            Icons.medication_rounded,
+            'Medicines',
+            n.medications.map((m) => '${m.summary}${times(m.times)}').join(', '),
+          ),
+        if (n.vitals.isNotEmpty)
+          DsInfoLine(
+            Icons.monitor_heart_rounded,
+            'Checks',
+            n.vitals
+                .map((v) =>
+                    '${VitalType.fallback.where((t) => t.type == v.type).firstOrNull?.label ?? carePretty(v.type)}${times(v.times)}')
+                .join(', '),
+          ),
+        if (n.activities.isNotEmpty)
+          DsInfoLine(
+            Icons.directions_walk_rounded,
+            'Activities',
+            n.activities.map((a) => '${a.title.isEmpty ? carePretty(a.type) : a.title}${times(a.times)}').join(', '),
+          ),
+        if (n.dietNotes != null) DsInfoLine(Icons.restaurant_rounded, 'Diet', n.dietNotes!),
+        if (n.dos != null) DsInfoLine(Icons.thumb_up_alt_rounded, 'Do', n.dos!),
+        if (n.donts != null) DsInfoLine(Icons.block_rounded, 'Don\'t', n.donts!),
+      ],
+    );
+  }
+}
+
+/// The requirements: patient or kitchen details, preferences, notes.
 class _AskedFor extends StatelessWidget {
   const _AskedFor({required this.request});
   final StaffRequest request;
@@ -1033,22 +817,11 @@ class _AskedFor extends StatelessWidget {
     final r = request;
     final q = r.requirements;
     String list(Object? v) => v is List ? v.map((e) => _pretty('$e')).join(', ') : '';
-    final budget = r.budgetMin != null || r.budgetMax != null
-        ? '₹${r.budgetMin ?? '…'} – ₹${r.budgetMax ?? '…'} / month'
-        : null;
 
     return DsInfoCard(
       lines: [
-        DsInfoLine(Icons.badge_rounded, 'Staff', '${SeriesDisplay.label(r.series)} × ${r.headcount}'),
-        DsInfoLine(
-          Icons.work_history_rounded,
-          'Work',
-          '${r.placementType == 'TEMPORARY' ? 'Temporary (hourly)' : 'Permanent'} · ${r.shiftHours} hrs/day',
-        ),
-        if (r.startDate != null) DsInfoLine(Icons.event_rounded, 'Start', r.startDate!),
         if (r.genderPref != 'ANY') DsInfoLine(Icons.wc_rounded, 'Staff gender', _pretty(r.genderPref)),
         if ((r.language ?? '').isNotEmpty) DsInfoLine(Icons.translate_rounded, 'Language', r.language!),
-        if (budget != null) DsInfoLine(Icons.currency_rupee_rounded, 'Budget', budget),
         if (q['patient_age'] != null) DsInfoLine(Icons.cake_rounded, 'Patient age', '${q['patient_age']}'),
         if (q['mobility'] != null) DsInfoLine(Icons.accessible_rounded, 'Mobility', _pretty('${q['mobility']}')),
         if (list(q['conditions']).isNotEmpty) DsInfoLine(Icons.healing_rounded, 'Conditions', list(q['conditions'])),
@@ -1062,7 +835,6 @@ class _AskedFor extends StatelessWidget {
         if (list(q['cuisines']).isNotEmpty) DsInfoLine(Icons.restaurant_menu_rounded, 'Cuisines', list(q['cuisines'])),
         if (list(q['health_conditions']).isNotEmpty)
           DsInfoLine(Icons.favorite_rounded, 'Health needs', list(q['health_conditions'])),
-        if ((r.address ?? '').isNotEmpty) DsInfoLine(Icons.home_rounded, 'Address', r.address!),
         if ((r.notes ?? '').isNotEmpty) DsInfoLine(Icons.edit_note_rounded, 'Notes', r.notes!),
       ],
     );
