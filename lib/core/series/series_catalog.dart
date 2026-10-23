@@ -114,12 +114,15 @@ abstract final class SeriesDisplay {
   static String? _short(String? raw) =>
       SeriesCatalog.fallback.find(raw)?.short;
 
-  /// Short code (UC, SC, CK, MAID, DR), or the raw value if unknown.
-  static String code(String? raw) => _short(raw) ?? (raw ?? '');
+  /// Short code (UC, SC, CK, MAID, DR), or the raw value if unknown. A
+  /// staff member has no series until the profile is done — that is "—".
+  static String code(String? raw) =>
+      (raw == null || raw.trim().isEmpty) ? '—' : _short(raw) ?? raw;
 
-  /// Human label ("Skilled Caretaker"), or the raw value if unknown.
-  static String label(String? raw) =>
-      SeriesCatalog.fallback.find(raw)?.label ?? (raw ?? '');
+  /// Human label ("Skilled Caretaker"), the raw value if unknown, "—" if none.
+  static String label(String? raw) => (raw == null || raw.trim().isEmpty)
+      ? '—'
+      : SeriesCatalog.fallback.find(raw)?.label ?? raw;
 
   /// Whether the series is paused for new staff (MAID, DR).
   static bool isPaused(String? raw) =>

@@ -4,6 +4,7 @@ import '../../../core/network/api_service.dart';
 import '../../../core/storage/hive_service.dart';
 import '../models/auth_dto.dart';
 import '../../domain/models/auth_tokens.dart';
+import '../../domain/models/otp_send_result.dart';
 import '../../domain/models/user_model.dart';
 
 /// Remote auth API datasource.
@@ -21,90 +22,28 @@ class AuthRemoteDataSource extends BaseRemoteDataSource {
     return AuthTokensDto.fromJson(data);
   }
 
-  Future<AuthTokensDto> registerStaff({
-    required String fullName,
-    required String phone,
-    String? alternatePhone,
-    String? email,
-    required String password,
-    required String dateOfBirth,
-    required String gender,
-    required String address,
-    String? city,
-    String? stateName,
-    String? pincode,
-    required String series,
-  }) async {
-    final data = await postJson(
-      ApiConstants.authRegisterStaff,
-      data: {
-        'full_name': fullName,
-        'phone': phone,
-        if (alternatePhone != null && alternatePhone.isNotEmpty)
-          'alternate_phone': alternatePhone,
-        if (email != null && email.isNotEmpty) 'email': email,
-        'password': password,
-        'date_of_birth': dateOfBirth,
-        'gender': gender,
-        'address': address,
-        if (city != null && city.isNotEmpty) 'city': city,
-        if (stateName != null && stateName.isNotEmpty) 'state': stateName,
-        if (pincode != null && pincode.isNotEmpty) 'pincode': pincode,
-        'series': series,
-      },
-    );
-    return AuthTokensDto.fromJson(data);
+  /// `POST /auth/otp/send` — sends (for now: issues) a 6-digit login code.
+  Future<OtpSendResult> sendLoginOtp({required String phone}) async {
+    final data = await postJson(ApiConstants.authOtpSend, data: {'phone': phone});
+    return OtpSendResult.fromJson(data);
   }
 
-  Future<AuthTokensDto> registerCustomer({
-    required String fullName,
-    required String phone,
-    String? email,
-    required String password,
-    String? businessName,
-    required String panCard,
-    required String address,
-    String? city,
-    String? stateName,
-    String? pincode,
-    String? gstn,
-  }) async {
-    final data = await postJson(
-      ApiConstants.authRegisterCustomer,
-      data: {
-        'full_name': fullName,
-        'phone': phone,
-        if (email != null && email.isNotEmpty) 'email': email,
-        'password': password,
-        if (businessName != null && businessName.isNotEmpty)
-          'business_name': businessName,
-        'pan_card': panCard,
-        'address': address,
-        if (city != null && city.isNotEmpty) 'city': city,
-        if (stateName != null && stateName.isNotEmpty) 'state': stateName,
-        if (pincode != null && pincode.isNotEmpty) 'pincode': pincode,
-        if (gstn != null && gstn.isNotEmpty) 'gstn': gstn,
-      },
-    );
-    return AuthTokensDto.fromJson(data);
-  }
-
-  Future<bool> verifyOtp({
+  /// `POST /auth/otp/verify` — signs in (or, for a new number with [role],
+  /// signs up). Same response shape as `POST /auth/login` plus `is_new_user`.
+  Future<AuthTokensDto> verifyLoginOtp({
     required String phone,
     required String otp,
+    String? role,
   }) async {
     final data = await postJson(
-      ApiConstants.authVerifyOtp,
-      data: {'phone': phone, 'otp': otp},
+      ApiConstants.authOtpVerify,
+      data: {'phone': phone, 'otp': otp, if (role != null) 'role': role},
     );
-    return data['valid'] == true;
+    return AuthTokensDto.fromJson(data);
   }
 
   Future<void> forgotPassword({required String phone}) async {
-    await postJson(
-      ApiConstants.authForgotPassword,
-      data: {'phone': phone},
-    );
+    await postJson(ApiConstants.authForgotPassword, data: {'phone': phone});
   }
 
   Future<void> resetPassword({
@@ -164,6 +103,10 @@ class AuthLocalDataSource {
   final HiveService _hive;
 
   Future<void> cacheUser(UserDto user) async {
+    // Every offline cache in this box belongs to the signed-in account. When a
+    // different account signs in (new sign-up, or login after an expired
+    // session) drop it, so they never see the previous user's name/RM/stage.
+    if (getCachedUser()?.id != user.id) await _hive.clearCache();
     await _hive.saveCache(StorageKeys.userProfile, user.toJson());
   }
 
@@ -173,25 +116,26 @@ class AuthLocalDataSource {
     return UserDto.fromJson(Map<String, dynamic>.from(raw));
   }
 
+  /// Logout — clears the cached user and every per-account offline cache.
   Future<void> clearUser() async {
-    await _hive.saveCache(StorageKeys.userProfile, null);
+    await _hive.clearCache();
   }
 }
 
 /// Maps auth DTOs to domain models.
 class AuthMapper {
   AuthTokens toTokens(AuthTokensDto dto) => AuthTokens(
-        accessToken: dto.accessToken,
-        refreshToken: dto.refreshToken,
-        mustChangePassword: dto.mustChangePassword,
-      );
+    accessToken: dto.accessToken,
+    refreshToken: dto.refreshToken,
+    mustChangePassword: dto.mustChangePassword,
+  );
 
   UserModel toUser(UserDto dto) => UserModel(
-        id: dto.id,
-        name: dto.name,
-        email: dto.email,
-        phone: dto.phone.isEmpty ? null : dto.phone,
-        role: dto.role,
-        avatarUrl: dto.avatarUrl,
-      );
+    id: dto.id,
+    name: dto.name,
+    email: dto.email,
+    phone: dto.phone.isEmpty ? null : dto.phone,
+    role: dto.role,
+    avatarUrl: dto.avatarUrl,
+  );
 }

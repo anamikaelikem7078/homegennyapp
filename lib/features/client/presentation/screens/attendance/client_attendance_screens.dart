@@ -4,19 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/client_models.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
-
-String _currentMonthYear() {
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  final now = DateTime.now();
-  return '${months[now.month - 1]} ${now.year}';
-}
 
 void _backOrHome(BuildContext context) {
   if (context.canPop()) {
@@ -65,6 +57,30 @@ class ClientTodayAttendanceScreen extends ConsumerWidget {
         today,
         onRetry: () => ref.invalidate(clientTodayAttendanceProvider),
         builder: (t) {
+          if (t.staff.isNotEmpty) {
+            return [
+              for (var i = 0; i < t.staff.length; i++)
+                _StaffTodayCard(staff: t.staff[i])
+                    .animate(delay: (60 * i.clamp(0, 6)).ms)
+                    .fadeIn(duration: 280.ms)
+                    .slideY(begin: 0.05, end: 0),
+              const DsSection('Something wrong?'),
+              DsListCard(
+                icon: Icons.flag_rounded,
+                iconColor: AppColors.error,
+                title: 'Raise an issue',
+                subtitle: 'Late arrival, early leave or a missed check-in',
+                onTap: () => context.push(ClientRoutes.attendanceRaiseIssue),
+              ),
+              DsListCard(
+                icon: Icons.calendar_month_rounded,
+                title: 'Attendance history',
+                subtitle: 'Days worked at your home',
+                onTap: () => context.push(ClientRoutes.attendanceHistory),
+              ),
+            ];
+          }
+          // Older server: one staff member in the top-level fields.
           final (color, icon) = _statusStyle(t.todayStatus);
           final present = color == AppColors.success;
           return [
@@ -192,6 +208,113 @@ class ClientTodayAttendanceScreen extends ConsumerWidget {
   }
 }
 
+/// One staff member's day: status, times and where they are now.
+class _StaffTodayCard extends StatelessWidget {
+  const _StaffTodayCard({required this.staff});
+  final ClientStaffToday staff;
+
+  static (String, Color) _status(String s) => switch (s) {
+        'PRESENT' => ('Present', AppColors.success),
+        'CHECKED_OUT' => ('Checked out', AppColors.secondary),
+        _ => ('Not checked in', AppColors.warning),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final (statusLabel, statusColor) = _status(staff.status);
+    final last = staff.lastLocation;
+    final small = GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary);
+    final times = [
+      if (staff.checkIn != null) 'In ${DateFormatter.time(staff.checkIn)}',
+      if (staff.checkOut != null) 'Out ${DateFormatter.time(staff.checkOut)}',
+    ].join('  ·  ');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: dsCardDecoration(radius: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () => context.push(ClientRoutes.staffProfile(staff.staffId)),
+            child: Row(
+              children: [
+                DsInitialsAvatar(name: staff.name, size: 46, radius: 23),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        staff.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.lightTextPrimary,
+                        ),
+                      ),
+                      if (staff.seriesLabel != null) Text(staff.seriesLabel!, style: small),
+                    ],
+                  ),
+                ),
+                DsPill(statusLabel, color: statusColor),
+              ],
+            ),
+          ),
+          if (times.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(times, style: small.copyWith(fontWeight: FontWeight.w600)),
+          ],
+          if (last != null && last.label != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  last.atHome == true ? Icons.home_rounded : Icons.location_on_rounded,
+                  size: 16,
+                  color: last.atHome == true ? AppColors.success : AppColors.error,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    last.label!,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: last.atHome == true ? AppColors.success : AppColors.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (last != null && last.stale) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Location not updated since ${DateFormatter.time(last.at)}',
+              style: small.copyWith(color: AppColors.warning),
+            ),
+          ],
+          if (staff.status == 'PRESENT') ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => context.push(ClientRoutes.staffLiveMap(staff.staffId)),
+                icon: const Icon(Icons.map_rounded, size: 18),
+                label: const Text('View on map'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Attendance history.
 class ClientAttendanceHistoryScreen extends ConsumerStatefulWidget {
   const ClientAttendanceHistoryScreen({super.key});
@@ -202,6 +325,34 @@ class ClientAttendanceHistoryScreen extends ConsumerStatefulWidget {
 
 class _ClientAttendanceHistoryScreenState extends ConsumerState<ClientAttendanceHistoryScreen> {
   String? _filter;
+  String? _staffId;
+  DateTimeRange? _range;
+
+  static String _ymd(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  ClientHistoryFilter get _query => (
+        staffId: _staffId,
+        from: _range == null ? null : _ymd(_range!.start),
+        to: _range == null ? null : _ymd(_range!.end),
+      );
+
+  Future<void> _pickRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 2),
+      lastDate: now,
+      initialDateRange: _range ?? DateTimeRange(start: now.subtract(const Duration(days: 29)), end: now),
+    );
+    if (picked == null || !mounted) return;
+    // The server accepts at most 3 months.
+    if (picked.end.difference(picked.start).inDays > 92) {
+      context.showDsSnackBar('Pick at most 3 months', type: DsSnackBarType.warning);
+      return;
+    }
+    setState(() => _range = picked);
+  }
 
   static const _filters = [
     ('All', null),
@@ -212,16 +363,23 @@ class _ClientAttendanceHistoryScreenState extends ConsumerState<ClientAttendance
 
   @override
   Widget build(BuildContext context) {
-    final history = ref.watch(clientAttendanceHistoryProvider);
+    final history = ref.watch(clientAttendanceHistoryFilteredProvider(_query));
+    final staff = ref.watch(clientTodayAttendanceProvider).valueOrNull?.staff ?? const <ClientStaffToday>[];
+    final range = _range;
 
     return DsPage(
       title: 'Attendance history',
-      subtitle: _currentMonthYear(),
+      subtitle: range == null
+          ? 'Last 30 days'
+          : '${DateFormatter.date(range.start)} – ${DateFormatter.date(range.end)}',
       onBack: () => _backOrHome(context),
-      onRefresh: () async => ref.invalidate(clientAttendanceHistoryProvider),
+      onRefresh: () async => ref.invalidate(clientAttendanceHistoryFilteredProvider(_query)),
+      actions: [
+        DsPageAction(icon: Icons.date_range_rounded, tooltip: 'Date range', onPressed: _pickRange),
+      ],
       body: dsAsyncBody(
         history,
-        onRetry: () => ref.invalidate(clientAttendanceHistoryProvider),
+        onRetry: () => ref.invalidate(clientAttendanceHistoryFilteredProvider(_query)),
         builder: (list) {
           int count(String s) => list.where((r) => r.status.toUpperCase() == s).length;
           final present = count('PRESENT');
@@ -294,6 +452,31 @@ class _ClientAttendanceHistoryScreenState extends ConsumerState<ClientAttendance
                 ],
               ),
             ),
+            if (staff.length > 1) ...[
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 42,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  clipBehavior: Clip.none,
+                  children: [
+                    DsChoiceChip(
+                      label: 'Everyone',
+                      selected: _staffId == null,
+                      onTap: () => setState(() => _staffId = null),
+                    ),
+                    for (final s in staff) ...[
+                      const SizedBox(width: 8),
+                      DsChoiceChip(
+                        label: s.name.split(' ').first,
+                        selected: _staffId == s.staffId,
+                        onTap: () => setState(() => _staffId = s.staffId),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 18),
             SizedBox(
               height: 42,
@@ -318,7 +501,7 @@ class _ClientAttendanceHistoryScreenState extends ConsumerState<ClientAttendance
               )
             else
               for (var i = 0; i < shown.length; i++)
-                _RecordCard(record: shown[i])
+                _RecordCard(record: shown[i], showName: staff.length > 1 && _staffId == null)
                     .animate(delay: (40 * i.clamp(0, 10)).ms)
                     .fadeIn(duration: 280.ms)
                     .slideX(begin: 0.05, end: 0),
@@ -330,7 +513,8 @@ class _ClientAttendanceHistoryScreenState extends ConsumerState<ClientAttendance
 }
 
 class _RecordCard extends StatelessWidget {
-  const _RecordCard({required this.record});
+  const _RecordCard({required this.record, this.showName = false});
+  final bool showName;
   final ClientAttendanceRecord record;
 
   @override
@@ -351,7 +535,7 @@ class _RecordCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  record.date,
+                  showName && record.staffName != null ? '${record.date}  ·  ${record.staffName}' : record.date,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w800,
@@ -362,8 +546,9 @@ class _RecordCard extends StatelessWidget {
                 Text(
                   absent
                       ? 'No check-in recorded'
-                      : 'In ${record.checkIn ?? '—'}'
-                          '${out != null && out.isNotEmpty && out != '—' ? '  ·  Out $out' : ''}',
+                      : 'In ${DateFormatter.time(record.checkIn, fallback: '—')}'
+                          '${out != null && out.isNotEmpty && out != '—' ? '  ·  Out ${DateFormatter.time(out)}' : ''}'
+                          '${record.worked != null ? '  ·  ${record.worked}' : ''}',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w500,

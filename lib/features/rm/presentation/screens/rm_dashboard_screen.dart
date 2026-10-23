@@ -27,7 +27,10 @@ class RmDashboardScreen extends ConsumerWidget {
       backgroundColor: RmTheme.offWhite,
       body: RefreshIndicator(
         color: RmTheme.electricBlue,
-        onRefresh: () async => ref.invalidate(rmDashboardProvider),
+        onRefresh: () async {
+          ref.invalidate(rmDashboardProvider);
+          ref.invalidate(rmSignupRequestsProvider);
+        },
         child: AsyncValueWidget<RmDashboard>(
           value: dashboard,
           onRetry: () => ref.invalidate(rmDashboardProvider),
@@ -44,6 +47,7 @@ class RmDashboardScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      const _SignupRequestsBanner(),
                       const _SectionTitle(
                         title: 'At a glance',
                         subtitle: 'Your key numbers today',
@@ -173,6 +177,77 @@ BoxDecoration _card() => BoxDecoration(
       border: Border.all(color: RmTheme.borderSubtle.withValues(alpha: 0.7)),
       boxShadow: RmTheme.subtleShadow,
     );
+
+/// "N new sign-ups waiting" — shown only while staff/clients without an RM
+/// exist; tapping opens the accept queue.
+class _SignupRequestsBanner extends ConsumerWidget {
+  const _SignupRequestsBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rows = ref.watch(rmSignupRequestsProvider).valueOrNull ?? const <SignupRequest>[];
+    if (rows.isEmpty) return const SizedBox.shrink();
+    final staff = rows.where((r) => r.type == SignupRequestType.staff).length;
+    final clients = rows.length - staff;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 22),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => context.push(RmRoutes.signupRequests),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: RmTheme.amberWarning.withValues(alpha: 0.5)),
+              boxShadow: RmTheme.subtleShadow,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: RmTheme.amberWarning.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.how_to_reg_rounded, color: RmTheme.amberWarning),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${rows.length} new sign-up${rows.length == 1 ? '' : 's'} waiting',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: RmTheme.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        '$staff staff · $clients client${clients == 1 ? '' : 's'} need an RM',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.5,
+                          color: RmTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: RmTheme.textSecondary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({
@@ -576,8 +651,7 @@ class _QuickActions extends StatelessWidget {
       ('Pipeline', Icons.view_kanban_rounded, () => context.go(RmRoutes.pipeline)),
       ('Attendance', Icons.event_available_rounded, () => context.push(RmRoutes.attendance)),
       ('Locations', Icons.place_rounded, () => context.push(RmRoutes.locations)),
-      ('Upgrades', Icons.trending_up_rounded, () => context.push(RmRoutes.upgrades)),
-    ];
+      ('Upgrades', Icons.trending_up_rounded, () => context.push(RmRoutes.upgrades)),    ];
 
     return Column(
       children: [

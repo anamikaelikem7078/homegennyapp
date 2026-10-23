@@ -5,9 +5,13 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>This app requires Face ID permission to authenticate using face recognition.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>HomeGenny needs your location to verify your attendance at the work site.</string>
+	<string>HomeGenny uses your location to verify attendance and, while you are checked in, shares it with the family and your RM. It stops when you check out.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>HomeGenny needs your location to verify your attendance at the work site.</string>
+	<string>HomeGenny uses your location to verify attendance and, while you are checked in, shares it with the family and your RM. It stops when you check out.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>HomeGenny uses the microphone to record voice instructions for your staff.</string>
 	<key>NSCameraUsageDescription</key>

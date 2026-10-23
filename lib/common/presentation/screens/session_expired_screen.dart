@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/presentation/widgets/scrollable_fill.dart';
 import '../../../core/router/app_routes.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/app_widgets.dart';
@@ -42,7 +43,7 @@ class _SessionExpiredScreenState extends ConsumerState<SessionExpiredScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
+        child: ScrollableFill(
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [

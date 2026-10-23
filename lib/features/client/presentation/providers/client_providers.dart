@@ -3,12 +3,23 @@ import '../../../../core/utils/result.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/client_models.dart';
+import '../../domain/models/client_snapshot.dart';
 import '../../domain/models/staff_request_models.dart';
 
 export '../../../../core/di/injection.dart' show clientRepositoryProvider;
 
 final clientDashboardProvider = FutureProvider<ClientDashboardData>((ref) async {
   final result = await ref.watch(clientRepositoryProvider).getDashboard();
+  return result.fold(
+    onSuccess: (d) => d,
+    onError: (f) => throw Exception(f.message),
+  );
+});
+
+/// `GET /client/snapshot` — "Today at home". Refreshed by the home every
+/// 2 minutes while it is visible, and on pull-to-refresh.
+final clientSnapshotProvider = FutureProvider<ClientSnapshot>((ref) async {
+  final result = await ref.watch(clientRepositoryProvider).getSnapshot();
   return result.fold(
     onSuccess: (d) => d,
     onError: (f) => throw Exception(f.message),
@@ -44,6 +55,32 @@ final clientTodayAttendanceProvider = FutureProvider<ClientTodayAttendance>((ref
 final clientAttendanceHistoryProvider =
     FutureProvider<List<ClientAttendanceRecord>>((ref) async {
   final result = await ref.watch(clientRepositoryProvider).getAttendanceHistory();
+  return result.fold(
+    onSuccess: (d) => d,
+    onError: (f) => throw Exception(f.message),
+  );
+});
+
+/// History filtered by staff member and date range (YYYY-MM-DD, at most 3
+/// months apart). All null = the server default (last 30 days, everyone).
+typedef ClientHistoryFilter = ({String? staffId, String? from, String? to});
+
+final clientAttendanceHistoryFilteredProvider = FutureProvider.autoDispose
+    .family<List<ClientAttendanceRecord>, ClientHistoryFilter>((ref, filter) async {
+  final result = await ref
+      .watch(clientRepositoryProvider)
+      .getAttendanceHistory(staffId: filter.staffId, from: filter.from, to: filter.to);
+  return result.fold(
+    onSuccess: (d) => d,
+    onError: (f) => throw Exception(f.message),
+  );
+});
+
+/// Live map data for one staff member; the map screen re-fetches it every
+/// `next_refresh_sec` while open.
+final clientStaffLocationProvider =
+    FutureProvider.autoDispose.family<ClientStaffLocation, String>((ref, staffId) async {
+  final result = await ref.watch(clientRepositoryProvider).getStaffLocation(staffId);
   return result.fold(
     onSuccess: (d) => d,
     onError: (f) => throw Exception(f.message),

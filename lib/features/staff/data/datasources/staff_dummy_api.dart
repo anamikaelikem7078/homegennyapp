@@ -95,7 +95,7 @@ class StaffDummyApi {
 
   Future<StaffProfile> getProfile() => _simulate(_profile);
 
-  Future<void> updateProfile({String? address, String? email}) => _simulate(null);
+  Future<StaffProfile> updateProfile(Map<String, dynamic> fields) => _simulate(_profile);
 
   List<StaffDocument> get _documents => const [
         StaffDocument(
@@ -361,6 +361,32 @@ class StaffDummyApi {
 
   Future<DeploymentInfo> getDeployment() => _simulate(_deployment);
 
+  String? _openPlacementId;
+
+  Future<StaffPlacementsToday> getPlacementsToday() => _simulate(
+        StaffPlacementsToday(
+          date: _todayKey,
+          checkedInAt: _openPlacementId,
+          placements: [
+            StaffPlacementOption(
+              placementId: 'PLC-001',
+              clientName: 'Priya Sharma',
+              address: '42, Green Park Extension, New Delhi - 110016',
+              homeLat: 28.5592,
+              homeLng: 77.2066,
+              placementType: 'PERMANENT',
+              visitType: 'REGULAR',
+              today: _openPlacementId == null ? 'NOT_CHECKED_IN' : 'CHECKED_IN',
+            ),
+          ],
+        ),
+      );
+
+  Future<LocationUploadResult> sendLocationPoints(List<LocationPoint> points) async {
+    await Future<void>.delayed(_delay);
+    return LocationUploadResult(accepted: points.length, dropped: 0, nextInSec: 300);
+  }
+
   final List<AttendanceRecord> _attendanceRecords = [
     const AttendanceRecord(
       date: '2026-08-15',
@@ -399,7 +425,8 @@ class StaffDummyApi {
     return null;
   }
 
-  Future<CheckInResult> checkIn({double? latitude, double? longitude}) async {
+  Future<CheckInResult> checkIn({double? latitude, double? longitude, String? placementId}) async {
+    _openPlacementId = placementId ?? 'PLC-001';
     await Future<void>.delayed(_delay);
     final now = DateTime.now();
     final timestamp = now.toIso8601String();
@@ -422,10 +449,18 @@ class StaffDummyApi {
       attendanceId: 'a1',
       status: 'CHECKED_IN',
       timestamp: timestamp,
+      latitude: latitude,
+      longitude: longitude,
+      placementId: _openPlacementId,
+      clientName: 'Priya Sharma',
+      distanceM: 22,
+      atHome: true,
+      locationIntervalSec: 300,
     );
   }
 
   Future<CheckInResult> checkOut({double? latitude, double? longitude}) async {
+    _openPlacementId = null;
     await Future<void>.delayed(_delay);
     final timestamp = DateTime.now().toIso8601String();
     if (_attendanceRecords.isNotEmpty && _attendanceRecords.first.date == _todayKey) {
@@ -442,6 +477,7 @@ class StaffDummyApi {
       attendanceId: 'a1',
       status: 'CHECKED_OUT',
       timestamp: timestamp,
+      worked: '8 h 0 m',
     );
   }
 

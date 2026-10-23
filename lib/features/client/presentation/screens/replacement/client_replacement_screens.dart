@@ -25,7 +25,10 @@ void _backOrHome(BuildContext context) {
 
 /// Replacement request form.
 class ClientReplacementRequestScreen extends ConsumerStatefulWidget {
-  const ClientReplacementRequestScreen({super.key});
+  const ClientReplacementRequestScreen({super.key, this.placementId});
+
+  /// Pre-selects who this is for (from the home's trial banner).
+  final String? placementId;
 
   @override
   ConsumerState<ClientReplacementRequestScreen> createState() => _ClientReplacementRequestScreenState();
@@ -38,9 +41,12 @@ class _ClientReplacementRequestScreenState extends ConsumerState<ClientReplaceme
   String? _pickedFileName;
   // Placement to replace — required once the client has more than one staff
   // member placed; the backend 400s with "send placement_id to say which
-  // one" if it's ambiguous. `staffId` from GET /client/assigned-staff is the
-  // only per-placement identifier that model exposes, so it's reused here.
-  String? _selectedPlacementId;
+  // one" if it's ambiguous.
+  late String? _selectedPlacementId = widget.placementId;
+
+  /// The staff member's placement id; `staffId` only for older responses
+  /// that didn't carry `placementId`.
+  static String _placementOf(ClientAssignedStaff s) => s.placementId ?? s.staffId;
 
   Future<void> _pickDocument() async {
     final result = await FilePicker.platform.pickFiles(
@@ -72,7 +78,7 @@ class _ClientReplacementRequestScreenState extends ConsumerState<ClientReplaceme
       );
       return;
     }
-    final placementId = _selectedPlacementId ?? (assignedStaff.length == 1 ? assignedStaff.first.staffId : null);
+    final placementId = _selectedPlacementId ?? (assignedStaff.length == 1 ? _placementOf(assignedStaff.first) : null);
     setState(() => _loading = true);
     final result = await ref.read(clientRepositoryProvider).requestReplacement(
           reason: _reason.text,
@@ -160,8 +166,8 @@ class _ClientReplacementRequestScreenState extends ConsumerState<ClientReplaceme
           for (final s in assignedStaff)
             _StaffOption(
               staff: s,
-              selected: _selectedPlacementId == s.staffId,
-              onTap: () => setState(() => _selectedPlacementId = s.staffId),
+              selected: _selectedPlacementId == _placementOf(s),
+              onTap: () => setState(() => _selectedPlacementId = _placementOf(s)),
             ),
         ],
         const DsSection('Describe the issue'),

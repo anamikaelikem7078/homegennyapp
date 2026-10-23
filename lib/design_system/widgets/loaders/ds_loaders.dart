@@ -26,8 +26,9 @@ class DsShimmerLoader extends StatelessWidget {
 
     return Shimmer.fromColors(
       baseColor: isDark ? AppColors.darkSurfaceVariant : AppColors.lightBorder,
-      highlightColor:
-          isDark ? AppColors.darkBorder : AppColors.lightSurfaceVariant,
+      highlightColor: isDark
+          ? AppColors.darkBorder
+          : AppColors.lightSurfaceVariant,
       child: Container(
         width: width,
         height: height,
@@ -58,35 +59,45 @@ class DsSkeletonLoader extends StatelessWidget {
     // (e.g. AsyncValueWidget used inside a SingleChildScrollView/Column) —
     // a ListView there gets unbounded height and throws
     // "Vertical viewport was given unbounded height".
-    return Padding(
-      padding: EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        children: [
-          for (var index = 0; index < itemCount; index++) ...[
-            if (index > 0) SizedBox(height: AppSpacing.md),
-            Container(
-              padding: EdgeInsets.all(AppSpacing.lg),
-              decoration: AppDecorations.softCard(context),
-              child: Row(
-                children: [
-                  if (showAvatar)
-                    const DsShimmerLoader(width: 48, height: 48, borderRadius: BorderRadius.all(Radius.circular(24))),
-                  if (showAvatar) SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        DsShimmerLoader(width: double.infinity, height: 14),
-                        SizedBox(height: AppSpacing.xs),
-                        DsShimmerLoader(width: 120, height: 12),
-                      ],
+    // The non-scrolling SingleChildScrollView just clips: in landscape or a
+    // short pane the cards don't fit, and a skeleton should be cut off, not
+    // overflow. It is safe under unbounded height too.
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      child: Padding(
+        padding: EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          children: [
+            for (var index = 0; index < itemCount; index++) ...[
+              if (index > 0) SizedBox(height: AppSpacing.md),
+              Container(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                decoration: AppDecorations.softCard(context),
+                child: Row(
+                  children: [
+                    if (showAvatar)
+                      const DsShimmerLoader(
+                        width: 48,
+                        height: 48,
+                        borderRadius: BorderRadius.all(Radius.circular(24)),
+                      ),
+                    if (showAvatar) SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DsShimmerLoader(width: double.infinity, height: 14),
+                          SizedBox(height: AppSpacing.xs),
+                          DsShimmerLoader(width: 120, height: 12),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -94,11 +105,7 @@ class DsSkeletonLoader extends StatelessWidget {
 
 /// Centered loading widget with optional message.
 class DsLoadingWidget extends StatelessWidget {
-  const DsLoadingWidget({
-    super.key,
-    this.message,
-    this.size = 36,
-  });
+  const DsLoadingWidget({super.key, this.message, this.size = 36});
 
   final String? message;
   final double size;

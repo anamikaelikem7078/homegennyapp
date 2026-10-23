@@ -281,6 +281,20 @@ abstract final class RmDtoCodec {
 
   // ── Upgrades ──
 
+  // ── Sign-up requests ── (GET /rm/requests item, snake_case)
+  static SignupRequest decodeSignupRequest(Map<String, dynamic> j) => SignupRequest(
+        id: _s(j, ['id']),
+        type: _s(j, ['type']).toUpperCase() == 'CLIENT' ? SignupRequestType.client : SignupRequestType.staff,
+        name: _s(j, ['name', 'full_name', 'fullName']),
+        phone: _s(j, ['phone', 'mobile']),
+        email: _sn(j, ['email']),
+        staffCode: _sn(j, ['staff_code', 'staffCode']),
+        series: _sn(j, ['series']),
+        pipelineStage: _sn(j, ['pipeline_stage', 'pipelineStage']),
+        city: _sn(j, ['city']),
+        createdAt: DateTime.tryParse(_s(j, ['created_at', 'createdAt']))?.toLocal(),
+      );
+
   static UpgradeRequestRow decodeUpgradeRow(Map<String, dynamic> j) {
     final staffJson = j['staff'] as Map<String, dynamic>?;
     return UpgradeRequestRow(

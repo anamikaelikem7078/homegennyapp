@@ -18,6 +18,7 @@ abstract final class ClientRoutes {
   static String staffSkills(String id) => '/client/staff/$id/skills';
   static String staffAttendance(String id) => '/client/staff/$id/attendance';
   static String staffPerformance(String id) => '/client/staff/$id/performance';
+  static String staffLiveMap(String id) => '/client/staff/$id/location';
 
   // Attendance
   static const String attendanceToday = '/client/attendance/today';

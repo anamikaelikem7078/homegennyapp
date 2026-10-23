@@ -10,8 +10,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/maps/location_service.dart';
 import '../../../../../design_system/design_system.dart';
+import '../../../data/services/location_sharing_service.dart';
+import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
+import 'location_consent.dart';
 
 /// Check-in screen with selfie capture and GPS verification.
 class StaffCheckInScreen extends ConsumerStatefulWidget {
@@ -31,10 +34,44 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
   bool _resolvingAddress = false;
   String? _locationError;
 
+  /// The house picked by the staff member (only asked with several houses).
+  String? _placementId;
+  bool _placementTouched = false;
+
   @override
   void initState() {
     super.initState();
-    _verifyLocation();
+    // The on-duty sharing notice comes before the location permission ask.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ensureLocationSharingConsent(context, ref);
+      if (mounted) await _verifyLocation();
+    });
+  }
+
+  /// Pre-selects the house nearest to the GPS fix; the staff member can
+  /// still change it.
+  void _preselectNearest(List<StaffPlacementOption> placements) {
+    final p = _position;
+    if (_placementTouched || p == null || placements.length < 2) return;
+    final location = ref.read(locationServiceProvider);
+    StaffPlacementOption? nearest;
+    var best = double.infinity;
+    for (final option in placements) {
+      if (!option.hasHome) continue;
+      final d = location.distanceInMeters(
+        startLatitude: p.latitude,
+        startLongitude: p.longitude,
+        endLatitude: option.homeLat!,
+        endLongitude: option.homeLng!,
+      );
+      if (d < best) {
+        best = d;
+        nearest = option;
+      }
+    }
+    if (nearest != null && nearest.placementId != _placementId) {
+      setState(() => _placementId = nearest!.placementId);
+    }
   }
 
   Future<void> _verifyLocation() async {
@@ -53,6 +90,8 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
         _gpsVerified = true;
         _resolvingAddress = true;
       });
+      final placements = ref.read(staffPlacementsTodayProvider).valueOrNull?.placements;
+      if (placements != null) _preselectNearest(placements);
       // Best-effort; the card shows coordinates if no address comes back.
       final label = await ref.read(locationServiceProvider).reverseGeocodeAddress(
             latitude: position.latitude,
@@ -73,54 +112,81 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
     }
   }
 
-  Future<void> _checkIn() async {
-    final placementConfirmed = ref.read(staffDeploymentProvider).valueOrNull?.hasActivePlacement ?? false;
-    if (!placementConfirmed) {
-      context.showDsSnackBar('Attendance unlocks once your placement is confirmed', type: DsSnackBarType.warning);
-      return;
-    }
+  Future<void> _checkIn(List<StaffPlacementOption> placements) async {
     if (_selfie == null) {
       context.showDsSnackBar('Please capture a selfie before checking in', type: DsSnackBarType.warning);
       return;
     }
-    if (!_gpsVerified) {
-      context.showDsSnackBar('Waiting for GPS verification', type: DsSnackBarType.warning);
+    if (placements.length > 1 && _placementId == null) {
+      context.showDsSnackBar('Choose the house you are checking in at', type: DsSnackBarType.warning);
       return;
     }
 
     setState(() => _isSubmitting = true);
-    // Note: the backend's check-in endpoint only accepts optional
-    // latitude/longitude — there is no selfie field. The selfie capture
-    // above is a local-only verification step.
+    // Note: the backend's check-in endpoint takes latitude/longitude and an
+    // optional placement_id — there is no selfie field. The selfie capture
+    // above is a local-only verification step. Without GPS the check-in
+    // still goes through; the family just can't see the location.
     final result = await ref.read(staffRepositoryProvider).checkIn(
           latitude: _position?.latitude,
           longitude: _position?.longitude,
+          placementId: placements.length > 1 ? _placementId : null,
         );
     if (!mounted) return;
-    setState(() => _isSubmitting = false);
 
-    result.fold(
-      onSuccess: (data) {
+    await result.fold(
+      onSuccess: (data) async {
+        final sharing = hasLocationSharingConsent(ref) &&
+            await ref.read(locationSharingServiceProvider).start(intervalSec: data.locationIntervalSec);
+        if (!mounted) return;
+        setState(() => _isSubmitting = false);
+        ref.invalidate(staffPlacementsTodayProvider);
         ref.invalidate(staffTodayAttendanceProvider);
         ref.invalidate(staffAttendanceHistoryProvider);
         ref.invalidate(staffDashboardProvider);
-        context.showDsSnackBar('Checked in successfully', type: DsSnackBarType.success);
+
+        final where = data.clientName == null ? '' : ' at ${data.clientName}';
+        final distance = data.distanceM;
+        if (data.atHome == false && distance != null) {
+          context.showDsSnackBar(
+            'Checked in$where. You are ${formatDistance(distance)} from the client\'s home.',
+            type: DsSnackBarType.warning,
+          );
+        } else if (!sharing) {
+          context.showDsSnackBar(
+            'Checked in$where. Location is off — the family can\'t see where you are.',
+            type: DsSnackBarType.warning,
+          );
+        } else {
+          context.showDsSnackBar('Checked in$where', type: DsSnackBarType.success);
+        }
         context.go(StaffRoutes.attendance);
       },
-      onError: (failure) => context.showDsSnackBar(failure.message, type: DsSnackBarType.error),
+      onError: (failure) async {
+        setState(() => _isSubmitting = false);
+        // "You work at more than one house — choose …": the list may be
+        // stale, so reload it and let the staff member pick.
+        if (failure.message.contains('more than one house')) ref.invalidate(staffPlacementsTodayProvider);
+        context.showDsSnackBar(failure.message, type: DsSnackBarType.error);
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final deployment = ref.watch(staffDeploymentProvider);
-    final placementConfirmed = deployment.valueOrNull?.hasActivePlacement ?? false;
+    final placementsAsync = ref.watch(staffPlacementsTodayProvider);
+    final placements = placementsAsync.valueOrNull?.placements ?? const <StaffPlacementOption>[];
     void back() => context.canPop() ? context.pop() : context.go(StaffRoutes.attendance);
 
-    // Defends the route itself, not just the hub screen's toggle — a staff
-    // member without a confirmed placement has no work site to check in
-    // against, so block entry here too regardless of how it was reached.
-    if (!deployment.isLoading && !placementConfirmed) {
+    ref.listen(staffPlacementsTodayProvider, (_, next) {
+      final list = next.valueOrNull?.placements;
+      if (list != null) _preselectNearest(list);
+    });
+
+    // Defends the route itself, not just the hub screen's toggle — trial,
+    // confirmed and today's one-time visits are listed; nothing listed
+    // means there is no house to check in at.
+    if (placementsAsync.hasValue && placements.isEmpty) {
       return DsPage(
         title: 'Check in',
         subtitle: 'Verify your location and identity',
@@ -128,8 +194,8 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
         body: [
           DsEmptyBlock(
             icon: Icons.lock_rounded,
-            title: 'Placement not confirmed yet',
-            message: 'Attendance can only be marked once you have been deployed to a client.',
+            title: 'No active placement',
+            message: 'You can check in once your RM has placed you.',
             action: DsGradientButton(
               label: 'View deployment status',
               icon: Icons.badge_rounded,
@@ -141,8 +207,17 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
       );
     }
 
-    final steps = [_gpsVerified, _selfie != null];
+    StaffPlacementOption? selected;
+    for (final p in placements) {
+      if (p.placementId == _placementId) selected = p;
+    }
+    if (placements.length == 1) selected = placements.first;
+
+    // GPS is no longer required: without it the check-in still goes through.
+    final gpsDone = _gpsVerified || (!_verifyingGps && _locationError != null);
+    final steps = [gpsDone, _selfie != null];
     final done = steps.where((s) => s).length;
+    final canSubmit = _selfie != null && !_verifyingGps && !_isSubmitting && placementsAsync.hasValue;
 
     return DsPage(
       title: 'Check in',
@@ -152,7 +227,7 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
         label: done == 2 ? 'Check in now' : 'Complete $done of 2 steps',
         icon: Icons.fingerprint_rounded,
         isLoading: _isSubmitting,
-        onPressed: _selfie != null && _gpsVerified && !_isSubmitting ? _checkIn : null,
+        onPressed: canSubmit ? () => _checkIn(placements) : null,
       ),
       body: [
         DsGradientCard(
@@ -202,9 +277,31 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
           resolvingAddress: _resolvingAddress,
           position: _position,
           error: _locationError,
-          workSite: deployment.valueOrNull?.deploymentAddress,
+          workSite: selected == null ? null : '${selected.clientName}, ${selected.address ?? ''}',
           onRetry: _verifyingGps ? null : _verifyLocation,
         ),
+        if (!_verifyingGps && !_gpsVerified) ...[
+          const SizedBox(height: 10),
+          const DsNote(
+            tone: DsNoteTone.warning,
+            text: 'You can still check in, but location is off — the family can\'t see where you are.',
+          ),
+        ],
+        if (placements.length > 1) ...[
+          const DsSection('Where are you checking in?'),
+          for (final option in placements)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _PlacementTile(
+                option: option,
+                selected: option.placementId == _placementId,
+                onTap: () => setState(() {
+                  _placementTouched = true;
+                  _placementId = option.placementId;
+                }),
+              ),
+            ),
+        ],
         const DsSection('2. Selfie'),
         Container(
           padding: const EdgeInsets.all(12),
@@ -219,6 +316,54 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
         const SizedBox(height: 12),
         const DsNote(text: 'Take a clear selfie at your work location. This helps verify your attendance.'),
       ],
+    );
+  }
+}
+
+class _PlacementTile extends StatelessWidget {
+  const _PlacementTile({required this.option, required this.selected, required this.onTap});
+
+  final StaffPlacementOption option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? AppColors.primary : AppColors.lightTextSecondary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: dsCardDecoration(border: selected ? AppColors.primary.withValues(alpha: 0.5) : null),
+        child: Row(
+          children: [
+            Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded, color: color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    option.clientName,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.lightTextPrimary,
+                    ),
+                  ),
+                  if (option.address != null && option.address!.trim().isNotEmpty)
+                    Text(
+                      option.address!.trim(),
+                      style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
+                    ),
+                ],
+              ),
+            ),
+            if (option.today == 'CHECKED_OUT') const DsPill('Done', color: AppColors.success),
+          ],
+        ),
+      ),
     );
   }
 }

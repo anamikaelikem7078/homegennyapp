@@ -1,6 +1,8 @@
+import '../../../../core/config/app_config.dart';
 import '../../../../core/data/repository_executor.dart';
 import '../../../../core/utils/result.dart';
 import '../../domain/models/client_models.dart';
+import '../../domain/models/client_snapshot.dart';
 import '../../domain/models/staff_request_models.dart';
 import '../../domain/repositories/client_repository.dart';
 import '../datasources/client_datasource.dart';
@@ -20,6 +22,19 @@ class ClientRepositoryImpl implements ClientRepository {
   final ClientRemoteDataSource _remote;
   final ClientLocalDataSource _local;
   final ClientDummyDataSource _dummy;
+
+  @override
+  Future<Result<ClientSnapshot>> getSnapshot() => _executor.fetch(
+    remote: _remote.getSnapshot,
+    cache: _local.cacheSnapshot,
+    local: () async => _local.getSnapshot(_istToday()),
+  );
+
+  /// The snapshot's day is IST.
+  static String _istToday() {
+    final ist = DateTime.now().toUtc().add(const Duration(hours: 5, minutes: 30));
+    return '${ist.year.toString().padLeft(4, '0')}-${ist.month.toString().padLeft(2, '0')}-${ist.day.toString().padLeft(2, '0')}';
+  }
 
   @override
   Future<Result<ClientDashboardData>> getDashboard() => _executor.fetch(
@@ -57,15 +72,33 @@ class ClientRepositoryImpl implements ClientRepository {
       );
 
   @override
-  Future<Result<List<ClientAttendanceRecord>>> getAttendanceHistory() =>
-      _executor.fetch(
-        remote: _remote.getAttendanceHistory,
-        cache: _local.cacheAttendanceHistory,
-        local: () async {
-          final l = await _local.getAttendanceHistory();
-          return l.isEmpty ? null : l;
-        },
-        dummy: _dummy.getAttendanceHistory,
+  Future<Result<List<ClientAttendanceRecord>>> getAttendanceHistory({String? staffId, String? from, String? to}) {
+    // Only the unfiltered default (last 30 days, everyone) is cached.
+    final filtered = staffId != null || from != null || to != null;
+    return _executor.fetch(
+      remote: () => _remote.getAttendanceHistory(staffId: staffId, from: from, to: to),
+      cache: filtered ? null : _local.cacheAttendanceHistory,
+      local: filtered
+          ? null
+          : () async {
+              final l = await _local.getAttendanceHistory();
+              return l.isEmpty ? null : l;
+            },
+      dummy: () => _dummy.getAttendanceHistory(staffId: staffId, from: from, to: to),
+    );
+  }
+
+  // Never cached: a stale position would mislead.
+  @override
+  Future<Result<ClientStaffLocation>> getStaffLocation(String staffId) => _executor.fetch(
+        remote: () => _remote.getStaffLocation(staffId),
+        dummy: () => _dummy.getStaffLocation(staffId),
+      );
+
+  @override
+  Future<Result<void>> setHomeLocation({required double lat, required double lng}) => _executor.mutateVoid(
+        remote: () => _remote.setHomeLocation(lat: lat, lng: lng),
+        dummy: () => _dummy.setHomeLocation(lat: lat, lng: lng),
       );
 
   @override
@@ -199,12 +232,20 @@ class ClientRepositoryImpl implements ClientRepository {
     remote: _remote.getProfile,
     cache: _local.cacheProfile,
     local: () async => _local.getProfile(),
-    dummy: _dummy.getProfile,
+    // Never a demo name when offline with no cache.
+    dummy: AppConfig.useDummyApi ? _dummy.getProfile : null,
   );
 
   @override
-  Future<Result<void>> updateProfile(Map<String, String> data) =>
-      _executor.mutateVoid(dummy: () => _dummy.updateProfile(data));
+  Future<Result<ClientProfile>> updateProfile(Map<String, dynamic> fields) =>
+      _executor.mutate(
+        remote: () async {
+          final profile = await _remote.updateProfile(fields);
+          await _local.cacheProfile(profile);
+          return profile;
+        },
+        dummy: () => _dummy.updateProfile(fields),
+      );
 
   @override
   Future<Result<void>> makeDemoPayment(

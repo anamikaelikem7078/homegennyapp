@@ -6,6 +6,8 @@ import '../auth/session_event_bus.dart';
 import '../auth/token_refresh_service.dart';
 import '../constants/api_constants.dart';
 import '../exceptions/app_exceptions.dart';
+import '../exceptions/exception_handler.dart';
+import '../onboarding/profile_gate_bus.dart';
 import '../network/network_info.dart';
 
 /// Attaches JWT tokens and handles 401 refresh flow.
@@ -150,12 +152,22 @@ class AuthInterceptor extends Interceptor {
       );
     }
 
+    // Until the profile is complete the server refuses every action with
+    // 403 PROFILE_INCOMPLETE — let the app open the profile wizard.
+    if (err.response?.statusCode == 403) {
+      final data = err.response?.data;
+      if (ExceptionHandler.extractErrorCode(data) == 'PROFILE_INCOMPLETE') {
+        ProfileGateBus.instance.notifyProfileIncomplete(ExceptionHandler.extractMissing(data));
+      }
+    }
+
     handler.next(err);
   }
 
   bool _isAuthEndpoint(String path) {
     return path.contains('/auth/login') ||
         path.contains('/auth/verify-otp') ||
+        path.contains('/auth/otp/') ||
         path.contains('/auth/refresh') ||
         path.contains('/auth/forgot-password');
   }

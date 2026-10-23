@@ -118,10 +118,17 @@ class _ClientNotificationsTabScreenState extends ConsumerState<ClientNotificatio
                   type: shown[i].type,
                   onTap: () {
                     final requestId = shown[i].payload['request_id'];
+                    final staffId = shown[i].payload['staff_id'];
+                    final template = shown[i].template ?? '';
                     // "Booking confirmed" (STAFF_REQUEST_CONFIRMED) and the
                     // other staff-request updates open the request.
-                    if ((shown[i].template ?? '').startsWith('STAFF_REQUEST') && requestId is String) {
+                    if (template.startsWith('STAFF_REQUEST') && requestId is String) {
                       context.push(ClientRoutes.staffRequestDetail(requestId));
+                    } else if ((template == 'STAFF_CHECKED_IN' || template == 'STAFF_AWAY_FROM_HOME') &&
+                        staffId is String) {
+                      context.push(ClientRoutes.staffLiveMap(staffId));
+                    } else if (template == 'STAFF_CHECKED_OUT') {
+                      context.push(ClientRoutes.attendanceHistory);
                     } else if (shown[i].type == 'payment') {
                       context.push(ClientRoutes.pendingPayment);
                     } else if (shown[i].type == 'attendance') {

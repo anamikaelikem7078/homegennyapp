@@ -18,6 +18,10 @@ abstract interface class RmRepository {
     String? terminalOutcome,
   });
 
+  // Sign-up requests (new staff/clients with no RM)
+  Future<Result<List<SignupRequest>>> getSignupRequests();
+  Future<Result<void>> acceptSignupRequest(SignupRequestType type, String id);
+
   // Trials / Deferred / Terminal
   Future<Result<List<TrialRow>>> getTrials();
   Future<Result<List<DeferredRow>>> getDeferred();

@@ -92,6 +92,24 @@ class ClientStaffProfile {
     this.reviews = const [],
     this.performanceScore,
     this.attendancePercent,
+    this.firstName,
+    this.photoUrl,
+    this.phone,
+    this.age,
+    this.gender,
+    this.seriesLabel,
+    this.city,
+    this.hometown,
+    this.experienceYears,
+    this.emergencyContactName,
+    this.idVerified = false,
+    this.healthScreening,
+    this.trained = false,
+    this.placementStatusLabel,
+    this.placementStartDate,
+    this.shiftHours,
+    this.rmName,
+    this.rmPhone,
   });
 
   final String staffId;
@@ -106,6 +124,32 @@ class ClientStaffProfile {
   final List<ClientReview> reviews;
   final double? performanceScore;
   final double? attendancePercent;
+
+  final String? firstName;
+
+  /// Relative path (`/client/staff/:id/photo`); load it with the Bearer
+  /// token. Null → show initials.
+  final String? photoUrl;
+  final String? phone;
+  final int? age;
+  final String? gender;
+  final String? seriesLabel;
+  final String? city;
+  final String? hometown;
+  final int? experienceYears;
+  final String? emergencyContactName;
+  final bool idVerified;
+
+  /// Null when the check doesn't apply to this series — hide the badge.
+  final bool? healthScreening;
+  final bool trained;
+  final String? placementStatusLabel;
+  final String? placementStartDate;
+  final int? shiftHours;
+  final String? rmName;
+  final String? rmPhone;
+
+  String get displayFirstName => firstName ?? fullName.split(' ').first;
 }
 
 class ClientExperience {
@@ -144,16 +188,87 @@ class ClientAttendanceRecord {
     required this.status,
     this.checkIn,
     this.checkOut,
+    this.staffId,
+    this.staffName,
+    this.worked,
   });
 
   final String date;
   final String status;
   final String? checkIn;
   final String? checkOut;
+  final String? staffId;
+  final String? staffName;
+
+  /// e.g. "0 h 30 m".
+  final String? worked;
 }
 
-/// Today's attendance for assigned staff — matches `GET /client/attendance/today`
-/// exactly. No location field is provided.
+/// Where a staff member was last seen during today's shift. Only present
+/// while they are checked in — location is never shown off duty.
+class ClientStaffLastLocation {
+  const ClientStaffLastLocation({
+    required this.at,
+    required this.lat,
+    required this.lng,
+    this.accuracyM,
+    this.distanceM,
+    this.atHome,
+    this.label,
+    this.stale = false,
+  });
+
+  final String at;
+  final double lat;
+  final double lng;
+  final int? accuracyM;
+  final int? distanceM;
+  final bool? atHome;
+
+  /// "At home" / "1.2 km from home".
+  final String? label;
+
+  /// True when no point came in for a while (phone off / location off).
+  final bool stale;
+}
+
+/// One staff member working at this home today (`staff[]` of
+/// `GET /client/attendance/today`).
+class ClientStaffToday {
+  const ClientStaffToday({
+    required this.staffId,
+    required this.name,
+    required this.status,
+    this.placementId,
+    this.staffCode,
+    this.series,
+    this.seriesLabel,
+    this.checkIn,
+    this.checkOut,
+    this.gpsVerified = false,
+    this.checkInDistanceM,
+    this.lastLocation,
+  });
+
+  final String staffId;
+  final String? placementId;
+  final String? staffCode;
+  final String name;
+  final String? series;
+  final String? seriesLabel;
+
+  /// NOT_CHECKED_IN | PRESENT | CHECKED_OUT
+  final String status;
+  final String? checkIn;
+  final String? checkOut;
+  final bool gpsVerified;
+  final int? checkInDistanceM;
+  final ClientStaffLastLocation? lastLocation;
+}
+
+/// Today's attendance at this home — matches `GET /client/attendance/today`.
+/// [staff] has one entry per staff member; the top-level fields are the
+/// first staff member only, kept for older app builds.
 class ClientTodayAttendance {
   const ClientTodayAttendance({
     required this.todayStatus,
@@ -162,6 +277,8 @@ class ClientTodayAttendance {
     this.checkInTime,
     this.checkOutTime,
     this.gpsVerified = false,
+    this.date,
+    this.staff = const [],
   });
 
   final String? staffCode;
@@ -170,6 +287,56 @@ class ClientTodayAttendance {
   final String? checkInTime;
   final String? checkOutTime;
   final bool gpsVerified;
+  final String? date;
+  final List<ClientStaffToday> staff;
+}
+
+/// A timed point on the map.
+class ClientMapPoint {
+  const ClientMapPoint({required this.at, required this.lat, required this.lng});
+
+  final String? at;
+  final double lat;
+  final double lng;
+}
+
+/// Live map data — matches `GET /client/staff/:staffId/location`.
+class ClientStaffLocation {
+  const ClientStaffLocation({
+    required this.staffId,
+    required this.status,
+    this.placementId,
+    this.checkIn,
+    this.checkInLabel,
+    this.checkOutAt,
+    this.last,
+    this.home,
+    this.trail = const [],
+    this.farMeters = 300,
+    this.nextRefreshSec,
+  });
+
+  final String staffId;
+  final String? placementId;
+
+  /// NOT_CHECKED_IN | PRESENT | CHECKED_OUT
+  final String status;
+  final ClientMapPoint? checkIn;
+  final String? checkInLabel;
+  final String? checkOutAt;
+
+  /// Null outside the shift — by design.
+  final ClientStaffLastLocation? last;
+
+  /// Null when the client hasn't set a home pin.
+  final ClientMapPoint? home;
+  final List<ClientMapPoint> trail;
+
+  /// Radius of the "at home" circle.
+  final int farMeters;
+
+  /// Refresh period while the screen is open; null = nothing to refresh.
+  final int? nextRefreshSec;
 }
 
 /// Invoice — matches `GET /client/invoices` `invoices[]` item shape exactly.
@@ -412,15 +579,36 @@ class ClientProfile {
     this.paymentMethod,
     this.accountLast4,
     this.upiId,
+    this.assignedRmName,
+    this.assignedRmPhone,
+    this.lat,
+    this.lng,
+    this.profileComplete = true,
+    this.profileMissing = const [],
   });
 
+  // `name`, `address`, `city`… are `null` from the API until given; held here
+  // as ''. Show "Add your name", never a blank.
   final String name;
   final String email;
+
+  /// The login — read-only, never sent back.
   final String phone;
   final String address;
   final String city;
   final String pincode;
+  final double? lat;
+  final double? lng;
+
+  /// Until true, "Request staff" is refused with 403 PROFILE_INCOMPLETE.
+  final bool profileComplete;
+
+  /// `name`, `address`, `city`, `pincode` — whichever are still empty.
+  final List<String> profileMissing;
   final String? paymentMethod;
   final String? accountLast4;
   final String? upiId;
+  // The RM who accepted this client's sign-up — null until one does.
+  final String? assignedRmName;
+  final String? assignedRmPhone;
 }

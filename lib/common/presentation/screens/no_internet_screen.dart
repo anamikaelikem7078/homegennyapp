@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/network/network_info.dart';
 import '../../../core/presentation/widgets/responsive_layout.dart';
+import '../../../core/presentation/widgets/scrollable_fill.dart';
 import '../../../core/router/app_routes.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_widgets.dart';
@@ -31,25 +32,27 @@ class NoInternetScreen extends ConsumerWidget {
     return Scaffold(
       body: SafeArea(
         child: ResponsiveLayout(
-          child: Column(
-            children: [
-              const Spacer(),
-              StatusIllustration(
-                icon: Icons.wifi_off_rounded,
-                title: l10n.noInternetTitle,
-                message: l10n.noInternetMessage,
-                iconColor: context.colors.primary,
-              ),
-              const Spacer(),
-              Semantics(
-                button: true,
-                child: AppButton(
-                  label: l10n.retry,
-                  onPressed: () => _retry(context, ref),
-                  icon: Icons.refresh_rounded,
+          child: ScrollableFill(
+            child: Column(
+              children: [
+                const Spacer(),
+                StatusIllustration(
+                  icon: Icons.wifi_off_rounded,
+                  title: l10n.noInternetTitle,
+                  message: l10n.noInternetMessage,
+                  iconColor: context.colors.primary,
                 ),
-              ),
-            ],
+                const Spacer(),
+                Semantics(
+                  button: true,
+                  child: AppButton(
+                    label: l10n.retry,
+                    onPressed: () => _retry(context, ref),
+                    icon: Icons.refresh_rounded,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

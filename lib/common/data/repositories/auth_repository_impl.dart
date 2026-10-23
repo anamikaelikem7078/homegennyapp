@@ -5,7 +5,6 @@ import '../../../core/config/app_config.dart';
 import '../../../core/auth/jwt_token_handler.dart';
 import '../../../core/data/repository_executor.dart';
 import '../../../core/exceptions/exception_handler.dart';
-import '../../../core/exceptions/failures.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/hive_service.dart';
 import '../../../core/storage/secure_storage_service.dart';
@@ -13,6 +12,7 @@ import '../../../core/constants/storage_keys.dart';
 import '../../../core/utils/result.dart';
 import '../../domain/models/app_version_info.dart';
 import '../../domain/models/auth_tokens.dart';
+import '../../domain/models/otp_send_result.dart';
 import '../../domain/models/user_model.dart';
 import '../../domain/models/user_role.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -127,135 +127,61 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<Result<UserModel>> registerStaff({
-    required String fullName,
-    required String phone,
-    String? alternatePhone,
-    String? email,
-    required String password,
-    required String dateOfBirth,
-    required String gender,
-    required String address,
-    String? city,
-    String? stateName,
-    String? pincode,
-    required String series,
-  }) async {
+  Future<Result<OtpSendResult>> sendLoginOtp({required String phone}) async {
+    if (AppConfig.useDummyApi && _demoRole(phone) != null) {
+      return Success(OtpSendResult(sent: true, isRegistered: true, usePasswordLogin: false, role: _demoRole(phone)));
+    }
     try {
-      final dto = await _remote.registerStaff(
-        fullName: fullName,
-        phone: phone,
-        alternatePhone: alternatePhone,
-        email: email,
-        password: password,
-        dateOfBirth: dateOfBirth,
-        gender: gender,
-        address: address,
-        city: city,
-        stateName: stateName,
-        pincode: pincode,
-        series: series,
-      );
-      return _completeRegistration(dto, phone);
+      return Success(await _remote.sendLoginOtp(phone: phone));
     } catch (e, stack) {
       return Error(ExceptionHandler.handle(e, stack));
     }
   }
 
   @override
-  Future<Result<UserModel>> registerCustomer({
-    required String fullName,
-    required String phone,
-    String? email,
-    required String password,
-    String? businessName,
-    required String panCard,
-    required String address,
-    String? city,
-    String? stateName,
-    String? pincode,
-    String? gstn,
-  }) async {
-    try {
-      final dto = await _remote.registerCustomer(
-        fullName: fullName,
-        phone: phone,
-        email: email,
-        password: password,
-        businessName: businessName,
-        panCard: panCard,
-        address: address,
-        city: city,
-        stateName: stateName,
-        pincode: pincode,
-        gstn: gstn,
-      );
-      return _completeRegistration(dto, phone);
-    } catch (e, stack) {
-      return Error(ExceptionHandler.handle(e, stack));
-    }
-  }
-
-  /// Shared post-success step for both registration endpoints — mirrors
-  /// [login]'s token-save + user-cache sequence so a freshly registered
-  /// account is signed in immediately, with no separate OTP/profile-fetch
-  /// round trip (registration never triggers 2FA).
-  Future<Result<UserModel>> _completeRegistration(
-    AuthTokensDto dto,
-    String phone,
-  ) async {
-    final tokens = _mapper.toTokens(dto);
-    await _tokenHandler.saveTokens(
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    );
-    await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
-
-    if (dto.user == null) {
-      return const Error(
-        UnknownFailure(
-          message: 'Registration succeeded but no user profile was returned.',
-        ),
-      );
-    }
-
-    final user = _mapper.toUser(dto.user!);
-    await _secureStorage.write(StorageKeys.userId, user.id);
-    await _secureStorage.write(StorageKeys.userRole, user.role.value);
-    await _local.cacheUser(dto.user!);
-    return Success(user);
-  }
-
-  @override
-  Future<Result<bool>> verifyOtp({
+  Future<Result<UserModel>> verifyLoginOtp({
     required String phone,
     required String otp,
+    UserRole? role,
   }) async {
-    final lowerPhone = phone.trim().toLowerCase();
-
-    if (AppConfig.useDummyApi) {
-      final isHiveStaff = _hiveService.staffBox.values
-          .cast<StaffEntity>()
-          .any((s) => s.phone == lowerPhone);
-
-      if (lowerPhone == _demoClientPhone ||
-          lowerPhone == _demoStaffPhone ||
-          lowerPhone == _demoRmPhone ||
-          isHiveStaff) {
-        if (otp != '1234') {
-          return const Error(AuthFailure(message: 'Invalid demo OTP. Use 1234.'));
-        }
-        return const Success(true);
-      }
+    final demoRole = AppConfig.useDummyApi ? _demoRole(phone) : null;
+    if (demoRole != null) {
+      await _tokenHandler.saveTokens(accessToken: 'demo-access-token', refreshToken: 'demo-refresh-token');
+      await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
+      return getUserProfile();
     }
 
     try {
-      final valid = await _remote.verifyOtp(phone: phone, otp: otp);
-      return Success(valid);
+      final dto = await _remote.verifyLoginOtp(phone: phone, otp: otp, role: role?.value);
+      final tokens = _mapper.toTokens(dto);
+      await _tokenHandler.saveTokens(
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      );
+      await _secureStorage.write(StorageKeys.lastLoginEmail, phone);
+
+      final userDto = dto.user;
+      if (userDto == null) {
+        // Shouldn't happen — fall back to asking the server who this is.
+        return getUserProfile();
+      }
+      final user = _mapper.toUser(userDto);
+      await _secureStorage.write(StorageKeys.userId, user.id);
+      await _secureStorage.write(StorageKeys.userRole, user.role.value);
+      await _local.cacheUser(userDto);
+      return Success(user);
     } catch (e, stack) {
       return Error(ExceptionHandler.handle(e, stack));
     }
   }
+
+  /// Dummy-API mode only: the role of a built-in demo number.
+  static UserRole? _demoRole(String phone) => switch (phone.trim()) {
+        _demoClientPhone => UserRole.client,
+        _demoStaffPhone => UserRole.staff,
+        _demoRmPhone => UserRole.rm,
+        _ => null,
+      };
 
   @override
   Future<Result<void>> forgotPassword({required String phone}) async {

@@ -7,6 +7,7 @@ class AuthTokensDto {
     required this.refreshToken,
     this.mustChangePassword = false,
     this.user,
+    this.isNewUser = false,
   });
 
   final String accessToken;
@@ -14,11 +15,15 @@ class AuthTokensDto {
   final bool mustChangePassword;
   final UserDto? user;
 
+  /// `POST /auth/otp/verify` only: the account was created by this sign-in.
+  final bool isNewUser;
+
   factory AuthTokensDto.fromJson(Map<String, dynamic> json) => AuthTokensDto(
         accessToken: json['access_token'] as String? ?? json['accessToken'] as String? ?? '',
         refreshToken: json['refresh_token'] as String? ?? json['refreshToken'] as String? ?? '',
         mustChangePassword: json['must_change_password'] as bool? ?? json['mustChangePassword'] as bool? ?? false,
         user: json['user'] != null ? UserDto.fromJson(json['user']) : null,
+        isNewUser: json['is_new_user'] as bool? ?? false,
       );
 
   Map<String, dynamic> toJson() => {
@@ -53,7 +58,12 @@ class UserDto {
         // via self-registration) key the display name as `full_name` rather
         // than `name` — fall back to it so those users don't cache with an
         // empty name.
-        name: json['name'] as String? ?? json['full_name'] as String? ?? '',
+        // A new OTP sign-up has `full_name: ""` (staff) or `customerName: null`
+        // (client) until the profile wizard is done.
+        name: json['name'] as String? ??
+            json['full_name'] as String? ??
+            json['customerName'] as String? ??
+            '',
         email: json['email'] as String? ?? '',
         phone: json['phone'] as String? ?? '',
         role: UserRole.fromString(json['role'] as String?),

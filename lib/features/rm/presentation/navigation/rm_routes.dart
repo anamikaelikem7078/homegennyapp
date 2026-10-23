@@ -16,6 +16,7 @@ abstract final class RmRoutes {
   static const String attendance = '/rm/attendance';
   static const String locations = '/rm/locations';
   static const String upgrades = '/rm/upgrades';
+  static const String signupRequests = '/rm/requests';
 
   static String staffDetail(String id) => '/rm/staff/$id';
   static String verificationDashboard(String id) => '/rm/staff/$id/verification';

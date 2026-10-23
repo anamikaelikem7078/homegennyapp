@@ -27,19 +27,34 @@ abstract final class ClientDtoCodec {
         'address': p.address, 'city': p.city, 'pincode': p.pincode,
         'payment_method': p.paymentMethod, 'account_last4': p.accountLast4,
         'upi_id': p.upiId,
+        'lat': p.lat, 'lng': p.lng,
+        'profile_complete': p.profileComplete,
+        'profile_missing': p.profileMissing,
+        'assignedRm': p.assignedRmName == null
+            ? null
+            : {'name': p.assignedRmName, 'phone': p.assignedRmPhone},
       };
 
-  static ClientProfile decodeProfile(Map<String, dynamic> json) => ClientProfile(
+  static ClientProfile decodeProfile(Map<String, dynamic> json) {
+    final rm = json['assignedRm'] as Map<String, dynamic>?;
+    return ClientProfile(
         name: json['name'] as String? ?? '',
         email: json['email'] as String? ?? '',
         phone: json['phone'] as String? ?? '',
         address: json['address'] as String? ?? '',
         city: json['city'] as String? ?? '',
-        pincode: json['pincode'] as String? ?? '',
+        pincode: json['pincode']?.toString() ?? '',
         paymentMethod: json['payment_method'] as String?,
         accountLast4: json['account_last4'] as String?,
         upiId: json['upi_id'] as String?,
+        assignedRmName: rm?['name'] as String?,
+        assignedRmPhone: rm?['phone'] as String?,
+        lat: (json['lat'] as num?)?.toDouble(),
+        lng: (json['lng'] as num?)?.toDouble(),
+        profileComplete: json['profile_complete'] as bool? ?? true,
+        profileMissing: (json['profile_missing'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       );
+  }
 
   // ── Assigned staff ── (matches GET /client/assigned-staff item shape)
   static Map<String, dynamic> encodeAssignedStaff(ClientAssignedStaff s) => {
@@ -115,17 +130,65 @@ abstract final class ClientDtoCodec {
         'reviews': p.reviews.map(encodeReview).toList(),
         'performanceScore': p.performanceScore,
         'attendancePercent': p.attendancePercent,
+        // Newer snake_case shape (written so the cache decodes the same way).
+        'first_name': p.firstName,
+        'photo_url': p.photoUrl,
+        'phone': p.phone,
+        'age': p.age,
+        'gender': p.gender,
+        'series_label': p.seriesLabel,
+        'city': p.city,
+        'hometown': p.hometown,
+        'experience_years': p.experienceYears,
+        'emergency_contact_name': p.emergencyContactName,
+        'verification': {
+          'is_verified': p.isVerified,
+          'police_verification': p.pvStatus,
+          'id_verified': p.idVerified,
+          'health_screening': p.healthScreening,
+          'video_certified': p.videoCertAvailable,
+          'trained': p.trained,
+        },
+        'placement': {
+          'status_label': p.placementStatusLabel,
+          'start_date': p.placementStartDate,
+          'shift_hours': p.shiftHours,
+        },
+        'rm': {'name': p.rmName, 'phone': p.rmPhone},
       };
 
-  static ClientStaffProfile decodeStaffProfile(Map<String, dynamic> json) =>
-      ClientStaffProfile(
-        staffId: json['staffId'] as String,
-        staffCode: json['staffCode'] as String? ?? '',
-        fullName: json['fullName'] as String? ?? '',
+  /// `GET /client/staff/:id/profile` — prefers the snake_case fields and
+  /// falls back to the camelCase ones older servers send.
+  static ClientStaffProfile decodeStaffProfile(Map<String, dynamic> json) {
+    final v = json['verification'] is Map ? json['verification'] as Map : const {};
+    final placement = json['placement'] is Map ? json['placement'] as Map : const {};
+    final rm = json['rm'] is Map ? json['rm'] as Map : const {};
+    return ClientStaffProfile(
+        staffId: json['staff_id'] as String? ?? json['staffId'] as String,
+        staffCode: json['staff_code'] as String? ?? json['staffCode'] as String? ?? '',
+        fullName: json['full_name'] as String? ?? json['fullName'] as String? ?? '',
         series: json['series'] as String? ?? '',
-        isVerified: json['isVerified'] as bool? ?? false,
-        pvStatus: json['pvStatus'] as String? ?? 'NOT_INITIATED',
-        videoCertAvailable: json['videoCertAvailable'] as bool? ?? false,
+        isVerified: v['is_verified'] as bool? ?? json['isVerified'] as bool? ?? false,
+        pvStatus: v['police_verification'] as String? ?? json['pvStatus'] as String? ?? 'NOT_INITIATED',
+        videoCertAvailable: v['video_certified'] as bool? ?? json['videoCertAvailable'] as bool? ?? false,
+        firstName: json['first_name'] as String?,
+        photoUrl: json['photo_url'] as String?,
+        phone: json['phone'] as String?,
+        age: (json['age'] as num?)?.toInt(),
+        gender: json['gender'] as String?,
+        seriesLabel: json['series_label'] as String?,
+        city: json['city'] as String?,
+        hometown: json['hometown'] as String?,
+        experienceYears: (json['experience_years'] as num?)?.toInt(),
+        emergencyContactName: json['emergency_contact_name'] as String?,
+        idVerified: v['id_verified'] as bool? ?? false,
+        healthScreening: v['health_screening'] as bool?,
+        trained: v['trained'] as bool? ?? false,
+        placementStatusLabel: placement['status_label'] as String?,
+        placementStartDate: placement['start_date'] as String?,
+        shiftHours: (placement['shift_hours'] as num?)?.toInt(),
+        rmName: rm['name'] as String?,
+        rmPhone: rm['phone'] as String?,
         experience: ((json['experience'] as List<dynamic>?) ?? [])
             .map((e) => decodeExperience(e as Map<String, dynamic>))
             .toList(),
@@ -138,8 +201,10 @@ abstract final class ClientDtoCodec {
         performanceScore: (json['performanceScore'] as num?)?.toDouble(),
         attendancePercent: (json['attendancePercent'] as num?)?.toDouble(),
       );
+  }
 
-  // ── Today's attendance ── (matches GET /client/attendance/today exactly)
+  // ── Today's attendance ── (matches GET /client/attendance/today; the
+  // cache stores the same shape so one decoder reads both)
   static Map<String, dynamic> encodeTodayAttendance(ClientTodayAttendance t) => {
         'staffCode': t.staffCode,
         'staffName': t.staffName,
@@ -147,6 +212,8 @@ abstract final class ClientDtoCodec {
         'checkInTime': t.checkInTime,
         'checkOutTime': t.checkOutTime,
         'gpsVerified': t.gpsVerified,
+        'date': t.date,
+        'staff': t.staff.map(_encodeStaffToday).toList(),
       };
 
   static ClientTodayAttendance decodeTodayAttendance(Map<String, dynamic> json) =>
@@ -157,15 +224,109 @@ abstract final class ClientDtoCodec {
         checkInTime: json['checkInTime'] as String?,
         checkOutTime: json['checkOutTime'] as String?,
         gpsVerified: json['gpsVerified'] as bool? ?? false,
+        date: json['date'] as String?,
+        staff: [
+          for (final raw in json['staff'] as List<dynamic>? ?? const [])
+            if (raw is Map) _decodeStaffToday(raw),
+        ],
       );
 
+  static Map<String, dynamic> _encodeStaffToday(ClientStaffToday s) => {
+        'staff_id': s.staffId,
+        'placement_id': s.placementId,
+        'staff_code': s.staffCode,
+        'name': s.name,
+        'series': s.series,
+        'series_label': s.seriesLabel,
+        'status': s.status,
+        'check_in': s.checkIn,
+        'check_out': s.checkOut,
+        'gps_verified': s.gpsVerified,
+        'check_in_distance_m': s.checkInDistanceM,
+        'last_location': s.lastLocation == null ? null : _encodeLastLocation(s.lastLocation!),
+      };
+
+  static ClientStaffToday _decodeStaffToday(Map<dynamic, dynamic> json) => ClientStaffToday(
+        staffId: json['staff_id'] as String? ?? '',
+        placementId: json['placement_id'] as String?,
+        staffCode: json['staff_code'] as String?,
+        name: json['name'] as String? ?? 'Staff',
+        series: json['series'] as String?,
+        seriesLabel: json['series_label'] as String?,
+        status: json['status'] as String? ?? 'NOT_CHECKED_IN',
+        checkIn: json['check_in'] as String?,
+        checkOut: json['check_out'] as String?,
+        gpsVerified: json['gps_verified'] as bool? ?? false,
+        checkInDistanceM: (json['check_in_distance_m'] as num?)?.round(),
+        lastLocation: json['last_location'] is Map ? decodeLastLocation(json['last_location'] as Map) : null,
+      );
+
+  static Map<String, dynamic> _encodeLastLocation(ClientStaffLastLocation l) => {
+        'at': l.at,
+        'lat': l.lat,
+        'lng': l.lng,
+        'accuracy_m': l.accuracyM,
+        'distance_m': l.distanceM,
+        'at_home': l.atHome,
+        'label': l.label,
+        'stale': l.stale,
+      };
+
+  static ClientStaffLastLocation? decodeLastLocation(Map<dynamic, dynamic> json) {
+    final lat = (json['lat'] as num?)?.toDouble();
+    final lng = (json['lng'] as num?)?.toDouble();
+    if (lat == null || lng == null) return null;
+    return ClientStaffLastLocation(
+      at: json['at'] as String? ?? '',
+      lat: lat,
+      lng: lng,
+      accuracyM: (json['accuracy_m'] as num?)?.round(),
+      distanceM: (json['distance_m'] as num?)?.round(),
+      atHome: json['at_home'] as bool?,
+      label: json['label'] as String?,
+      stale: json['stale'] as bool? ?? false,
+    );
+  }
+
+  // ── Live map ── (GET /client/staff/:staffId/location)
+  static ClientMapPoint? _decodePoint(Object? raw) {
+    if (raw is! Map) return null;
+    final lat = (raw['lat'] as num?)?.toDouble();
+    final lng = (raw['lng'] as num?)?.toDouble();
+    if (lat == null || lng == null) return null;
+    return ClientMapPoint(at: raw['at'] as String?, lat: lat, lng: lng);
+  }
+
+  static ClientStaffLocation decodeStaffLocation(Map<String, dynamic> json) {
+    final checkIn = json['check_in'] is Map ? json['check_in'] as Map : null;
+    final checkOut = json['check_out'] is Map ? json['check_out'] as Map : null;
+    return ClientStaffLocation(
+      staffId: json['staff_id'] as String? ?? '',
+      placementId: json['placement_id'] as String?,
+      status: json['status'] as String? ?? 'NOT_CHECKED_IN',
+      checkIn: _decodePoint(checkIn),
+      checkInLabel: checkIn?['label'] as String?,
+      checkOutAt: checkOut?['at'] as String?,
+      last: json['last'] is Map ? decodeLastLocation(json['last'] as Map) : null,
+      home: _decodePoint(json['home']),
+      trail: [
+        for (final raw in json['trail'] as List<dynamic>? ?? const []) ?_decodePoint(raw),
+      ],
+      farMeters: (json['far_meters'] as num?)?.toInt() ?? 300,
+      nextRefreshSec: (json['next_refresh_sec'] as num?)?.toInt(),
+    );
+  }
+
   // ── Attendance history ── (matches GET /client/attendance/history
-  // `history[]` item shape; no id/hours-worked field exists)
+  // `history[]` item shape)
   static Map<String, dynamic> encodeAttendanceRecord(ClientAttendanceRecord r) => {
         'date': r.date,
         'status': r.status,
         'checkIn': r.checkIn,
         'checkOut': r.checkOut,
+        'staff_id': r.staffId,
+        'staff_name': r.staffName,
+        'worked': r.worked,
       };
 
   static ClientAttendanceRecord decodeAttendanceRecord(Map<String, dynamic> json) =>
@@ -174,6 +335,9 @@ abstract final class ClientDtoCodec {
         status: json['status'] as String? ?? 'ABSENT',
         checkIn: json['checkIn'] as String?,
         checkOut: json['checkOut'] as String?,
+        staffId: json['staff_id'] as String?,
+        staffName: json['staff_name'] as String?,
+        worked: json['worked'] as String?,
       );
 
   // ── Invoice ── (matches GET /client/invoices `invoices[]` item shape;

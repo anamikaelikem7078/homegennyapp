@@ -1,3 +1,5 @@
+import '../../../../core/onboarding/onboarding_models.dart';
+
 /// Pipeline stage status.
 enum PipelineStageStatus { completed, current, pending }
 
@@ -618,8 +620,24 @@ class StaffProfile {
     this.address,
     this.dateOfBirth,
     this.staffApplicantId,
+    this.assignedRmName,
+    this.assignedRmPhone,
+    this.gender,
+    this.city,
+    this.area,
+    this.pincode,
+    this.emergencyContactName,
+    this.emergencyContactMobile,
+    this.languages = const [],
+    this.alternatePhone,
+    this.experienceYears,
+    this.profileComplete = true,
+    this.missing = const [],
+    this.lockedFields = const [],
   });
 
+  // Blank values arrive as `null` from `GET /staff/profile`; the String
+  // fields below hold '' for them (shown as "Not added"), never demo data.
   final String id;
   final String staffCode;
   final String fullName;
@@ -633,6 +651,63 @@ class StaffProfile {
   // Null only when the logged-in account has no linked staff record at all.
   final String? staffApplicantId;
   final String? dateOfBirth;
+  // The RM HomeGenny assigned to this staff member — null until an admin/BM
+  // assigns one (a fresh sign-up has none).
+  final String? assignedRmName;
+  final String? assignedRmPhone;
+
+  /// MALE / FEMALE / OTHER.
+  final String? gender;
+  final String? city;
+  final String? area;
+  final String? pincode;
+  final String? emergencyContactName;
+  final String? emergencyContactMobile;
+  final List<String> languages;
+  final String? alternatePhone;
+  final int? experienceYears;
+  final bool profileComplete;
+
+  /// Server field names still to fill (`full_name`, `city`, …).
+  final List<String> missing;
+
+  /// Fields the staff member can no longer change after Submit —
+  /// `full_name`, `date_of_birth`, `gender`, `series`. The RM changes them.
+  final List<String> lockedFields;
+
+  bool isLocked(String field) => lockedFields.contains(field);
+}
+
+/// `POST /staff/profile/submit` response (201).
+class StaffProfileSubmitResult {
+  const StaffProfileSubmitResult({
+    required this.outcome,
+    required this.onboarding,
+    this.assignedRmName,
+    this.message,
+  });
+
+  factory StaffProfileSubmitResult.fromJson(Map<String, dynamic> json) {
+    final assigned = json['assigned'];
+    return StaffProfileSubmitResult(
+      outcome: json['outcome'] as String? ?? '',
+      onboarding: OnboardingStatus.fromJson(json),
+      assignedRmName: assigned is Map ? assigned['name'] as String? : null,
+      message: json['message'] is String ? json['message'] as String : null,
+    );
+  }
+
+  /// `ADVANCE_S2`, or `RESTRICTED` (show [message] and stop).
+  final String outcome;
+
+  /// `next_step`, `rm`, `pipeline_stage`… — the same as `GET /me/onboarding`.
+  final OnboardingStatus onboarding;
+
+  /// Null when no RM works in that city yet (`next_step: WAIT_FOR_RM`).
+  final String? assignedRmName;
+  final String? message;
+
+  bool get isRestricted => outcome == 'RESTRICTED';
 }
 
 /// Dashboard summary model — matches `GET /staff/dashboard` exactly (flat
@@ -648,8 +723,11 @@ class StaffDashboardData {
     required this.assignedRmName,
     required this.assignedRmPhone,
     required this.todayTasks,
+    this.profileComplete = true,
   });
 
+  // `assignedRm` and `series` are null until real — held here as '' and
+  // shown as "RM not assigned yet" / "—", never as a made-up value.
   final String staffCode;
   final String fullName;
   final String series;
@@ -658,6 +736,7 @@ class StaffDashboardData {
   final String assignedRmName;
   final String assignedRmPhone;
   final List<StaffTask> todayTasks;
+  final bool profileComplete;
 }
 
 /// Check-in/check-out result — matches the response shape of both
@@ -670,6 +749,13 @@ class CheckInResult {
     required this.timestamp,
     this.latitude,
     this.longitude,
+    this.alreadyCheckedIn = false,
+    this.placementId,
+    this.clientName,
+    this.distanceM,
+    this.atHome,
+    this.locationIntervalSec,
+    this.worked,
   });
 
   final bool success;
@@ -678,5 +764,114 @@ class CheckInResult {
   final String timestamp;
   final double? latitude;
   final double? longitude;
+  final bool alreadyCheckedIn;
+  final String? placementId;
+  final String? clientName;
+
+  /// Metres between the GPS fix and the client's home pin (null when the
+  /// client has no home pin or no GPS was sent).
+  final int? distanceM;
+
+  /// False when the staff member checked in away from the client's home —
+  /// the RM is told; the app shows a warning.
+  final bool? atHome;
+
+  /// How often to send location while checked in (check-in only).
+  final int? locationIntervalSec;
+
+  /// Hours worked, e.g. "0 h 30 m" (check-out only).
+  final String? worked;
+}
+
+/// One house the staff member can check in at today (`GET /staff/placements`).
+class StaffPlacementOption {
+  const StaffPlacementOption({
+    required this.placementId,
+    required this.clientName,
+    required this.today,
+    this.address,
+    this.homeLat,
+    this.homeLng,
+    this.placementType,
+    this.visitType,
+  });
+
+  final String placementId;
+  final String clientName;
+  final String? address;
+
+  /// The client's home pin; null when the client hasn't set one.
+  final double? homeLat;
+  final double? homeLng;
+  final String? placementType; // PERMANENT | TEMPORARY
+  final String? visitType; // REGULAR | ONE_TIME
+
+  /// NOT_CHECKED_IN | CHECKED_IN | CHECKED_OUT
+  final String today;
+
+  bool get hasHome => homeLat != null && homeLng != null;
+}
+
+/// Where the staff member can check in today, and the location interval.
+class StaffPlacementsToday {
+  const StaffPlacementsToday({
+    required this.date,
+    required this.placements,
+    this.checkedInAt,
+    this.locationIntervalSec = 300,
+  });
+
+  final String date;
+
+  /// The placement with an open shift right now, or null.
+  final String? checkedInAt;
+  final int locationIntervalSec;
+  final List<StaffPlacementOption> placements;
+
+  bool get isCheckedIn => checkedInAt != null;
+}
+
+/// A GPS point queued for `POST /staff/attendance/location`.
+class LocationPoint {
+  const LocationPoint({
+    required this.latitude,
+    required this.longitude,
+    required this.recordedAt,
+    this.accuracy,
+  });
+
+  final double latitude;
+  final double longitude;
+  final DateTime recordedAt;
+  final double? accuracy;
+
+  Map<String, dynamic> toJson() => {
+        'latitude': latitude,
+        'longitude': longitude,
+        if (accuracy != null) 'accuracy': accuracy!.round(),
+        'recorded_at': recordedAt.toUtc().toIso8601String(),
+      };
+
+  static LocationPoint? fromJson(Map<dynamic, dynamic> json) {
+    final lat = (json['latitude'] as num?)?.toDouble();
+    final lng = (json['longitude'] as num?)?.toDouble();
+    final at = DateTime.tryParse(json['recorded_at'] as String? ?? '');
+    if (lat == null || lng == null || at == null) return null;
+    return LocationPoint(
+      latitude: lat,
+      longitude: lng,
+      recordedAt: at,
+      accuracy: (json['accuracy'] as num?)?.toDouble(),
+    );
+  }
+}
+
+/// Response of `POST /staff/attendance/location`.
+class LocationUploadResult {
+  const LocationUploadResult({required this.accepted, required this.dropped, this.nextInSec});
+
+  final int accepted;
+  final int dropped;
+  final int? nextInSec;
 }
 

@@ -327,20 +327,30 @@ class DsGlassPill extends StatelessWidget {
           color: Colors.white.withValues(alpha: 0.18),
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[Icon(icon, size: 13, color: Colors.white), const SizedBox(width: 5)],
-            Text(
-              text,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.6,
-                color: Colors.white,
-              ),
-            ),
-          ],
+        // One Text.rich, not a Row: ellipsizes when the pill is squeezed and
+        // still works inside unbounded Rows, where a Flexible would throw.
+        child: Text.rich(
+          TextSpan(
+            children: [
+              if (icon != null)
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 5),
+                    child: Icon(icon, size: 13, color: Colors.white),
+                  ),
+                ),
+              TextSpan(text: text),
+            ],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.6,
+            color: Colors.white,
+          ),
         ),
       );
 }

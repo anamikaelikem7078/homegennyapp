@@ -7,9 +7,11 @@ abstract final class ApiConstants {
 
   // Auth
   static const String authLogin = '/auth/login';
-  static const String authRegisterStaff = '/auth/register/staff';
-  static const String authRegisterCustomer = '/auth/register/customer';
-  static const String authVerifyOtp = '/auth/verify-otp';
+  // Mobile + OTP sign-in / sign-up — the only way app users log in. (The old
+  // `/auth/register/*` endpoints still exist for old app versions; this app
+  // must not call them. `/auth/verify-otp` is password reset only.)
+  static const String authOtpSend = '/auth/otp/send';
+  static const String authOtpVerify = '/auth/otp/verify';
   static const String authRefreshToken = '/auth/refresh';
   static const String authForgotPassword = '/auth/forgot-password';
   static const String authResetPassword = '/auth/reset-password';
@@ -23,6 +25,7 @@ abstract final class ApiConstants {
   static const String staffTasks = '/staff/tasks/today';
   static const String staffPipeline = '/staff/pipeline';
   static const String staffProfile = '/staff/profile';
+  static const String staffProfileSubmit = '/staff/profile/submit';
   static const String staffDocuments = '/staff/documents';
   static String staffDocument(String id) => '/staff/documents/$id';
   static const String staffTraining = '/staff/training';
@@ -47,6 +50,8 @@ abstract final class ApiConstants {
   static const String staffAttendanceCheckIn = '/staff/attendance/check-in';
   static const String staffAttendanceCheckOut = '/staff/attendance/check-out';
   static const String staffAttendanceHistory = '/staff/attendance/history';
+  static const String staffAttendanceLocation = '/staff/attendance/location';
+  static const String staffPlacements = '/staff/placements';
   static const String staffSalary = '/staff/salary';
   static const String staffPayslips = '/staff/payslips';
   static const String staffPayslipPdf = '/staff/payslips/pdf';
@@ -68,6 +73,8 @@ abstract final class ApiConstants {
   static const String rmShifts = '/rm/shifts';
   static String rmShiftReview(String id) => '/rm/shifts/$id/review';
   static const String rmUpgrades = '/rm/upgrades';
+  static const String rmRequests = '/rm/requests';
+  static String rmRequestAccept(String type, String id) => '/rm/requests/$type/$id/accept';
   static const String rmLocations = '/rm/locations';
   static const String rmAttendance = '/rm/attendance';
   static String rmInvoicePreview(String staffId) => '/rm/attendance/$staffId/invoice-preview';
@@ -122,6 +129,8 @@ abstract final class ApiConstants {
 
   // Client
   static const String clientDashboard = '/client/dashboard';
+  // "Today at home": every placed staff member's day + open requests.
+  static const String clientSnapshot = '/client/snapshot';
   static String clientStaffProfile(String id) => '/client/staff/$id/profile';
   static const String clientAssignedStaff = '/client/assigned-staff';
   static const String clientAttendanceToday = '/client/attendance/today';
@@ -145,6 +154,10 @@ abstract final class ApiConstants {
   static String clientStaffRequestRejectShortlist(String id) =>
       '/client/staff-requests/$id/reject-shortlist';
   static String clientStaffRequestCancel(String id) => '/client/staff-requests/$id/cancel';
+
+  // Live staff location (shared only while the staff member is checked in)
+  static String clientStaffLocation(String staffId) => '/client/staff/$staffId/location';
+  static const String clientHomeLocation = '/client/home-location';
 
   // Maps
   static const String mapsGeocode = '/maps/geocode';

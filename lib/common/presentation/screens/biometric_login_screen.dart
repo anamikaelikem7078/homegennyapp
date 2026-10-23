@@ -6,6 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:homegennyapp/design_system/widgets/buttons/ds_buttons.dart';
 import '../widgets/auth_hero_scaffold.dart';
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/onboarding/onboarding_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../domain/models/user_role.dart';
 import '../providers/auth_provider.dart';
@@ -38,13 +39,15 @@ class _BiometricLoginScreenState extends ConsumerState<BiometricLoginScreen> {
 
     if (!mounted || !success) return;
 
-    final profileOk = await ref.read(authProvider.notifier).fetchProfile();
-    if (!mounted) return;
+    // Captured up front: once the profile loads the router leaves this
+    // (auth) screen, and `ref` is unusable after that.
+    final router = GoRouter.of(context);
+    final container = ProviderScope.containerOf(context, listen: false);
+    final profileOk = await container.read(authProvider.notifier).fetchProfile();
+    if (!profileOk) return;
 
-    if (profileOk) {
-      final role = ref.read(authProvider).user?.role ?? UserRole.client;
-      context.go(role.dashboardRoute);
-    }
+    final role = container.read(authProvider).user?.role ?? UserRole.client;
+    router.go(await landingRouteAfterLogin(container.read(onboardingRemoteDataSourceProvider), role));
   }
 
   @override

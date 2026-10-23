@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 
+import '../../../../core/config/app_config.dart';
 import '../../../../core/data/repository_executor.dart';
 import '../../../../core/utils/file_hash.dart';
 import '../../../../core/utils/result.dart';
@@ -24,18 +25,18 @@ class StaffRepositoryImpl implements StaffRepository {
   final StaffLocalDataSource _local;
   final StaffDummyDataSource _dummy;
 
+  // Remote first — the executor falls back to the local cache only when
+  // offline or the call fails, so RM assignment and stage changes show up.
+  //
+  // No dummy fallback outside dummy mode: offline with no cache must show an
+  // error, never a demo name, RM or series.
   @override
-  Future<Result<StaffDashboardData>> getDashboard() async {
-    final localData = _local.getDashboard();
-    if (localData != null) return Success(localData);
-
-    return _executor.fetch(
-      remote: _remote.getDashboard,
-      cache: _local.cacheDashboard,
-      local: () async => _local.getDashboard(),
-      dummy: _dummy.getDashboard,
-    );
-  }
+  Future<Result<StaffDashboardData>> getDashboard() => _executor.fetch(
+        remote: _remote.getDashboard,
+        cache: _local.cacheDashboard,
+        local: () async => _local.getDashboard(),
+        dummy: AppConfig.useDummyApi ? _dummy.getDashboard : null,
+      );
 
   // Note: there is no separate /staff/tasks/today endpoint on the backend —
   // todayTasks is embedded in GET /staff/dashboard, so today's tasks are
@@ -58,24 +59,27 @@ class StaffRepositoryImpl implements StaffRepository {
       );
 
   @override
-  Future<Result<StaffProfile>> getProfile() async {
-    final localData = _local.getProfile();
-    if (localData != null) return Success(localData);
-
-    return _executor.fetch(
-      remote: _remote.getProfile,
-      cache: _local.cacheProfile,
-      local: () async => _local.getProfile(),
-      dummy: _dummy.getProfile,
-    );
-  }
+  Future<Result<StaffProfile>> getProfile() => _executor.fetch(
+        remote: _remote.getProfile,
+        cache: _local.cacheProfile,
+        local: () async => _local.getProfile(),
+        dummy: AppConfig.useDummyApi ? _dummy.getProfile : null,
+      );
 
   @override
-  Future<Result<void>> updateProfile({String? address, String? email}) =>
-      _executor.mutateVoid(
-        remote: () => _remote.updateProfile(address: address, email: email),
-        dummy: () => _dummy.updateProfile(address: address, email: email),
+  Future<Result<StaffProfile>> updateProfile(Map<String, dynamic> fields) =>
+      _executor.mutate(
+        remote: () async {
+          final profile = await _remote.updateProfile(fields);
+          await _local.cacheProfile(profile);
+          return profile;
+        },
+        dummy: () => _dummy.updateProfile(fields),
       );
+
+  @override
+  Future<Result<StaffProfileSubmitResult>> submitProfile(Map<String, dynamic> fields) =>
+      _executor.mutate(remote: () => _remote.submitProfile(fields));
 
   @override
   Future<Result<List<StaffDocument>>> getDocuments() => _executor.fetch(
@@ -267,10 +271,22 @@ class StaffRepositoryImpl implements StaffRepository {
   }
 
   @override
-  Future<Result<CheckInResult>> checkIn({double? latitude, double? longitude}) =>
+  Future<Result<StaffPlacementsToday>> getPlacementsToday() => _executor.mutate(
+        remote: _remote.getPlacementsToday,
+        dummy: _dummy.getPlacementsToday,
+      );
+
+  @override
+  Future<Result<CheckInResult>> checkIn({double? latitude, double? longitude, String? placementId}) =>
       _executor.mutate(
-        remote: () => _remote.checkIn(latitude: latitude, longitude: longitude),
-        dummy: () => _dummy.checkIn(latitude: latitude, longitude: longitude),
+        remote: () => _remote.checkIn(latitude: latitude, longitude: longitude, placementId: placementId),
+        dummy: () => _dummy.checkIn(latitude: latitude, longitude: longitude, placementId: placementId),
+      );
+
+  @override
+  Future<Result<LocationUploadResult>> sendLocationPoints(List<LocationPoint> points) => _executor.mutate(
+        remote: () => _remote.sendLocationPoints(points),
+        dummy: () => _dummy.sendLocationPoints(points),
       );
 
   @override

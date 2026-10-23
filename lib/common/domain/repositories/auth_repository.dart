@@ -1,6 +1,7 @@
 import '../../../../core/utils/result.dart';
 import '../models/app_version_info.dart';
 import '../models/auth_tokens.dart';
+import '../models/otp_send_result.dart';
 import '../models/user_model.dart';
 import '../models/user_role.dart';
 
@@ -11,38 +12,16 @@ abstract interface class AuthRepository {
     required String password,
   });
 
-  Future<Result<UserModel>> registerStaff({
-    required String fullName,
-    required String phone,
-    String? alternatePhone,
-    String? email,
-    required String password,
-    required String dateOfBirth,
-    required String gender,
-    required String address,
-    String? city,
-    String? stateName,
-    String? pincode,
-    required String series,
-  });
+  /// `POST /auth/otp/send`.
+  Future<Result<OtpSendResult>> sendLoginOtp({required String phone});
 
-  Future<Result<UserModel>> registerCustomer({
-    required String fullName,
-    required String phone,
-    String? email,
-    required String password,
-    String? businessName,
-    required String panCard,
-    required String address,
-    String? city,
-    String? stateName,
-    String? pincode,
-    String? gstn,
-  });
-
-  Future<Result<bool>> verifyOtp({
+  /// `POST /auth/otp/verify` — on success the tokens are saved and the user
+  /// cached exactly like a password login. [role] is needed only for a new
+  /// number (CLIENT or STAFF).
+  Future<Result<UserModel>> verifyLoginOtp({
     required String phone,
     required String otp,
+    UserRole? role,
   });
 
   Future<Result<void>> forgotPassword({required String phone});

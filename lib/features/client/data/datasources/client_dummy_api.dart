@@ -82,15 +82,80 @@ class ClientDummyApi {
         ),
       );
 
+  static final _now = DateTime.now().toUtc();
+  static String _ago(int minutes) => _now.subtract(Duration(minutes: minutes)).toIso8601String();
+
   Future<ClientTodayAttendance> getTodayAttendance() => _simulate(
-        const ClientTodayAttendance(
+        ClientTodayAttendance(
           staffName: 'Rajesh Kumar',
-          checkInTime: '2026-08-15T09:02:00.000Z',
+          checkInTime: _ago(150),
           checkOutTime: null,
           todayStatus: 'PRESENT',
           gpsVerified: true,
+          staff: [
+            ClientStaffToday(
+              staffId: 'staff001',
+              placementId: 'PLC-001',
+              name: 'Rajesh Kumar',
+              series: 'COOK',
+              seriesLabel: 'Cook',
+              status: 'PRESENT',
+              checkIn: _ago(150),
+              gpsVerified: true,
+              checkInDistanceM: 22,
+              lastLocation: ClientStaffLastLocation(
+                at: _ago(2),
+                lat: 28.5594,
+                lng: 77.2068,
+                distanceM: 25,
+                atHome: true,
+                label: 'At home',
+              ),
+            ),
+            const ClientStaffToday(
+              staffId: 'staff002',
+              placementId: 'PLC-002',
+              name: 'Asha Kumari',
+              series: 'UNSKILLED_CARE',
+              seriesLabel: 'Caretaker (UC)',
+              status: 'NOT_CHECKED_IN',
+            ),
+          ],
         ),
       );
+
+  Future<ClientStaffLocation> getStaffLocation(String staffId) {
+    const home = ClientMapPoint(at: null, lat: 28.5592, lng: 77.2066);
+    if (staffId != 'staff001') {
+      return _simulate(ClientStaffLocation(staffId: staffId, status: 'NOT_CHECKED_IN', home: home));
+    }
+    return _simulate(
+      ClientStaffLocation(
+        staffId: staffId,
+        placementId: 'PLC-001',
+        status: 'PRESENT',
+        checkIn: ClientMapPoint(at: _ago(150), lat: 28.5594, lng: 77.2066),
+        checkInLabel: 'at home',
+        last: ClientStaffLastLocation(
+          at: _ago(2),
+          lat: 28.5594,
+          lng: 77.2068,
+          distanceM: 25,
+          atHome: true,
+          label: 'At home',
+        ),
+        home: home,
+        trail: [
+          ClientMapPoint(at: _ago(150), lat: 28.5594, lng: 77.2066),
+          ClientMapPoint(at: _ago(60), lat: 28.5630, lng: 77.2090),
+          ClientMapPoint(at: _ago(2), lat: 28.5594, lng: 77.2068),
+        ],
+        nextRefreshSec: 60,
+      ),
+    );
+  }
+
+  Future<void> setHomeLocation() => _simulate(null);
 
   List<ClientAttendanceRecord> get _attendanceHistory => const [
         ClientAttendanceRecord(
@@ -119,8 +184,10 @@ class ClientDummyApi {
         ),
       ];
 
-  Future<List<ClientAttendanceRecord>> getAttendanceHistory() =>
-      _simulate(_attendanceHistory);
+  Future<List<ClientAttendanceRecord>> getAttendanceHistory({String? staffId}) => _simulate([
+        for (final r in _attendanceHistory)
+          if (staffId == null || staffId == 'staff001') r,
+      ]);
 
   Future<void> raiseAttendanceIssue({
     required String message,

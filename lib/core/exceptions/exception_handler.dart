@@ -55,37 +55,63 @@ abstract final class ExceptionHandler {
     final data = error.response?.data;
     final message = _extractMessage(data) ?? 'Server error occurred';
 
+    final errorCode = extractErrorCode(data);
+    final missing = extractMissing(data);
+
     switch (statusCode) {
       case 400:
-        return ValidationFailure(message: message, code: '$statusCode');
+      case 409:
+      case 422:
+        return ValidationFailure(
+          message: message,
+          code: '$statusCode',
+          errorCode: errorCode,
+          missing: missing,
+        );
       case 401:
-        return AuthFailure(message: message, code: '$statusCode');
       case 403:
         return AuthFailure(
           message: message,
           code: '$statusCode',
+          errorCode: errorCode,
+          missing: missing,
         );
-      case 404:
-        return ServerFailure(message: message, code: '$statusCode');
-      case 422:
-        return ValidationFailure(message: message, code: '$statusCode');
-      case 409:
-        return ValidationFailure(message: message, code: '$statusCode');
       case 429:
-        // Login and both self-registration endpoints share one 5/min-per-IP
-        // bucket — surface a fixed, friendly message rather than whatever
-        // text the throttle guard sent, and never auto-retry on this.
+        // OTP send + verify share one 10/min-per-IP bucket — surface a fixed,
+        // friendly message rather than whatever text the throttle guard sent,
+        // and never auto-retry on this.
         return const ValidationFailure(
-          message: 'Too many attempts. Please try again in a minute.',
+          message: 'Too many attempts, try again in a minute',
           code: '429',
         );
-      case 500:
-      case 502:
-      case 503:
-        return ServerFailure(message: message, code: '$statusCode');
       default:
-        return ServerFailure(message: message, code: '$statusCode');
+        return ServerFailure(
+          message: message,
+          code: '$statusCode',
+          errorCode: errorCode,
+          missing: missing,
+        );
     }
+  }
+
+  /// `message.error` from `{ statusCode, message: { message, error, missing } }`
+  /// — only when it is a machine code (e.g. `PROFILE_INCOMPLETE`), not
+  /// Nest's generic "Bad Request"/"Forbidden" labels.
+  static String? extractErrorCode(dynamic data) {
+    if (data is! Map) return null;
+    final inner = data['message'];
+    final raw = inner is Map ? inner['error'] : data['error'];
+    if (raw is! String || !RegExp(r'^[A-Z][A-Z0-9_]+$').hasMatch(raw)) return null;
+    return raw;
+  }
+
+  /// `message.missing` (or a top-level `missing`) as a string list.
+  static List<String> extractMissing(dynamic data) {
+    if (data is! Map) return const [];
+    final inner = data['message'];
+    final raw = inner is Map ? inner['missing'] : data['missing'];
+    if (raw is! List) return const [];
+    return raw.map((e) => e.toString()).toList();
   }
 
   static String? _extractMessage(dynamic data) {

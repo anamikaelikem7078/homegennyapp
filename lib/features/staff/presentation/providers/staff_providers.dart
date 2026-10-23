@@ -127,6 +127,16 @@ final staffDeploymentProvider = FutureProvider<DeploymentInfo>((ref) async {
   );
 });
 
+/// Houses the staff member can check in at today (trial, confirmed and
+/// today's one-time visits), and the open shift if any.
+final staffPlacementsTodayProvider = FutureProvider<StaffPlacementsToday>((ref) async {
+  final result = await ref.watch(staffRepositoryProvider).getPlacementsToday();
+  return result.fold(
+    onSuccess: (data) => data,
+    onError: (f) => throw Exception(f.message),
+  );
+});
+
 final staffTodayAttendanceProvider =
     FutureProvider<AttendanceRecord?>((ref) async {
   final result = await ref.watch(staffRepositoryProvider).getTodayAttendance();

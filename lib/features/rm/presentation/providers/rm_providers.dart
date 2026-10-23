@@ -78,6 +78,12 @@ final rmUpgradesProvider = FutureProvider<List<UpgradeRequestRow>>((ref) async {
   return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
 });
 
+/// New staff/client sign-ups waiting for an RM to accept them.
+final rmSignupRequestsProvider = FutureProvider<List<SignupRequest>>((ref) async {
+  final result = await ref.watch(rmRepositoryProvider).getSignupRequests();
+  return result.fold(onSuccess: (d) => d, onError: (f) => throw f);
+});
+
 final rmLocationsProvider = FutureProvider<LocationsData>((ref) async {
   final result = await ref.watch(rmRepositoryProvider).getLocations();
   return result.fold(onSuccess: (d) => d, onError: (f) => throw f);

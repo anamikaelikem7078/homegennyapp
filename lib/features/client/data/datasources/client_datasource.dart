@@ -15,6 +15,7 @@ import '../../../../core/data/datasources/base_local_datasource.dart';
 import '../../../../core/data/datasources/json_asset_loader.dart';
 import '../../../../core/network/api_service.dart';
 import '../../domain/models/client_models.dart';
+import '../../domain/models/client_snapshot.dart';
 import '../../domain/models/staff_request_models.dart';
 import '../datasources/client_dummy_api.dart';
 import '../models/client_dtos.dart';
@@ -28,8 +29,18 @@ class ClientRemoteDataSource extends BaseRemoteDataSource {
     return ClientDtoCodec.decodeDashboard(json);
   }
 
+  Future<ClientSnapshot> getSnapshot() async =>
+      ClientSnapshot.fromJson(await getJson(ApiConstants.clientSnapshot));
+
   Future<ClientProfile> getProfile() async {
     final json = await getJson(ApiConstants.clientProfile);
+    return ClientDtoCodec.decodeProfile(json);
+  }
+
+  /// `PATCH /client/profile` — only the fields sent change. City must come
+  /// from `GET /meta/cities`. The phone is the login and is never sent.
+  Future<ClientProfile> updateProfile(Map<String, dynamic> fields) async {
+    final json = await patchJson(ApiConstants.clientProfile, data: fields);
     return ClientDtoCodec.decodeProfile(json);
   }
 
@@ -51,12 +62,28 @@ class ClientRemoteDataSource extends BaseRemoteDataSource {
     return ClientDtoCodec.decodeTodayAttendance(json);
   }
 
-  Future<List<ClientAttendanceRecord>> getAttendanceHistory() async {
-    final json = await getJson(ApiConstants.clientAttendanceHistory);
+  Future<List<ClientAttendanceRecord>> getAttendanceHistory({String? staffId, String? from, String? to}) async {
+    final json = await getJson(
+      ApiConstants.clientAttendanceHistory,
+      queryParameters: {
+        if (staffId != null) 'staff_id': staffId,
+        if (from != null) 'from': from,
+        if (to != null) 'to': to,
+      },
+    );
     return ClientDtoCodec.decodeList(
       json['history'] as List<dynamic>? ?? [],
       ClientDtoCodec.decodeAttendanceRecord,
     );
+  }
+
+  Future<ClientStaffLocation> getStaffLocation(String staffId) async {
+    final json = await getJson(ApiConstants.clientStaffLocation(staffId));
+    return ClientDtoCodec.decodeStaffLocation(json);
+  }
+
+  Future<void> setHomeLocation({required double lat, required double lng}) async {
+    await putJson(ApiConstants.clientHomeLocation, data: {'lat': lat, 'lng': lng});
   }
 
   Future<void> raiseAttendanceIssue({
@@ -211,6 +238,16 @@ class ClientLocalDataSource extends BaseLocalDataSource {
     return json != null ? ClientDtoCodec.decodeDashboard(json) : null;
   }
 
+  Future<void> cacheSnapshot(ClientSnapshot s) => saveJson(StorageKeys.clientSnapshot, s.json);
+
+  /// Only today's — yesterday's statuses would mislead.
+  ClientSnapshot? getSnapshot(String today) {
+    final json = getJson(StorageKeys.clientSnapshot);
+    if (json == null) return null;
+    final s = ClientSnapshot.fromJson(json);
+    return s.date == today ? s : null;
+  }
+
   Future<void> cacheProfile(ClientProfile profile) =>
       saveJson(StorageKeys.clientProfile, ClientDtoCodec.encodeProfile(profile));
 
@@ -324,7 +361,10 @@ class ClientDummyDataSource {
   Future<List<ClientAssignedStaff>> getAssignedStaff() => _api.getAssignedStaff();
   Future<ClientStaffProfile> getStaffProfile(String staffId) => _api.getStaffProfile(staffId);
   Future<ClientTodayAttendance> getTodayAttendance() => _api.getTodayAttendance();
-  Future<List<ClientAttendanceRecord>> getAttendanceHistory() => _api.getAttendanceHistory();
+  Future<List<ClientAttendanceRecord>> getAttendanceHistory({String? staffId, String? from, String? to}) =>
+      _api.getAttendanceHistory(staffId: staffId);
+  Future<ClientStaffLocation> getStaffLocation(String staffId) => _api.getStaffLocation(staffId);
+  Future<void> setHomeLocation({required double lat, required double lng}) => _api.setHomeLocation();
   Future<void> raiseAttendanceIssue({
     required String message,
     String? staffId,
@@ -342,5 +382,8 @@ class ClientDummyDataSource {
   Future<void> markNotificationRead(String id) => _api.markNotificationRead(id);
   Future<void> makeDemoPayment(String invoiceId, double amount, String method) => _api.makeDemoPayment(invoiceId, amount, method);
   Future<ClientProfile> getProfile() => _api.getProfile();
-  Future<void> updateProfile(Map<String, String> data) => _api.updateProfile(data);
+  Future<ClientProfile> updateProfile(Map<String, dynamic> data) async {
+    await _api.updateProfile(data.map((k, v) => MapEntry(k, '$v')));
+    return _api.getProfile();
+  }
 }

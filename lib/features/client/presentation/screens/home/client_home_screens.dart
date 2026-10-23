@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,14 +9,19 @@ import 'package:homegennyapp/core/theme/app_fonts.dart';
 
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/client_routes.dart';
+import '../../../../../common/presentation/providers/auth_provider.dart';
+import '../../../../../core/onboarding/onboarding_providers.dart';
+import '../../../../../core/onboarding/profile_gate.dart';
 import '../../../../../core/router/app_routes.dart';
 import '../../../../../core/utils/currency_formatter.dart';
 import '../../../../../core/presentation/async_value_widget.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../domain/models/client_models.dart';
+import '../../../domain/models/client_snapshot.dart';
 import '../../../domain/models/staff_request_models.dart';
 import '../../providers/client_providers.dart';
 import '../../widgets/client_scaffold.dart';
+import 'today_at_home_card.dart';
 import '../../../../../core/series/series_catalog.dart';
 
 /// Client home / dashboard tab.
@@ -22,17 +29,59 @@ import '../../../../../core/series/series_catalog.dart';
 /// Top to bottom: a compact header with today's numbers, anything waiting
 /// on the family, their staff (one card each, with that staff member's
 /// actions), quick actions, this month's attendance, and the cover note.
-class ClientHomeScreen extends ConsumerWidget {
+class ClientHomeScreen extends ConsumerStatefulWidget {
   const ClientHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ClientHomeScreen> createState() => _ClientHomeScreenState();
+}
+
+class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> with WidgetsBindingObserver {
+  /// "Today at home" refresh while the home is visible.
+  static const _snapshotInterval = Duration(minutes: 2);
+  Timer? _timer;
+  bool _appInForeground = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _timer = Timer.periodic(_snapshotInterval, (_) => _refreshSnapshotIfVisible());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasBackground = !_appInForeground;
+    _appInForeground = state == AppLifecycleState.resumed;
+    if (_appInForeground && wasBackground) _refreshSnapshotIfVisible();
+  }
+
+  /// Visible = app in front, the Home tab selected (the shell keeps other
+  /// tabs' tickers off) and no screen pushed on top.
+  void _refreshSnapshotIfVisible() {
+    if (!mounted || !_appInForeground) return;
+    if (!TickerMode.valuesOf(context).enabled) return;
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    ref.invalidate(clientSnapshotProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final dashboard = ref.watch(clientDashboardProvider);
     final assignedStaff = ref.watch(clientAssignedStaffProvider);
+    final snapshotStaff = ref.watch(clientSnapshotProvider).valueOrNull?.staff;
 
     Future<void> refresh() async {
       ref
         ..invalidate(clientDashboardProvider)
+        ..invalidate(clientSnapshotProvider)
         ..invalidate(clientAssignedStaffProvider)
         ..invalidate(clientAttendanceHistoryProvider)
         ..invalidate(clientStaffRequestsProvider)
@@ -58,18 +107,19 @@ class ClientHomeScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _AttentionSection(data: data),
-                      _SectionTitle(
-                        'Your staff',
-                        count: staff.isEmpty ? null : staff.length,
-                        action: staff.isEmpty ? null : ('See all', () => context.go(ClientRoutes.staff)),
-                      ),
-                      assignedStaff.when(
-                        loading: () => const Padding(padding: EdgeInsets.all(24), child: DsLoadingWidget()),
-                        error: (_, _) => const _NoStaffCard(),
-                        data: (list) => list.isEmpty
-                            ? const _NoStaffCard()
-                            : Column(children: [for (final s in list) _StaffRowCard(staff: s)]),
+                      if (ref.watch(profileLockedProvider)) ...[
+                        const ProfileIncompleteCard(compact: true),
+                        const SizedBox(height: 4),
+                      ],
+                      // "Today at home" is the top of the home, above
+                      // "Needs your attention".
+                      const _TodayAtHomeSection(),
+                      const SizedBox(height: 12),
+                      _AttentionSection(
+                        data: data,
+                        // With no staff placed, the "No staff at home" card
+                        // above already offers Request staff.
+                        showRequestPrompt: (snapshotStaff ?? staff).isNotEmpty,
                       ),
                       _SectionTitle('Quick actions'),
                       _QuickActionsGrid(hasCook: staff.any((s) => s.hasMenu)),
@@ -172,7 +222,7 @@ class _HomeHeader extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      DsRingAvatar(name: data.clientName, onTap: () => context.go(ClientRoutes.profile)),
+                      DsRingAvatar(name: displayNameOr(data.clientName, ref.watch(authProvider).user?.phone), onTap: () => context.go(ClientRoutes.profile)),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -187,7 +237,8 @@ class _HomeHeader extends ConsumerWidget {
                               ),
                             ),
                             Text(
-                              data.clientName,
+                              // `customerName` is null until the profile wizard is done.
+                              displayNameOr(data.clientName, ref.watch(authProvider).user?.phone),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppFonts.display(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w700),
@@ -290,8 +341,9 @@ class _HeaderStat extends StatelessWidget {
 /// Only what is waiting on the family: bills to pay and staff requests.
 /// With nothing waiting, a single "Request staff" prompt instead.
 class _AttentionSection extends ConsumerWidget {
-  const _AttentionSection({required this.data});
+  const _AttentionSection({required this.data, this.showRequestPrompt = true});
   final ClientDashboardData data;
+  final bool showRequestPrompt;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -329,7 +381,9 @@ class _AttentionSection extends ConsumerWidget {
     ];
 
     if (items.isEmpty) {
-      return _RequestStaffPrompt(onTap: () => context.push(ClientRoutes.staffRequestNew));
+      return showRequestPrompt
+          ? _RequestStaffPrompt(onTap: () => context.push(ClientRoutes.staffRequestNew))
+          : const SizedBox.shrink();
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -467,23 +521,7 @@ class _StaffRowCard extends StatelessWidget {
     final seriesLabel = SeriesDisplay.label(s.series);
     final accent = SeriesDisplay.color(s.series);
     final deployed = s.status == 'ACTIVE_DEPLOYED';
-    final pid = s.placementId;
     final initials = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join();
-
-    final actions = <(IconData, String, VoidCallback)>[
-      if (pid != null && s.hasCarePlan)
-        (Icons.health_and_safety_rounded, 'Daily care', () => context.push(ClientRoutes.careHome(pid), extra: name)),
-      if (pid != null && s.hasMenu) (Icons.restaurant_menu_rounded, 'Menu', () => context.push(ClientRoutes.menu(pid), extra: name)),
-      if (pid != null && s.hasInstructions)
-        (Icons.record_voice_over_rounded, 'Instruct', () => context.push(ClientRoutes.instructions(pid), extra: name)),
-      (
-        Icons.chat_bubble_outline_rounded,
-        'Chat',
-        () => context.push(
-          '${AppRoutes.chat}?recipientName=${Uri.encodeComponent(name)}&recipientRole=${Uri.encodeComponent(seriesLabel)}',
-        ),
-      ),
-    ];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -584,17 +622,104 @@ class _StaffRowCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1, color: Color(0xFFEFF1F6)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: Row(
-              children: [
-                for (final (icon, label, onTap) in actions)
-                  Expanded(child: _StaffAction(icon: icon, label: label, color: accent, onTap: onTap)),
-              ],
-            ),
-          ),
+          _StaffActionsRow(staff: s),
         ],
       ),
+    );
+  }
+}
+
+/// What the family can do for one staff member: daily care, menu,
+/// instructions, live location, chat.
+class _StaffActionsRow extends StatelessWidget {
+  const _StaffActionsRow({required this.staff});
+  final ClientAssignedStaff staff;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = staff;
+    final name = s.fullName ?? 'Staff';
+    final seriesLabel = SeriesDisplay.label(s.series);
+    final accent = SeriesDisplay.color(s.series);
+    final pid = s.placementId;
+    final actions = <(IconData, String, VoidCallback)>[
+      if (pid != null && s.hasCarePlan)
+        (Icons.health_and_safety_rounded, 'Daily care', () => context.push(ClientRoutes.careHome(pid), extra: name)),
+      if (pid != null && s.hasMenu) (Icons.restaurant_menu_rounded, 'Menu', () => context.push(ClientRoutes.menu(pid), extra: name)),
+      if (pid != null && s.hasInstructions)
+        (Icons.record_voice_over_rounded, 'Instruct', () => context.push(ClientRoutes.instructions(pid), extra: name)),
+      // The map screen handles off-shift / no-home-pin states itself.
+      (Icons.location_on_rounded, 'Location', () => context.push(ClientRoutes.staffLiveMap(s.staffId))),
+      (
+        Icons.chat_bubble_outline_rounded,
+        'Chat',
+        () => context.push(
+          '${AppRoutes.chat}?recipientName=${Uri.encodeComponent(name)}&recipientRole=${Uri.encodeComponent(seriesLabel)}',
+        ),
+      ),
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Row(
+        children: [
+          for (final (icon, label, onTap) in actions)
+            Expanded(child: _StaffAction(icon: icon, label: label, color: accent, onTap: onTap)),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Today at home" (brief: Today at Home snapshot) — one card per placed
+/// staff member from `GET /client/snapshot`, with that member's actions
+/// underneath. If the snapshot can't load, the plain staff list is shown.
+class _TodayAtHomeSection extends ConsumerWidget {
+  const _TodayAtHomeSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final snapshot = ref.watch(clientSnapshotProvider);
+    final assigned = ref.watch(clientAssignedStaffProvider).valueOrNull ?? const <ClientAssignedStaff>[];
+    final staffCount = snapshot.valueOrNull?.staff.length ?? assigned.length;
+
+    ClientAssignedStaff? match(SnapshotStaff s) => assigned
+        .where((a) => (a.placementId != null && a.placementId == s.placementId) || a.staffId == s.staffId)
+        .firstOrNull;
+
+    final Widget body;
+    if (snapshot.hasValue) {
+      final data = snapshot.value!;
+      body = data.staff.isEmpty
+          ? const _NoStaffCard()
+          : Column(
+              children: [
+                for (final s in data.staff)
+                  TodayAtHomeCard(
+                    staff: s,
+                    snapshotDate: data.date,
+                    replacements: data.replacementsFor(s.placementId),
+                    footer: match(s) == null ? null : _StaffActionsRow(staff: match(s)!),
+                  ),
+              ],
+            );
+    } else if (snapshot.hasError) {
+      body = assigned.isEmpty
+          ? const _NoStaffCard()
+          : Column(children: [for (final s in assigned) _StaffRowCard(staff: s)]);
+    } else {
+      body = const Padding(padding: EdgeInsets.all(24), child: DsLoadingWidget());
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SectionTitle(
+          'Today at home',
+          count: staffCount == 0 ? null : staffCount,
+          action: staffCount == 0 ? null : ('See all', () => context.go(ClientRoutes.staff)),
+        ),
+        body,
+      ],
     );
   }
 }
@@ -782,10 +907,12 @@ class _MonthAttendanceCard extends ConsumerWidget {
                     style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: _muted),
                   ),
                   const SizedBox(height: 10),
-                  Row(
+                  // Wrap: on narrow phones "Absent" moves under "Present".
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 4,
                     children: [
                       _MiniStat(color: AppColors.success, label: 'Present', value: present),
-                      const SizedBox(width: 14),
                       _MiniStat(color: AppColors.error, label: 'Absent', value: absent),
                     ],
                   ),
@@ -808,6 +935,7 @@ class _MiniStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
     children: [
       Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
       const SizedBox(width: 5),

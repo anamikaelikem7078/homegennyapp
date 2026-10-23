@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/onboarding/onboarding_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../providers/auth_provider.dart';
@@ -13,13 +14,10 @@ const Color _brand = Color(0xFF1A56FF);
 const Color _brandDark = Color(0xFF1238B8);
 const Color _deepNavy = Color(0xFF0B1B4D);
 const Color _sunYellow = Color(0xFFFFD84D);
-
 const String _appName = 'HomeGenny';
-
 /// Index of the letter in [_appName] that zooms toward the camera on exit
 /// (the "o" in "Home" — its hollow centre opens onto the next screen).
 const int _zoomLetterIndex = 1;
-
 /// Time the intro animation needs before the exit zoom may start.
 const Duration _introDuration = Duration(milliseconds: 1900);
 
@@ -80,9 +78,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       case SplashDestination.clientDashboard:
         final profileOk = await ref.read(authProvider.notifier).fetchProfile();
         if (!mounted) return;
-        if (profileOk) {
-          final role = ref.read(authProvider).user?.role;
-          route = role?.dashboardRoute ?? AppRoutes.clientDashboard;
+        final role = ref.read(authProvider).user?.role;
+        if (profileOk && role != null) {
+          // The profile wizard while it is incomplete, else the home.
+          route = await landingRouteAfterLogin(
+            ref.read(onboardingRemoteDataSourceProvider),
+            role,
+          );
+          if (!mounted) return;
+        } else if (profileOk) {
+          route = AppRoutes.clientDashboard;
         } else {
           route = AppRoutes.sessionExpired;
         }

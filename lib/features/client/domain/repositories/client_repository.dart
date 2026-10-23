@@ -1,14 +1,20 @@
 import '../../../../core/utils/result.dart';
 import '../models/client_models.dart';
+import '../models/client_snapshot.dart';
 import '../models/staff_request_models.dart';
 
 /// Client module repository contract.
 abstract interface class ClientRepository {
   Future<Result<ClientDashboardData>> getDashboard();
+
+  /// `GET /client/snapshot` — today at home.
+  Future<Result<ClientSnapshot>> getSnapshot();
   Future<Result<List<ClientAssignedStaff>>> getAssignedStaff();
   Future<Result<ClientStaffProfile>> getStaffProfile(String staffId);
   Future<Result<ClientTodayAttendance>> getTodayAttendance();
-  Future<Result<List<ClientAttendanceRecord>>> getAttendanceHistory();
+  Future<Result<List<ClientAttendanceRecord>>> getAttendanceHistory({String? staffId, String? from, String? to});
+  Future<Result<ClientStaffLocation>> getStaffLocation(String staffId);
+  Future<Result<void>> setHomeLocation({required double lat, required double lng});
   Future<Result<void>> raiseAttendanceIssue({
     required String message,
     String? staffId,
@@ -35,7 +41,8 @@ abstract interface class ClientRepository {
   Future<Result<void>> markNotificationRead(String id);
   Future<Result<void>> makeDemoPayment(String invoiceId, double amount, String method);
   Future<Result<ClientProfile>> getProfile();
-  Future<Result<void>> updateProfile(Map<String, String> data);
+  /// `PATCH /client/profile` — any subset of the profile fields.
+  Future<Result<ClientProfile>> updateProfile(Map<String, dynamic> fields);
 
   // Staff requests
   Future<Result<List<StaffRequest>>> getStaffRequests();

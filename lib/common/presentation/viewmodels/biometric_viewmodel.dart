@@ -55,7 +55,7 @@ class BiometricViewModel extends StateNotifier<BiometricState> {
       if (!hasSession) {
         state = state.copyWith(
           isLoading: false,
-          errorMessage: 'No saved session. Please login with password.',
+          errorMessage: 'No saved session. Please log in with your mobile number.',
         );
         return false;
       }

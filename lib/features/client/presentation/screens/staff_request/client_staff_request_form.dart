@@ -23,8 +23,18 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
   static const _steps = ['Kind of help', 'When', 'Needs', 'Address', 'Review'];
   static const _mobility = ['WALKING', 'ASSISTED', 'BEDRIDDEN'];
   static const _medicalNeeds = ['MEDICATION', 'VITALS', 'WOUND_CARE', 'INJECTION', 'CLINICAL_ESCALATION'];
-  static const _dietTypes = ['VEG', 'EGG', 'NON_VEG', 'JAIN', 'VEGAN'];
+  static const _dietTypes = ['VEG', 'EGG', 'NON_VEG', 'JAIN'];
   static const _meals = ['BREAKFAST', 'LUNCH', 'SNACKS', 'DINNER'];
+
+  /// "Meals each day" is one pick from these ready-made combos.
+  static const _mealCombos = [
+    ['BREAKFAST'],
+    ['LUNCH'],
+    ['DINNER'],
+    ['BREAKFAST', 'LUNCH'],
+    ['LUNCH', 'DINNER'],
+    ['BREAKFAST', 'LUNCH', 'DINNER'],
+  ];
 
   int _step = 0;
   bool _submitting = false;
@@ -36,7 +46,6 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
   // Step 2
   DateTime? _startDate;
   TimeOfDay? _startTime;
-  int? _durationMin;
   String _placementType = 'PERMANENT';
   String _genderPref = 'ANY';
   int _headcount = 1;
@@ -82,8 +91,6 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
 
   /// The visit's meal: the user's pick, else what the server would pick.
   String get _mealForVisit => _visitMeal ?? BookingRules.mealForTime(_startHhmm ?? '12:00');
-
-  int? get _dishCap => _durationMin == null ? null : BookingRules.maxDishes(_durationMin!);
 
   @override
   void initState() {
@@ -196,7 +203,6 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
         final now = DateTime.now();
         final start = DateTime(_startDate!.year, _startDate!.month, _startDate!.day, _startTime!.hour, _startTime!.minute);
         if (start.isBefore(now)) return 'That time has already passed today.';
-        if (_oneTime && _durationMin == null) return 'Please choose how long the visit is.';
         if (!_oneTime && (int.tryParse(_shiftHours.text.trim()) ?? 0) < 1) return 'Please enter the hours per day.';
       case 2:
         if (_isCare) {
@@ -207,12 +213,7 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
           if (_dietType == null) return 'Please choose the diet type.';
           if ((int.tryParse(_familySize.text.trim()) ?? 0) < 1) return 'Please enter how many people the cook feeds.';
           if (_mealsPerDay.isEmpty) return 'Please choose at least one meal.';
-          if (_oneTime) {
-            if (_visitDishes.isEmpty) return 'Please add at least one dish for the visit.';
-            if (_visitDishes.length > _dishCap!) {
-              return '${BookingRules.durationLabel(_durationMin!)} covers up to $_dishCap dishes — remove some or choose a longer visit.';
-            }
-          }
+          if (_oneTime && _visitDishes.isEmpty) return 'Please add at least one dish for the visit.';
         }
       case 3:
         if (_address.text.trim().length < 5) return 'Please enter the address where the staff will work.';
@@ -325,10 +326,9 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
       'visit_type': _visitType,
       'start_date': _ymd(_startDate!),
       'start_time': _startHhmm,
-      // One-time: the server sets TEMPORARY and shift_hours from the duration.
-      if (_oneTime)
-        'duration_min': _durationMin
-      else ...{
+      // One-time: no duration from the client — the cook sets how long the
+      // visit takes. Regular staff send their placement type and hours.
+      if (!_oneTime) ...{
         'placement_type': _placementType,
         'shift_hours': num.tryParse(_shiftHours.text.trim()) ?? 8,
       },
@@ -459,36 +459,30 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
   // Step 2
   List<Widget> _whenStep() => [
         DsSection(_oneTime ? 'Visit date & time' : 'Start date & time'),
-        Row(
-          children: [
-            Expanded(
-              child: DsListCard(
-                icon: Icons.event_rounded,
-                title: _startDate == null ? 'Choose date' : _dayMonth(_ymd(_startDate!)),
-                subtitle: 'Date',
-                onTap: _pickDate,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: DsListCard(
-                icon: Icons.schedule_rounded,
-                title: _startHhmm == null ? 'Choose time' : _time12(_startHhmm!),
-                subtitle: 'Time',
-                onTap: _pickTime,
-              ),
-            ),
-          ],
+        _PickerLabel(icon: Icons.event_rounded, label: 'Date', action: 'Calendar', onAction: _pickDate),
+        const SizedBox(height: 8),
+        _DateStrip(selected: _startDate, onPick: (d) => setState(() => _startDate = d)),
+        const SizedBox(height: 18),
+        _PickerLabel(icon: Icons.schedule_rounded, label: 'Time', action: 'Other time', onAction: _pickTime),
+        const SizedBox(height: 8),
+        _TimeSlots(
+          date: _startDate,
+          selected: _startTime,
+          onPick: (t) => setState(() => _startTime = t),
         ),
-        const DsSection('How long?'),
-        if (_oneTime)
-          _chips<int>(
-            values: BookingRules.durations,
-            isSelected: (v) => _durationMin == v,
-            onTap: (v) => setState(() => _durationMin = v),
-            label: BookingRules.durationLabel,
-          )
-        else ...[
+        if (_startDate != null || _startTime != null) ...[
+          const SizedBox(height: 12),
+          _WhenSummary(
+            text: [
+              _startDate == null ? 'Pick a date' : _weekdayDayMonth(_startDate!),
+              _startHhmm == null ? 'pick a time' : _time12(_startHhmm!),
+            ].join(' · '),
+            complete: _startDate != null && _startTime != null,
+          ),
+        ],
+        // One-time visits have no duration: the cook sets the time.
+        if (!_oneTime) ...[
+          const DsSection('Work schedule'),
           _chips<String>(
             values: const ['PERMANENT', 'TEMPORARY'],
             isSelected: (v) => _placementType == v,
@@ -658,7 +652,7 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
           values: _dietTypes,
           isSelected: (v) => _dietType == v,
           onTap: (v) => setState(() => _dietType = v),
-          label: _pretty,
+          label: _dietLabel,
         ),
         _gap(),
         DsLabeledField(
@@ -671,11 +665,13 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
         ),
         _gap(),
         _FieldLabel('Meals each day'),
-        _chips<String>(
-          values: _meals,
-          isSelected: _mealsPerDay.contains,
-          onTap: (v) => setState(() => _mealsPerDay.contains(v) ? _mealsPerDay.remove(v) : _mealsPerDay.add(v)),
-          label: _pretty,
+        _chips<List<String>>(
+          values: _mealCombos,
+          isSelected: (combo) => _mealsPerDay.length == combo.length && _mealsPerDay.containsAll(combo),
+          onTap: (combo) => setState(() => _mealsPerDay
+            ..clear()
+            ..addAll(combo)),
+          label: (combo) => combo.map(_pretty).join(' + '),
         ),
         _gap(),
         DsLabeledField(
@@ -699,7 +695,7 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
       ];
 
   List<Widget> _visitMenuFields() => [
-        DsSection('${_pretty(_mealForVisit)} menu', trailing: DsPill('${_visitDishes.length} / $_dishCap')),
+        DsSection('${_pretty(_mealForVisit)} menu', trailing: DsPill('${_visitDishes.length} dishes')),
         _chips<String>(
           values: _meals,
           isSelected: (v) => _mealForVisit == v,
@@ -708,14 +704,13 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
         ),
         _gap(),
         Text(
-          'Up to $_dishCap dishes for ${BookingRules.durationLabel(_durationMin!)}',
+          'The cook sets how long the visit takes for these dishes.',
           style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
         ),
         const SizedBox(height: 8),
         DishPicker(
           dishes: _visitDishes,
           meal: _mealForVisit,
-          maxDishes: _dishCap,
           onChanged: (v) => setState(() => _visitDishes = v),
         ),
         _gap(),
@@ -839,7 +834,7 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
   List<Widget> _reviewStep() {
     final when = '${_dayMonth(_ymd(_startDate!))}, ${_time12(_startHhmm!)}';
     final how = _oneTime
-        ? BookingRules.durationLabel(_durationMin!)
+        ? 'Set by the cook'
         : '${_placementType == 'TEMPORARY' ? 'Hourly' : 'Permanent'} · ${_shiftHours.text.trim()} h a day';
     final care = _careNeeds;
     return [
@@ -936,4 +931,262 @@ class _ChoiceCard extends StatelessWidget {
           color: selected ? AppColors.primary : AppColors.lightBorder,
         ),
       );
+}
+
+// ── Visit date & time pickers ──
+
+const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/// "Thu, 16 Oct".
+String _weekdayDayMonth(DateTime d) => '${_weekdays[d.weekday - 1]}, ${d.day} ${_months[d.month - 1]}';
+
+bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+/// "Date" / "Time" heading with a link to the full picker on the right.
+class _PickerLabel extends StatelessWidget {
+  const _PickerLabel({required this.icon, required this.label, required this.action, required this.onAction});
+
+  final IconData icon;
+  final String label;
+  final String action;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.primary),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.lightTextPrimary),
+        ),
+        const Spacer(),
+        TextButton(
+          onPressed: onAction,
+          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+          child: Text(action, style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700)),
+        ),
+      ],
+    );
+  }
+}
+
+/// The next 14 days as tappable tiles; a date picked from the calendar
+/// beyond that is shown first so the choice stays visible.
+class _DateStrip extends StatelessWidget {
+  const _DateStrip({required this.selected, required this.onPick});
+
+  final DateTime? selected;
+  final ValueChanged<DateTime> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final days = [for (var i = 0; i < 14; i++) today.add(Duration(days: i))];
+    final picked = selected;
+    if (picked != null && !days.any((d) => _sameDay(d, picked))) days.insert(0, picked);
+
+    return SizedBox(
+      height: 84,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        itemCount: days.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final d = days[i];
+          final isSelected = picked != null && _sameDay(d, picked);
+          final offset = d.difference(today).inDays;
+          final top = offset == 0
+              ? 'Today'
+              : offset == 1
+                  ? 'Tmrw'
+                  : _weekdays[d.weekday - 1];
+          final fg = isSelected ? Colors.white : AppColors.lightTextPrimary;
+          final muted = isSelected ? Colors.white.withValues(alpha: 0.85) : AppColors.lightTextSecondary;
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => onPick(d),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 60,
+                decoration: isSelected
+                    ? BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.primary, Color(0xFF3B6BFF)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      )
+                    : dsCardDecoration(radius: 16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(top, style: GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700, color: muted)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${d.day}',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w800, color: fg),
+                    ),
+                    Text(
+                      _months[d.month - 1],
+                      style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600, color: muted),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Hourly start times, 7 AM – 8 PM, three per row. Times already past
+/// today are greyed out; a custom time from the clock picker shows first.
+class _TimeSlots extends StatelessWidget {
+  const _TimeSlots({required this.date, required this.selected, required this.onPick});
+
+  final DateTime? date;
+  final TimeOfDay? selected;
+  final ValueChanged<TimeOfDay> onPick;
+
+  static final _slots = [for (var h = 7; h <= 20; h++) TimeOfDay(hour: h, minute: 0)];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final isToday = date != null && _sameDay(date!, now);
+    final picked = selected;
+    final slots = [
+      if (picked != null && !_slots.contains(picked)) picked,
+      ..._slots,
+    ];
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        const gap = 8.0;
+        final width = (c.maxWidth - gap * 2) / 3;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final t in slots)
+              _TimeSlot(
+                width: width,
+                label: _time12(_hhmm(t)),
+                selected: picked == t,
+                // Keep a little lead time so staff can actually get there.
+                disabled: isToday && (t.hour * 60 + t.minute) <= (now.hour * 60 + now.minute + 30),
+                onTap: () => onPick(t),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TimeSlot extends StatelessWidget {
+  const _TimeSlot({
+    required this.width,
+    required this.label,
+    required this.selected,
+    required this.disabled,
+    required this.onTap,
+  });
+
+  final double width;
+  final String label;
+  final bool selected;
+  final bool disabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected
+        ? Colors.white
+        : disabled
+            ? AppColors.lightTextHint
+            : AppColors.lightTextPrimary;
+    return SizedBox(
+      width: width,
+      height: 44,
+      child: Material(
+        color: selected ? AppColors.primary : (disabled ? AppColors.lightSurfaceVariant : Colors.white),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: disabled ? null : onTap,
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: selected ? AppColors.primary : AppColors.lightBorder),
+            ),
+            child: Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: color,
+                decoration: disabled ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Thu, 16 Oct · 9:00 AM" — green once both are chosen.
+class _WhenSummary extends StatelessWidget {
+  const _WhenSummary({required this.text, required this.complete});
+
+  final String text;
+  final bool complete;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = complete ? AppColors.success : AppColors.warning;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(complete ? Icons.event_available_rounded : Icons.info_outline_rounded, size: 20, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: AppColors.lightTextPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

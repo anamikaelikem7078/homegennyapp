@@ -11,6 +11,7 @@ import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
 import '../../../../../core/series/series_catalog.dart';
 import '../care/client_care_screens.dart';
+import 'staff_details_card.dart';
 
 void _staffBack(BuildContext context) {
   if (context.canPop()) {
@@ -627,6 +628,8 @@ class ClientStaffProfileScreen extends ConsumerWidget {
               DsGlassStat(value: s.pvStatus, label: 'Police check', icon: Icons.security_rounded),
             ],
           ),
+          const SizedBox(height: 14),
+          StaffDetailsCard(profile: s),
           if (s.videoCertAvailable) ...[
             const SizedBox(height: 14),
             const DsNote(

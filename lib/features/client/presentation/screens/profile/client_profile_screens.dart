@@ -7,11 +7,14 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/localization/locale_provider.dart';
+import '../../../../../core/onboarding/city_fields.dart';
+import '../../../../../core/onboarding/onboarding_providers.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../../core/router/app_routes.dart';
 import '../../navigation/client_routes.dart';
 import '../../providers/client_providers.dart';
+import '../../widgets/map_pin_picker.dart';
 import '../../../../../core/theme/theme_provider.dart';
 import '../../../../../core/utils/validators.dart';
 
@@ -65,6 +68,13 @@ class ClientProfileTabScreen extends ConsumerWidget {
                   label: 'Location',
                   value: location,
                 ),
+              DsProfileFact(
+                icon: Icons.support_agent_rounded,
+                label: 'Relationship manager',
+                value: (p.assignedRmName?.trim().isNotEmpty ?? false)
+                    ? p.assignedRmName!.trim()
+                    : 'Not assigned yet',
+              ),
             ],
             stats: [
               DsProfileStat(
@@ -163,23 +173,29 @@ class _ClientPersonalDetailsScreenState extends ConsumerState<ClientPersonalDeta
   }
 
   Future<void> _save() async {
-    final phoneError = Validators.phone(_phone.text);
-    if (phoneError != null) {
-      context.showDsSnackBar('Enter a valid 10-digit phone number', type: DsSnackBarType.error);
+    final name = _name.text.trim();
+    final email = _email.text.trim();
+    if (name.length < 2) {
+      context.showDsSnackBar('Enter your name', type: DsSnackBarType.error);
+      return;
+    }
+    if (email.isNotEmpty && Validators.email(email) != null) {
+      context.showDsSnackBar('Enter a valid email', type: DsSnackBarType.error);
       return;
     }
 
     setState(() => _loading = true);
+    // The phone is the login: it can't be changed, so it is never sent.
     final result = await ref.read(clientRepositoryProvider).updateProfile({
-      'name': _name.text,
-      'email': _email.text,
-      'phone': _phone.text,
+      'full_name': name,
+      if (email.isNotEmpty) 'email': email,
     });
     if (!mounted) return;
     setState(() => _loading = false);
     result.fold(
       onSuccess: (_) {
         ref.invalidate(clientProfileProvider);
+        ref.invalidate(onboardingProvider);
         context.showDsSnackBar('Profile updated', type: DsSnackBarType.success);
         context.pop();
       },
@@ -269,6 +285,7 @@ class _ClientPersonalDetailsScreenState extends ConsumerState<ClientPersonalDeta
               label: l10n.fullName,
               controller: _name,
               icon: Icons.person_rounded,
+              hint: 'Add your name',
               textCapitalization: TextCapitalization.words,
             ),
             const SizedBox(height: 16),
@@ -283,11 +300,15 @@ class _ClientPersonalDetailsScreenState extends ConsumerState<ClientPersonalDeta
               label: l10n.phoneNumber,
               controller: _phone,
               icon: Icons.phone_rounded,
-              keyboardType: TextInputType.phone,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(10),
-              ],
+              enabled: false,
+              suffix: const Icon(Icons.lock_rounded, size: 18),
+            ),
+            const Padding(
+              padding: EdgeInsets.only(left: 4, top: 6),
+              child: Text(
+                'Your mobile number is your login and can\'t be changed here.',
+                style: TextStyle(fontSize: 12, color: AppColors.lightTextSecondary),
+              ),
             ),
             const SizedBox(height: 20),
             DsNote(tone: DsNoteTone.success, title: l10n.privacyAssured, text: l10n.privacyDesc),
@@ -308,34 +329,64 @@ class ClientAddressScreen extends ConsumerStatefulWidget {
 
 class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
   final _address = TextEditingController();
-  final _city = TextEditingController();
   final _pincode = TextEditingController();
+  // City is a dropdown from `GET /meta/cities` — never free text.
+  String? _city;
   bool _loading = false;
   bool _initialized = false;
 
   @override
   void dispose() {
     _address.dispose();
-    _city.dispose();
     _pincode.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
+    final address = _address.text.trim();
+    final pincode = _pincode.text.trim();
+    if (address.length < 5) {
+      context.showDsSnackBar('Enter your full address', type: DsSnackBarType.error);
+      return;
+    }
+    if (_city == null) {
+      context.showDsSnackBar('Choose your city', type: DsSnackBarType.error);
+      return;
+    }
+    if (!RegExp(r'^[1-9][0-9]{5}$').hasMatch(pincode)) {
+      context.showDsSnackBar('Enter a valid 6-digit pincode', type: DsSnackBarType.error);
+      return;
+    }
     setState(() => _loading = true);
     final result = await ref.read(clientRepositoryProvider).updateProfile({
-      'address': _address.text,
-      'city': _city.text,
-      'pincode': _pincode.text,
+      'address': address,
+      'city': _city,
+      'pincode': pincode,
     });
     if (!mounted) return;
     setState(() => _loading = false);
     result.fold(
       onSuccess: (_) {
         ref.invalidate(clientProfileProvider);
+        ref.invalidate(onboardingProvider);
         context.showDsSnackBar('Address updated', type: DsSnackBarType.success);
         context.pop();
       },
+      onError: (f) => context.showDsSnackBar(f.message, type: DsSnackBarType.error),
+    );
+  }
+
+  /// `PUT /client/home-location` — the pin staff check-ins and the live map
+  /// measure "at home" against.
+  Future<void> _pinHome() async {
+    final pin = await pickMapPin(context);
+    if (pin == null || !mounted) return;
+    final result = await ref
+        .read(clientRepositoryProvider)
+        .setHomeLocation(lat: pin.latitude, lng: pin.longitude);
+    if (!mounted) return;
+    result.fold(
+      onSuccess: (_) => context.showDsSnackBar('Home location saved', type: DsSnackBarType.success),
       onError: (f) => context.showDsSnackBar(f.message, type: DsSnackBarType.error),
     );
   }
@@ -375,7 +426,7 @@ class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
         builder: (p) {
           if (!_initialized) {
             _address.text = p.address;
-            _city.text = p.city;
+            _city = p.city.isEmpty ? null : p.city;
             _pincode.text = p.pincode;
             _initialized = true;
           }
@@ -425,36 +476,35 @@ class _ClientAddressScreenState extends ConsumerState<ClientAddressScreen> {
               textCapitalization: TextCapitalization.words,
             ),
             const SizedBox(height: 16),
-            LayoutBuilder(
-              builder: (context, c) {
-                final city = DsLabeledField(
-                  label: l10n.city,
-                  controller: _city,
-                  icon: Icons.location_city_rounded,
-                  textCapitalization: TextCapitalization.words,
-                );
-                final pin = DsLabeledField(
-                  label: l10n.pincode,
-                  controller: _pincode,
-                  icon: Icons.pin_drop_rounded,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(6),
-                  ],
-                );
-                if (c.maxWidth < 380) {
-                  return Column(children: [city, const SizedBox(height: 16), pin]);
-                }
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 3, child: city),
-                    const SizedBox(width: 12),
-                    Expanded(flex: 2, child: pin),
-                  ],
-                );
-              },
+            ref.watch(citiesProvider).when(
+                  loading: () => const DsLoadingWidget(),
+                  error: (e, _) => DsNote(
+                    tone: DsNoteTone.danger,
+                    text: 'Could not load the city list. Pull down to try again.',
+                  ),
+                  data: (cities) => CityDropdown(
+                    cities: cities,
+                    value: _city,
+                    onChanged: (c) => setState(() => _city = c),
+                  ),
+                ),
+            const SizedBox(height: 16),
+            DsLabeledField(
+              label: l10n.pincode,
+              controller: _pincode,
+              icon: Icons.pin_drop_rounded,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
+            ),
+            const DsSection('My home on the map'),
+            DsListCard(
+              icon: Icons.add_home_rounded,
+              title: 'Pin your home',
+              subtitle: 'Used to show whether your staff are at home during their shift',
+              onTap: _pinHome,
             ),
             const SizedBox(height: 20),
             DsNote(text: '${l10n.locateOnMap}: your staff use this address for GPS check-in.'),

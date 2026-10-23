@@ -31,6 +31,7 @@ abstract final class StorageKeys {
 
   // Client offline cache
   static const String clientDashboard = 'cache_client_dashboard';
+  static const String clientSnapshot = 'cache_client_snapshot';
   static const String clientProfile = 'cache_client_profile';
   static const String clientInvoice = 'cache_client_invoice';
   static const String clientNotifications = 'cache_client_notifications';

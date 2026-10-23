@@ -122,12 +122,6 @@ class StaffSettingsScreen extends ConsumerWidget {
           subtitle: 'Sign in with fingerprint or face',
           onTap: () => context.push(StaffRoutes.settingsBiometric),
         ),
-        DsListCard(
-          icon: Icons.lock_reset_rounded,
-          title: 'Change password',
-          subtitle: 'Update your account password',
-          onTap: () => context.push(StaffRoutes.settingsPassword),
-        ),
         const DsSection('Support'),
         DsListCard(
           icon: Icons.support_agent_rounded,

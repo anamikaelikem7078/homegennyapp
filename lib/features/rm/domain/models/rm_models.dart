@@ -546,6 +546,39 @@ class UpgradeRequestRow {
   final ShiftStaffSummary? staff;
 }
 
+// ── Sign-up requests ──
+
+enum SignupRequestType { staff, client }
+
+/// A self-registered staff member or client with no RM yet — matches an
+/// item of `GET /rm/requests`. Accepting makes the current RM theirs.
+class SignupRequest {
+  const SignupRequest({
+    required this.id,
+    required this.type,
+    required this.name,
+    required this.phone,
+    this.email,
+    this.staffCode,
+    this.series,
+    this.pipelineStage,
+    this.city,
+    this.createdAt,
+  });
+
+  /// staff_applicants.id for staff, users.id for clients.
+  final String id;
+  final SignupRequestType type;
+  final String name;
+  final String phone;
+  final String? email;
+  final String? staffCode;
+  final String? series;
+  final String? pipelineStage;
+  final String? city;
+  final DateTime? createdAt;
+}
+
 // ── Locations ──
 
 class BranchInfo {

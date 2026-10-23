@@ -10,6 +10,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../core/maps/location_service.dart';
 import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../design_system/design_system.dart';
+import '../../../data/services/location_sharing_service.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
 
@@ -75,21 +76,27 @@ class _StaffCheckOutScreenState extends ConsumerState<StaffCheckOutScreen> {
   }
 
   Future<void> _checkOut() async {
-    if (!_gpsVerified) return;
     HapticFeedback.mediumImpact();
     setState(() => _isSubmitting = true);
     final result = await ref.read(staffRepositoryProvider).checkOut(
-          latitude: _markerPosition.latitude,
-          longitude: _markerPosition.longitude,
+          latitude: _gpsVerified ? _markerPosition.latitude : null,
+          longitude: _gpsVerified ? _markerPosition.longitude : null,
         );
     if (!mounted) return;
     setState(() => _isSubmitting = false);
     result.fold(
       onSuccess: (data) {
+        // Location is shared only during a shift.
+        ref.read(locationSharingServiceProvider).stop();
+        ref.invalidate(staffPlacementsTodayProvider);
         ref.invalidate(staffTodayAttendanceProvider);
         ref.invalidate(staffAttendanceHistoryProvider);
         ref.invalidate(staffDashboardProvider);
-        context.showDsSnackBar('Checked out successfully', type: DsSnackBarType.success);
+        final worked = data.worked;
+        context.showDsSnackBar(
+          worked == null ? 'Checked out successfully' : 'Checked out · $worked',
+          type: DsSnackBarType.success,
+        );
         context.go(StaffRoutes.attendance);
       },
       onError: (failure) => context.showDsSnackBar(failure.message, type: DsSnackBarType.error),
@@ -104,7 +111,10 @@ class _StaffCheckOutScreenState extends ConsumerState<StaffCheckOutScreen> {
 
     // Loading / error / nothing-to-check-out states use the standard page.
     final record = today.valueOrNull;
-    if (!today.hasValue || record == null || record.checkOut != null) {
+    // The server's open shift wins: history can lag, and a shift reopened
+    // at the same house after a check-out still has the old checkOut time.
+    final shiftOpen = ref.watch(staffPlacementsTodayProvider).valueOrNull?.isCheckedIn ?? false;
+    if (!shiftOpen && (!today.hasValue || record == null || record.checkOut != null)) {
       return DsPage(
         title: 'Check out',
         subtitle: 'End your work day',
@@ -136,7 +146,7 @@ class _StaffCheckOutScreenState extends ConsumerState<StaffCheckOutScreen> {
       );
     }
 
-    final checkInTime = record.checkIn != null ? DateFormatter.timestamp(record.checkIn) : '—';
+    final checkInTime = record?.checkIn != null ? DateFormatter.timestamp(record!.checkIn) : '—';
     final topInset = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
@@ -334,7 +344,9 @@ class _StaffCheckOutScreenState extends ConsumerState<StaffCheckOutScreen> {
                     label: 'Check out now',
                     icon: Icons.logout_rounded,
                     isLoading: _isSubmitting,
-                    onPressed: _gpsVerified && !_isSubmitting ? _checkOut : null,
+                    // GPS is optional: a staff member with location off must
+                    // still be able to end the shift (and stop sharing).
+                    onPressed: !_verifyingGps && !_isSubmitting ? _checkOut : null,
                   ),
                 ],
               ),

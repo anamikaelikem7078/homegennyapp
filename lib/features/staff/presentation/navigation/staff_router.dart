@@ -30,6 +30,9 @@ import '../screens/care/staff_care_screens.dart';
 import '../screens/care/staff_client_updates_screen.dart';
 import '../screens/care/staff_cook_screens.dart';
 import '../screens/care/staff_instruction_screens.dart';
+import '../../../../core/onboarding/profile_gate.dart';
+import '../../../../core/router/app_routes.dart';
+import '../screens/profile/staff_profile_wizard_screen.dart';
 import 'staff_routes.dart';
 import 'staff_shell_screen.dart';
 
@@ -91,6 +94,15 @@ List<RouteBase> get staffRoutes => [
         ],
       ),
 
+      // "Complete your profile" wizard — outside the shell so it is full
+      // screen; `?step=` opens it at the first missing field.
+      slideRoute(
+        path: AppRoutes.staffCompleteProfile,
+        builder: (_, state) => StaffProfileWizardScreen(
+          initialStep: int.tryParse(state.uri.queryParameters['step'] ?? '') ?? 0,
+        ),
+      ),
+
       // Home sub-routes
       slideRoute(
         path: StaffRoutes.tasksToday,
@@ -116,7 +128,7 @@ List<RouteBase> get staffRoutes => [
         routes: [
           GoRoute(
             path: 'upload',
-            builder: (_, __) => const StaffUploadDocumentScreen(),
+            builder: (_, __) => const ProfileGate(child: StaffUploadDocumentScreen()),
           ),
           GoRoute(
             path: ':id',
@@ -126,9 +138,9 @@ List<RouteBase> get staffRoutes => [
             routes: [
               GoRoute(
                 path: 'reupload',
-                builder: (context, state) => StaffDocumentReuploadScreen(
+                builder: (context, state) => ProfileGate(child: StaffDocumentReuploadScreen(
                   documentId: state.pathParameters['id']!,
-                ),
+                )),
               ),
             ],
           ),
@@ -149,9 +161,9 @@ List<RouteBase> get staffRoutes => [
           ),
           GoRoute(
             path: 'quiz/:id',
-            builder: (context, state) => StaffQuizScreen(
+            builder: (context, state) => ProfileGate(child: StaffQuizScreen(
               quizId: state.pathParameters['id']!,
-            ),
+            )),
           ),
           GoRoute(
             path: 'result/:id',
@@ -169,10 +181,10 @@ List<RouteBase> get staffRoutes => [
         routes: [
           GoRoute(
             path: 'record',
-            builder: (context, state) => StaffRecordVideoScreen(
+            builder: (context, state) => ProfileGate(child: StaffRecordVideoScreen(
               promptId: state.uri.queryParameters['promptId'],
               title: state.uri.queryParameters['title'],
-            ),
+            )),
           ),
           GoRoute(
             path: 'preview',
@@ -183,10 +195,10 @@ List<RouteBase> get staffRoutes => [
           ),
           GoRoute(
             path: 'upload',
-            builder: (context, state) => StaffVideoUploadScreen(
+            builder: (context, state) => ProfileGate(child: StaffVideoUploadScreen(
               promptId: state.uri.queryParameters['promptId'],
               recordedFile: state.extra as XFile?,
-            ),
+            )),
           ),
           GoRoute(
             path: 'status/:id',
@@ -204,7 +216,7 @@ List<RouteBase> get staffRoutes => [
         routes: [
           GoRoute(
             path: 'signature',
-            builder: (_, __) => const DigitalSignatureScreen(),
+            builder: (_, __) => const ProfileGate(child: DigitalSignatureScreen()),
           ),
           GoRoute(
             path: 'status',
@@ -222,11 +234,11 @@ List<RouteBase> get staffRoutes => [
       // Attendance detail
       GoRoute(
         path: StaffRoutes.checkIn,
-        builder: (_, __) => const StaffCheckInScreen(),
+        builder: (_, __) => const ProfileGate(child: StaffCheckInScreen()),
       ),
       GoRoute(
         path: StaffRoutes.checkOut,
-        builder: (_, __) => const StaffCheckOutScreen(),
+        builder: (_, __) => const ProfileGate(child: StaffCheckOutScreen()),
       ),
       GoRoute(
         path: StaffRoutes.attendanceHistory,
@@ -318,9 +330,9 @@ List<RouteBase> get staffRoutes => [
       ),
       GoRoute(
         path: '/staff/care/:pid/report',
-        builder: (_, state) => StaffCareReportScreen(
+        builder: (_, state) => ProfileGate(child: StaffCareReportScreen(
           placementId: state.pathParameters['pid']!,
           args: state.extra as StaffCareReportArgs?,
-        ),
+        )),
       ),
     ];

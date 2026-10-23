@@ -22,6 +22,6 @@ abstract final class AppConfig {
 
   static const String googleMapsApiKey = String.fromEnvironment(
     'GOOGLE_MAPS_API_KEY',
-    defaultValue: 'AIzaSyCd1AiK2ag1z3Frs--aww6ingwhHboUaxo',
+    defaultValue: 'AIzaSyAQqwfXae4IVyscATByCyqDdkHcGJGQqs0',
   );
 }

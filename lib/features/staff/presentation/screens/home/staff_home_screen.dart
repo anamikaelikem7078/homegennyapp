@@ -3,17 +3,19 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:homegennyapp/core/theme/app_fonts.dart';
 import '../../../../../common/presentation/providers/auth_provider.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../../../../core/router/app_routes.dart';
 import '../../../../../core/utils/communication_helper.dart';
+import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../core/presentation/async_value_widget.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../providers/staff_providers.dart';
-import '../../../../../common/presentation/viewmodels/biometric_viewmodel.dart';
+import '../../../../../core/onboarding/onboarding_models.dart';
+import '../../../../../core/onboarding/onboarding_providers.dart';
+import '../../../../../core/onboarding/profile_gate.dart';
 import '../../../../../core/series/series_catalog.dart';
 import '../../../../care/presentation/care_providers.dart';
 import '../care/staff_care_screens.dart';
@@ -21,235 +23,167 @@ import '../care/staff_client_updates_screen.dart';
 import '../care/staff_cook_screens.dart';
 import '../care/staff_instruction_screens.dart';
 
-/// Staff home dashboard tab.
+String _pretty(String s) => s
+    .replaceAll('_', ' ')
+    .toLowerCase()
+    .split(' ')
+    .where((w) => w.isNotEmpty)
+    .map((w) => w[0].toUpperCase() + w.substring(1))
+    .join(' ');
+
+/// Staff home dashboard tab. Everything shown comes from the API — the
+/// staff record's own name (`GET /staff/dashboard`, not the login account's
+/// name), today's houses and attendance, tasks, training and the RM.
 class StaffHomeScreen extends ConsumerWidget {
   const StaffHomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboard = ref.watch(staffDashboardProvider);
-    final authState = ref.watch(authProvider);
-    final userName = authState.user?.name ?? 'Staff User';
+    final user = ref.watch(authProvider).user;
+    final fallbackName = displayNameOr(user?.name, user?.phone);
 
     return Scaffold(
       body: AsyncValueWidget(
         value: dashboard,
         onRetry: () => ref.invalidate(staffDashboardProvider),
         loadingMessage: context.l10n.loading,
-        builder: (data) => Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: DsRefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(staffDashboardProvider);
-                ref.invalidate(staffCareTodayProvider);
-                ref.invalidate(cookTodayProvider);
-                ref.invalidate(staffInstructionsProvider);
-                ref.invalidate(clientUpdatesUnreadProvider);
-              },
-              child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              _WelcomeHeader(name: userName),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-              _ProfileSpotlightCard(
-                name: data.fullName,
-                role: SeriesDisplay.label(data.series),
-                employeeId: data.staffCode,
-                onTap: () => context.push(StaffRoutes.profileCompletion),
-                onBiometricTap: () async {
-                  final biometricViewModel = ref.read(biometricViewModelProvider.notifier);
-                  final isAvailable = await biometricViewModel.checkBiometricAvailability();
-                  if (isAvailable && context.mounted) {
-                    final success = await biometricViewModel.authenticate();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(success ? 'Biometric Authentication Successful' : 'Biometric Authentication Failed'),
-                          backgroundColor: success ? Colors.green : Colors.red,
-                        ),
-                      );
-                    }
-                  } else if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Biometric authentication is not available on this device'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
+        builder: (data) {
+          final name = data.fullName.trim().isNotEmpty ? data.fullName.trim() : fallbackName;
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: DsRefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(staffDashboardProvider);
+                  ref.invalidate(staffPlacementsTodayProvider);
+                  ref.invalidate(staffTodayAttendanceProvider);
+                  ref.invalidate(staffAttendanceHistoryProvider);
+                  ref.invalidate(staffTrainingHomeProvider);
+                  ref.invalidate(staffNotificationsProvider);
+                  ref.invalidate(staffCareTodayProvider);
+                  ref.invalidate(cookTodayProvider);
+                  ref.invalidate(staffInstructionsProvider);
+                  ref.invalidate(clientUpdatesUnreadProvider);
                 },
-              ),
-              const SizedBox(height: 16),
-              const StaffClientUpdatesHomeCard(),
-              const StaffCareHomeCard(),
-              const StaffCookHomeCard(),
-              const StaffInstructionsHomeCard(),
-              _AttendanceBentoCard(
-                percentage: 92,
-                onTap: () => context.go(StaffRoutes.attendance),
-              ),
-              const SizedBox(height: 16),
-              _OngoingTrainingWidget(),
-              const SizedBox(height: 24),
-              _QuickManagementGrid(),
-              const SizedBox(height: 24),
-              _CareShieldBanner(),
-              const SizedBox(height: 100),
-                  ]
-                      .animate(interval: 70.ms)
-                      .fadeIn(duration: 380.ms)
-                      .slideY(begin: 0.12, end: 0, curve: Curves.easeOutCubic),
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    _WelcomeHeader(name: name, data: data),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _OnboardingCard(),
+                          const _TodayShiftCard(),
+                          const SizedBox(height: 14),
+                          _StatsRow(completionPct: data.completionPct),
+                          const SizedBox(height: 16),
+                          const StaffClientUpdatesHomeCard(),
+                          const StaffCareHomeCard(),
+                          const StaffCookHomeCard(),
+                          const StaffInstructionsHomeCard(),
+                          if (data.todayTasks.isNotEmpty) _TasksCard(tasks: data.todayTasks),
+                          const _TrainingCard(),
+                          if (data.assignedRmName.trim().isEmpty)
+                            const _NoRmCard()
+                          else
+                            _RmCard(name: data.assignedRmName, phone: data.assignedRmPhone),
+                          const DsSection('Quick actions'),
+                          const _QuickActionsGrid(),
+                          const SizedBox(height: 100),
+                        ]
+                            .animate(interval: 60.ms)
+                            .fadeIn(duration: 360.ms)
+                            .slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
-    ),
-  ),
-);
+    );
   }
 }
 
-class _WelcomeHeader extends StatelessWidget {
-  const _WelcomeHeader({required this.name});
-  final String name;
+class _WelcomeHeader extends ConsumerWidget {
+  const _WelcomeHeader({required this.name, required this.data});
 
-  void _showNewRequestBottomSheet(BuildContext context) {
-    showModalBottomSheet(
+  final String name;
+  final StaffDashboardData data;
+
+  void _showNewRequestSheet(BuildContext context) {
+    final rmPhone = data.assignedRmPhone.trim();
+    DsBottomSheet.show<void>(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      backgroundColor: Colors.white,
-      builder: (context) {
-        return SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Submit New Request',
-                  style: AppFonts.display(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Select the type of request you would like to log with your Relationship Manager.',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: const Color(0xFF64748B),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _BottomSheetActionTile(
-                  icon: Icons.calendar_today_outlined,
-                  title: 'Leave Request',
-                  subtitle: 'Request planned time off or report absence',
-                  onTap: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Leave request logged and sent to your Relationship Manager.',
-                          style: GoogleFonts.plusJakartaSans(),
-                        ),
-                        backgroundColor: const Color(0xFF16A34A),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                _BottomSheetActionTile(
-                  icon: Icons.access_time_outlined,
-                  title: 'Shift Change Request',
-                  subtitle: 'Request to swap or modify a scheduled shift',
-                  onTap: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Shift change request logged and sent to your RM.',
-                          style: GoogleFonts.plusJakartaSans(),
-                        ),
-                        backgroundColor: const Color(0xFF16A34A),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-                _BottomSheetActionTile(
-                  icon: Icons.payments_outlined,
-                  title: 'Salary Advance / Query',
-                  subtitle: 'Request salary advance or raise a payment query',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push(StaffRoutes.salary);
-                  },
-                ),
-                const SizedBox(height: 12),
-                _BottomSheetActionTile(
-                  icon: Icons.support_agent_outlined,
-                  title: 'Contact Concierge Support',
-                  subtitle: 'Chat directly with support specialist',
-                  onTap: () {
-                    Navigator.pop(context);
-                    context.push(StaffRoutes.help);
-                  },
-                ),
-                const SizedBox(height: 16),
-              ],
+      title: 'New request',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (rmPhone.isNotEmpty)
+            DsListCard(
+              icon: Icons.event_busy_rounded,
+              title: 'Leave or shift change',
+              subtitle: 'Call your RM, ${data.assignedRmName}',
+              onTap: () {
+                Navigator.pop(context);
+                CommunicationHelper.makePhoneCall(context, rmPhone, recipientName: data.assignedRmName);
+              },
             ),
+          DsListCard(
+            icon: Icons.payments_rounded,
+            title: 'Salary advance or query',
+            subtitle: 'See your salary and payslips',
+            onTap: () {
+              Navigator.pop(context);
+              context.push(StaffRoutes.salary);
+            },
           ),
-         ),
-        );
-      },
+          DsListCard(
+            icon: Icons.support_agent_rounded,
+            title: 'Help & support',
+            subtitle: 'Raise a question with HomeGenny',
+            onTap: () {
+              Navigator.pop(context);
+              context.push(StaffRoutes.help);
+            },
+          ),
+        ],
+      ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final firstName = name.trim().split(RegExp(r'\s+')).first;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final firstName = name.split(RegExp(r'\s+')).first;
+    final unread = ref.watch(staffNotificationsProvider).valueOrNull?.where((n) => !n.isRead).length ?? 0;
+    final subtitle = [
+      if (data.series.isNotEmpty) SeriesDisplay.label(data.series),
+      if (data.staffCode.isNotEmpty) data.staffCode,
+    ].join(' · ');
+
     return DsHeroHeader(
-      leading: DsRingAvatar(
-        name: name,
-        onTap: () => context.go(StaffRoutes.profile),
-      ),
+      leading: DsRingAvatar(name: name, onTap: () => context.go(StaffRoutes.profile)),
       actions: [
         DsHeroIconButton(
           icon: Icons.notifications_none_rounded,
           tooltip: 'Notifications',
-          badgeCount: 1,
+          badgeCount: unread,
           onPressed: () => context.push(StaffRoutes.notifications),
         ),
       ],
       eyebrow: dsGreeting(),
       eyebrowIcon: Icons.wb_sunny_rounded,
-      title: 'Welcome back,\n$firstName',
-      subtitle: 'Your personal care ecosystem at a glance.',
+      // A new sign-up has no name until the profile wizard is done — the
+      // fallback is their phone or "Welcome".
+      title: name == 'Welcome' || RegExp(r'^[0-9+ ]+$').hasMatch(name)
+          ? 'Welcome to\nHomeGenny'
+          : 'Welcome back,\n$firstName',
+      subtitle: subtitle.isEmpty ? null : subtitle,
       floatingIcons: const [
         Icons.cleaning_services_rounded,
         Icons.fingerprint_rounded,
@@ -258,626 +192,145 @@ class _WelcomeHeader extends StatelessWidget {
       bottom: DsHeroPillButton(
         label: 'New Request',
         icon: Icons.add_rounded,
-        onPressed: () => _showNewRequestBottomSheet(context),
+        onPressed: () => _showNewRequestSheet(context),
       ),
     );
   }
 }
 
-class _BottomSheetActionTile extends StatelessWidget {
-  const _BottomSheetActionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
+/// Today's house and attendance, with the one action that matters now.
+class _TodayShiftCard extends ConsumerWidget {
+  const _TodayShiftCard();
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEEF2FF),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: const Color(0xFF1A56FF), size: 20),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      color: const Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8), size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final placementsAsync = ref.watch(staffPlacementsTodayProvider);
+    final today = ref.watch(staffTodayAttendanceProvider).valueOrNull;
+    final placements = placementsAsync.valueOrNull;
+    final title = GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.lightTextPrimary);
+    final small = GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary);
 
-class _ProfileSpotlightCard extends StatelessWidget {
-  const _ProfileSpotlightCard({
-    required this.name,
-    required this.role,
-    required this.employeeId,
-    required this.onTap,
-    required this.onBiometricTap,
-  });
+    if (placementsAsync.isLoading && placements == null) {
+      return Container(
+        height: 120,
+        decoration: dsCardDecoration(radius: 20),
+        child: const Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+      );
+    }
 
-  final String name;
-  final String role;
-  final String employeeId;
-  final VoidCallback onTap;
-  final VoidCallback onBiometricTap;
+    // No house to work at yet — show where onboarding stands instead.
+    if (placements == null || placements.placements.isEmpty) {
+      return DsListCard(
+        icon: Icons.home_work_rounded,
+        iconColor: AppColors.warning,
+        title: 'No active placement yet',
+        subtitle: 'Your RM will place you once onboarding is complete',
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.go(StaffRoutes.pipeline),
+      );
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(top: 60),
-        child: Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.topCenter,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(top: 76, bottom: 24, left: 24, right: 24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 24,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    name,
-                    style: AppFonts.display(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$role · $employeeId',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      color: const Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Row(
-                        children: List.generate(5, (index) {
-                          return Icon(
-                            index == 4 ? Icons.star_border : Icons.star,
-                            color: const Color(0xFF1A56FF),
-                            size: 16,
-                          );
-                        }),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '4.8 Rating',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: const Color(0xFF64748B),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+    StaffPlacementOption house = placements.placements.first;
+    for (final p in placements.placements) {
+      if (p.placementId == placements.checkedInAt) house = p;
+    }
+    final onDuty = placements.isCheckedIn;
+    final checkedOut = !onDuty && today?.checkOut != null;
+    final (status, color) = onDuty
+        ? ('On duty', AppColors.success)
+        : checkedOut
+            ? ('Shift done', AppColors.secondary)
+            : ('Not checked in', AppColors.warning);
+    final timeLine = onDuty && today?.checkIn != null
+        ? 'Checked in at ${DateFormatter.time(today!.checkIn)}'
+        : checkedOut
+            ? 'Checked out at ${DateFormatter.time(today!.checkOut)}'
+            : placements.placements.length > 1
+                ? '${placements.placements.length} houses today'
+                : null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: dsCardDecoration(radius: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text("TODAY'S SHIFT", style: small.copyWith(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1)),
+              const Spacer(),
+              DsPill(status, color: color),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DsIconTile(Icons.home_rounded, color: color, size: 44),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(house.clientName, style: title),
+                    if (house.address != null && house.address!.trim().isNotEmpty)
+                      Text(house.address!.trim(), style: small, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    if (timeLine != null) ...[
+                      const SizedBox(height: 4),
+                      Text(timeLine, style: small.copyWith(fontWeight: FontWeight.w700)),
                     ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      GestureDetector(
-                        onTap: () => context.push(
-                          '${AppRoutes.chat}?recipientName=HG Concierge&recipientRole=Support Specialist',
-                        ),
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9), // Soft grey background
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.chat_bubble_outline, color: Color(0xFF1A56FF), size: 20),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: () => CommunicationHelper.makePhoneCall(
-                          context,
-                          '+18005550199',
-                          recipientName: 'HG Concierge Support',
-                        ),
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9), // Soft grey background
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.phone_outlined, color: Color(0xFF1A56FF), size: 20),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: onBiometricTap,
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9), // Soft grey background
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.fingerprint, color: Color(0xFF1A56FF), size: 20),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  const Divider(color: Color(0xFFF1F5F9)),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'TODAY\'S SHIFT',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF94A3B8),
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '09:00 AM - 06:00 PM',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF0F172A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'CURRENT TASK',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF94A3B8),
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Health\nMonitoring',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF0F172A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              top: -60,
-              child: Stack(
-                alignment: Alignment.bottomCenter,
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      image: const DecorationImage(
-                        image: NetworkImage('https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=400'),
-                        fit: BoxFit.cover,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Positioned(
-                    bottom: -12,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A56FF),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'ACTIVE NOW',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _AttendanceBentoCard extends StatelessWidget {
-  const _AttendanceBentoCard({
-    required this.percentage,
-    required this.onTap,
-  });
-
-  final int percentage;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'ATTENDANCE',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF64748B),
-                        letterSpacing: 1.5,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.insert_chart_outlined, size: 14, color: Color(0xFF1A56FF)),
-                ],
-              ),
-            const SizedBox(height: 20),
-            Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 72,
-                    height: 72,
-                    child: CircularProgressIndicator(
-                      value: percentage / 100,
-                      strokeWidth: 4,
-                      backgroundColor: const Color(0xFFF1F5F9),
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF1A56FF)),
-                    ),
-                  ),
-                  Text(
-                    '$percentage%',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF0F172A),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: Text(
-                '22/24 days',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  color: const Color(0xFF1A56FF),
+                  ],
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OngoingTrainingWidget extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push(StaffRoutes.training),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A56FF).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.school, color: Color(0xFF1A56FF), size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ONGOING TRAINING',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF94A3B8),
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Hygiene & Safety v2.4',
-                    style: AppFonts.display(
-                      fontSize: 15,
-                      color: const Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    height: 4,
-                    width: 120,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: 0.6,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A56FF),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.play_circle_outline, color: Color(0xFF1A56FF), size: 28),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickManagementGrid extends StatelessWidget {
-  void _showReplacementDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Text(
-          'Deployment Replacement',
-          style: AppFonts.display(
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF0F172A),
+            ],
           ),
-        ),
-        content: Text(
-          'To request a replacement, change your current shift, or modify your assignment, please contact Concierge Support.',
-          style: GoogleFonts.plusJakartaSans(
-            color: const Color(0xFF64748B),
-            fontSize: 14,
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.plusJakartaSans(
-                color: const Color(0xFF64748B),
-                fontWeight: FontWeight.w600,
-              ),
+          const SizedBox(height: 14),
+          if (checkedOut)
+            // Checking in again at the same house reopens the day.
+            DsOutlineButton(
+              label: 'Check in again',
+              onPressed: () => context.push(StaffRoutes.checkIn),
+            )
+          else
+            DsGradientButton(
+              label: onDuty ? 'Check out' : 'Check in',
+              icon: onDuty ? Icons.logout_rounded : Icons.fingerprint_rounded,
+              onPressed: () => context.push(onDuty ? StaffRoutes.checkOut : StaffRoutes.checkIn),
             ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.push(StaffRoutes.help);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1A56FF),
-              elevation: 0,
-              shape: const StadiumBorder(),
-            ),
-            child: Text(
-              'Contact Support',
-              style: GoogleFonts.plusJakartaSans(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
+}
+
+/// Attendance (from history) and profile completion side by side.
+class _StatsRow extends ConsumerWidget {
+  const _StatsRow({required this.completionPct});
+  final int completionPct;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final records = ref.watch(staffAttendanceHistoryProvider).valueOrNull ?? const <AttendanceRecord>[];
+    final worked = records.where((r) => r.status != 'absent').length;
+    final attendancePct = records.isEmpty ? null : (worked * 100 / records.length).round();
+
+    return Row(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                'Quick Management',
-                style: AppFonts.display(
-                  fontSize: 18,
-                  color: const Color(0xFF0F172A),
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const Row(
-              children: [
-                _NavButton(icon: Icons.chevron_left),
-                SizedBox(width: 8),
-                _NavButton(icon: Icons.chevron_right),
-              ],
-            ),
-          ],
+        Expanded(
+          child: _StatTile(
+            label: 'ATTENDANCE',
+            percent: attendancePct,
+            caption: records.isEmpty ? 'No days yet' : '$worked/${records.length} days',
+            onTap: () => context.go(StaffRoutes.attendance),
+          ),
         ),
-        const SizedBox(height: 16),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _QuickActionCard(
-                  icon: Icons.people_outline,
-                  label: 'Assigned staff',
-                  onTap: () => context.push(StaffRoutes.deployment),
-                ),
-                const SizedBox(width: 12),
-                _QuickActionCard(
-                  icon: Icons.assignment_outlined,
-                  label: 'Attendance summary',
-                  onTap: () => context.push(StaffRoutes.monthlyAttendance),
-                ),
-                const SizedBox(width: 12),
-                _QuickActionCard(
-                  icon: Icons.warning_amber_outlined,
-                  label: 'Raise complaints',
-                  onTap: () => context.push(StaffRoutes.help),
-                ),
-                const SizedBox(width: 12),
-                _QuickActionCard(
-                  icon: Icons.autorenew,
-                  label: 'Request replacement',
-                  onTap: () => _showReplacementDialog(context),
-                ),
-              ],
-            ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatTile(
+            label: 'PROFILE',
+            percent: completionPct,
+            caption: completionPct >= 100 ? 'Complete' : 'Finish setup',
+            onTap: () => context.push(StaffRoutes.profileCompletion),
           ),
         ),
       ],
@@ -885,140 +338,344 @@ class _QuickManagementGrid extends StatelessWidget {
   }
 }
 
-class _NavButton extends StatelessWidget {
-  const _NavButton({required this.icon});
-  final IconData icon;
+class _StatTile extends StatelessWidget {
+  const _StatTile({required this.label, required this.percent, required this.caption, required this.onTap});
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Icon(icon, size: 16, color: const Color(0xFF64748B)),
-    );
-  }
-}
-
-class _QuickActionCard extends StatelessWidget {
-  const _QuickActionCard({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
   final String label;
+  final int? percent;
+  final String caption;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 140,
-        height: 120,
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: const Color(0xFF1A56FF), size: 28),
-            const SizedBox(height: 12),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: const Color(0xFF0F172A),
+    final value = (percent ?? 0).clamp(0, 100) / 100;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: dsCardDecoration(radius: 20),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 54,
+                height: 54,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: value),
+                  duration: 900.ms,
+                  curve: Curves.easeOutCubic,
+                  builder: (_, v, _) => Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox.expand(
+                        child: CircularProgressIndicator(
+                          value: v,
+                          strokeWidth: 5,
+                          strokeCap: StrokeCap.round,
+                          backgroundColor: AppColors.lightSurfaceVariant,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      Text(
+                        percent == null ? '—' : '$percent%',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.lightTextPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                        color: AppColors.lightTextSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      caption,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.lightTextPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _CareShieldBanner extends StatelessWidget {
+/// Pipeline task the server sends a new sign-up — opens the profile wizard.
+const _profileTaskId = 'profile';
+
+class _TasksCard extends ConsumerWidget {
+  const _TasksCard({required this.tasks});
+  final List<StaffTask> tasks;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final open = tasks.where((t) => !t.done).length;
+    final next = tasks.firstWhere((t) => !t.done, orElse: () => tasks.first);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DsListCard(
+        icon: Icons.checklist_rounded,
+        title: open == 0 ? 'All tasks done' : '$open ${open == 1 ? 'task' : 'tasks'} to do',
+        subtitle: next.title,
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => !next.done && next.id == _profileTaskId
+            ? openProfileWizard(context, ref)
+            : context.push(StaffRoutes.tasksToday),
+      ),
+    );
+  }
+}
+
+/// §4 — what `GET /me/onboarding` says comes next, above everything else.
+class _OnboardingCard extends ConsumerWidget {
+  const _OnboardingCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(onboardingProvider).valueOrNull;
+    final Widget card;
+    switch (status?.nextStep) {
+      case OnboardingNextStep.completeProfile:
+        card = const ProfileIncompleteCard(compact: true);
+      case OnboardingNextStep.waitForRm:
+        card = const DsNote(
+          tone: DsNoteTone.success,
+          title: 'Profile submitted',
+          text: 'Profile submitted. We\'ll assign your RM soon.',
+        );
+      case OnboardingNextStep.verification:
+        final rm = status!.rm;
+        card = DsNote(
+          title: 'Next: document verification',
+          text: rm == null
+              ? 'Your RM will call you to verify your documents.'
+              : 'Your RM ${rm.name}${rm.phone.isEmpty ? '' : ' (${rm.phone})'} will call you to verify your documents.',
+        );
+      case OnboardingNextStep.ready:
+      case null:
+        return const SizedBox.shrink();
+    }
+    return Padding(padding: const EdgeInsets.only(bottom: 14), child: card);
+  }
+}
+
+/// `assignedRm` is null until an RM is assigned — say so, never invent one.
+class _NoRmCard extends StatelessWidget {
+  const _NoRmCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return const DsListCard(
+      icon: Icons.support_agent_rounded,
+      title: 'Relationship manager',
+      subtitle: 'RM not assigned yet',
+    );
+  }
+}
+
+/// Current training batch and video certification progress (`/training/mine`).
+class _TrainingCard extends ConsumerWidget {
+  const _TrainingCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final training = ref.watch(staffTrainingHomeProvider).valueOrNull;
+    if (training == null) return const SizedBox.shrink();
+    final batch = training.batches.isEmpty ? null : training.batches.first;
+    final cert = training.videoCert;
+    if (batch == null && cert.required_ == 0) return const SizedBox.shrink();
+
+    final parts = [
+      if (batch != null) '${batch.batchCode} · ${_pretty(batch.status)}',
+      if (cert.required_ > 0) 'Video certification ${cert.approved}/${cert.required_}',
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DsListCard(
+        icon: Icons.school_rounded,
+        title: 'Training',
+        subtitle: parts.join('\n'),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push(StaffRoutes.training),
+      ),
+    );
+  }
+}
+
+/// The staff member's Relationship Manager, with call and chat.
+class _RmCard extends StatelessWidget {
+  const _RmCard({required this.name, required this.phone});
+
+  final String name;
+  final String phone;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9), // Soft-grey
-        borderRadius: BorderRadius.circular(12),
-      ),
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.all(14),
+      decoration: dsCardDecoration(radius: 20),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A56FF),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.shield_outlined, color: Colors.white, size: 28),
-          ),
-          const SizedBox(width: 20),
+          DsInitialsAvatar(name: name, size: 44, radius: 22),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Premium Insurance Active',
-                  style: AppFonts.display(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'You are fully covered by HomeGenny\'s Comprehensive Care Shield.',
+                  'YOUR RM',
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: const Color(0xFF64748B),
-                    height: 1.5,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                    color: AppColors.lightTextSecondary,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Text(
-                      'View Policy Details',
-                      style: GoogleFonts.plusJakartaSans(
-                        color: const Color(0xFF1A56FF),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.open_in_new, size: 14, color: Color(0xFF1A56FF)),
-                  ],
+                Text(
+                  name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.lightTextPrimary,
+                  ),
                 ),
               ],
             ),
           ),
+          _RoundAction(
+            icon: Icons.chat_bubble_outline_rounded,
+            onTap: () => context.push(
+              Uri(
+                path: AppRoutes.chat,
+                queryParameters: {'recipientName': name, 'recipientRole': 'Relationship Manager'},
+              ).toString(),
+            ),
+          ),
+          if (phone.trim().isNotEmpty) ...[
+            const SizedBox(width: 8),
+            _RoundAction(
+              icon: Icons.call_rounded,
+              onTap: () => CommunicationHelper.makePhoneCall(context, phone, recipientName: name),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _TaskTile extends StatelessWidget {
+class _RoundAction extends StatelessWidget {
+  const _RoundAction({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.primary.withValues(alpha: 0.08),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 20, color: AppColors.primary),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionsGrid extends StatelessWidget {
+  const _QuickActionsGrid();
+
+  static const _actions = [
+    (Icons.fingerprint_rounded, 'Attendance', StaffRoutes.attendance),
+    (Icons.payments_rounded, 'Salary', StaffRoutes.salary),
+    (Icons.folder_rounded, 'Documents', StaffRoutes.documents),
+    (Icons.location_on_rounded, 'Deployment', StaffRoutes.deployment),
+    (Icons.school_rounded, 'Training', StaffRoutes.training),
+    (Icons.support_agent_rounded, 'Help', StaffRoutes.help),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 3,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      childAspectRatio: 1.05,
+      children: [
+        for (final (icon, label, route) in _actions)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () => route == StaffRoutes.attendance ? context.go(route) : context.push(route),
+              child: Ink(
+                decoration: dsCardDecoration(radius: 18),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    DsIconTile(icon, size: 42),
+                    const SizedBox(height: 8),
+                    Text(
+                      label,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.lightTextPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _TaskTile extends ConsumerWidget {
   const _TaskTile({required this.task});
   final StaffTask task;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tile = _tile();
+    if (task.done || task.id != _profileTaskId) return tile;
+    return GestureDetector(onTap: () => openProfileWizard(context, ref), child: tile);
+  }
+
+  Widget _tile() {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),

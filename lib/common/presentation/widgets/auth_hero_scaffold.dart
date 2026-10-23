@@ -176,8 +176,15 @@ class _AuthHero extends StatelessWidget {
       letterSpacing: -1,
     );
 
+    // Landscape phones and very short screens get a tighter hero.
+    final compact = MediaQuery.sizeOf(context).height < 600;
+
+    // A minimum height, not a fixed one: with large text or a narrow phone
+    // the hero grows instead of hiding its subtitle under the sheet.
     return Container(
-      height: AuthHeroScaffold._heroHeight + topInset,
+      constraints: BoxConstraints(
+        minHeight: compact ? 0 : AuthHeroScaffold._heroHeight + topInset,
+      ),
       decoration: const BoxDecoration(gradient: AppColors.brandGradient),
       child: Stack(
         clipBehavior: Clip.hardEdge,
@@ -208,10 +215,14 @@ class _AuthHero extends StatelessWidget {
                 delay: i * 400,
               ),
             ),
-          Positioned(
-            left: 20,
-            right: 24,
-            top: topInset + 12,
+          // Copy — not positioned, so it sizes the hero.
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              topInset + 12,
+              24,
+              AuthHeroScaffold._overlap + 20,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -224,7 +235,7 @@ class _AuthHero extends StatelessWidget {
                           .fadeIn(duration: 400.ms)
                           .slideX(begin: -0.4, end: 0),
                 ),
-                const SizedBox(height: 30),
+                SizedBox(height: compact ? 8 : 30),
                 if (badge != null) ...[
                   Container(
                     padding:
@@ -241,12 +252,16 @@ class _AuthHero extends StatelessWidget {
                       children: [
                         Icon(badgeIcon, color: AppColors.sunYellow, size: 14),
                         const SizedBox(width: 5),
-                        Text(
-                          badge!,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                        Flexible(
+                          child: Text(
+                            badge!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],

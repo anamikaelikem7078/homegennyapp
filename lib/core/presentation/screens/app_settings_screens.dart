@@ -7,6 +7,7 @@ import 'package:homegennyapp/core/theme/app_fonts.dart';
 import '../../extensions/context_extensions.dart';
 import '../../localization/locale_provider.dart';
 import '../../theme/theme_provider.dart';
+import '../widgets/scrollable_fill.dart';
 import '../../../design_system/design_system.dart';
 
 /// Shared language picker — used across all roles.
@@ -271,7 +272,7 @@ class _AppThemeSettingsScreenState
         ),
       ),
       body: SafeArea(
-        child: Padding(
+        child: ScrollableFill(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

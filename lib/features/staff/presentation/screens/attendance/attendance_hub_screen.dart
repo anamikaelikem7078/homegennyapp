@@ -20,15 +20,20 @@ class StaffAttendanceHubScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final today = ref.watch(staffTodayAttendanceProvider);
-    final deployment = ref.watch(staffDeploymentProvider);
+    final placementsToday = ref.watch(staffPlacementsTodayProvider);
     final history = ref.watch(staffAttendanceHistoryProvider);
     final records = history.valueOrNull ?? const <AttendanceRecord>[];
-    // Attendance can only be marked once the staff member's placement with a
-    // client has actually been confirmed — before that there's no work site
-    // to check in against. Treat a still-loading/errored deployment as "not
-    // confirmed yet" rather than letting the toggle through optimistically.
-    final placementConfirmed = deployment.valueOrNull?.hasActivePlacement ?? false;
-    final userName = ref.watch(authProvider).user?.name ?? 'You';
+    // Attendance can be marked at any house listed for today (trial,
+    // confirmed, or a one-time visit on its date). Treat a still-loading/
+    // errored list as "nothing to check in at" rather than letting the toggle
+    // through optimistically.
+    final placementConfirmed = placementsToday.valueOrNull?.placements.isNotEmpty ?? false;
+    // The staff record's name, not the login account's (they can differ).
+    final staffName = ref.watch(staffDashboardProvider).valueOrNull?.fullName.trim() ?? '';
+    final userName = staffName.isNotEmpty ? staffName : ref.watch(authProvider).user?.name ?? 'You';
+    // An open shift on the server wins over history, which can lag and keeps
+    // the old check-out time when a shift is reopened after lunch.
+    final shiftOpen = placementsToday.valueOrNull?.isCheckedIn ?? false;
 
     final worked = records.where((r) => r.status != 'absent').length;
     final consistency = records.isEmpty ? null : worked / records.length;
@@ -42,6 +47,7 @@ class StaffAttendanceHubScreen extends ConsumerWidget {
         ref.invalidate(staffTodayAttendanceProvider);
         ref.invalidate(staffAttendanceHistoryProvider);
         ref.invalidate(staffDeploymentProvider);
+        ref.invalidate(staffPlacementsTodayProvider);
       },
       actions: [
         DsPageAction(
@@ -61,12 +67,14 @@ class StaffAttendanceHubScreen extends ConsumerWidget {
               userName: userName,
               record: record,
               placementConfirmed: placementConfirmed,
+              shiftOpen: shiftOpen,
+              onCheckInAgain: () => context.push(StaffRoutes.checkIn),
               onTrigger: () {
-                if (record != null && record.checkIn != null) {
+                if (shiftOpen || (record != null && record.checkIn != null && record.checkOut == null)) {
                   context.push(StaffRoutes.checkOut);
                 } else if (!placementConfirmed) {
                   context.showDsSnackBar(
-                    'Attendance unlocks once your placement with a client is confirmed.',
+                    'No active placement — you can check in once your RM has placed you.',
                     type: DsSnackBarType.warning,
                   );
                 } else {
@@ -228,12 +236,20 @@ class _TodayCard extends StatefulWidget {
     required this.record,
     required this.placementConfirmed,
     required this.onTrigger,
+    required this.onCheckInAgain,
+    this.shiftOpen = false,
   });
 
   final String userName;
   final AttendanceRecord? record;
   final bool placementConfirmed;
   final VoidCallback onTrigger;
+
+  /// Checking in again at the same house the same day reopens the shift.
+  final VoidCallback onCheckInAgain;
+
+  /// The server shows an open shift right now.
+  final bool shiftOpen;
 
   @override
   State<_TodayCard> createState() => _TodayCardState();
@@ -270,8 +286,8 @@ class _TodayCardState extends State<_TodayCard> {
   @override
   Widget build(BuildContext context) {
     final record = widget.record;
-    final checkedIn = record != null && record.checkIn != null;
-    final checkedOut = record != null && record.checkOut != null;
+    final checkedIn = widget.shiftOpen || (record != null && record.checkIn != null);
+    final checkedOut = !widget.shiftOpen && record != null && record.checkOut != null;
     final locked = !checkedIn && !checkedOut && !widget.placementConfirmed;
 
     final (statusText, statusColor, prompt, actionIcon) = locked
@@ -339,7 +355,7 @@ class _TodayCardState extends State<_TodayCard> {
             ],
           ),
           const SizedBox(height: 16),
-          if (checkedOut)
+          if (checkedOut) ...[
             Container(
               height: 58,
               alignment: Alignment.center,
@@ -358,8 +374,15 @@ class _TodayCardState extends State<_TodayCard> {
                   ),
                 ],
               ),
-            ).animate().fadeIn().scaleXY(begin: 0.95, end: 1)
-          else
+            ).animate().fadeIn().scaleXY(begin: 0.95, end: 1),
+            Align(
+              child: TextButton.icon(
+                onPressed: widget.onCheckInAgain,
+                icon: const Icon(Icons.login_rounded, size: 18),
+                label: const Text('Back at work? Check in again'),
+              ),
+            ),
+          ] else
             LayoutBuilder(
               builder: (context, c) {
                 const knob = 52.0;

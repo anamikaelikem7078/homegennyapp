@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/extensions/context_extensions.dart';
+import '../../../core/presentation/widgets/scrollable_fill.dart';
 import '../../../core/router/app_routes.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_widgets.dart';
@@ -27,7 +28,7 @@ class UpdateAppScreen extends StatelessWidget {
       canPop: false,
       child: Scaffold(
         body: SafeArea(
-          child: Padding(
+          child: ScrollableFill(
             padding: const EdgeInsets.all(24),
             child: Column(
               children: [

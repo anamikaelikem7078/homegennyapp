@@ -19,4 +19,7 @@ abstract final class DateFormatter {
     if (parsed == null) return isoTimestamp;
     return DateFormat('h:mm a').format(parsed.toLocal());
   }
+
+  /// e.g. `15 Oct`.
+  static String date(DateTime value) => DateFormat('d MMM').format(value);
 }

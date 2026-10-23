@@ -8,10 +8,10 @@ import '../../common/presentation/screens/forgot_password_screen.dart';
 import '../../common/presentation/screens/reset_password_screen.dart';
 import '../../common/presentation/screens/change_password_screen.dart';
 import '../../common/presentation/screens/login_screen.dart';
-import '../../common/presentation/screens/register_screen.dart';
 import '../../common/presentation/screens/no_internet_screen.dart';
 import '../../common/presentation/screens/otp_screen.dart';
 import '../../common/presentation/screens/session_expired_screen.dart';
+import '../../common/presentation/screens/signup_role_screen.dart';
 import '../../common/presentation/screens/splash_screen.dart';
 import '../../common/presentation/screens/update_app_screen.dart';
 import '../../common/presentation/screens/chat_screen.dart';
@@ -111,14 +111,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       fadeRoute(
         path: AppRoutes.login,
         name: 'login',
-        builder: (context, state) => const LoginScreen(),
+        builder: (context, state) =>
+            LoginScreen(initialRole: state.uri.queryParameters['role']),
       ),
       fadeRoute(
         path: AppRoutes.register,
         name: 'register',
         builder: (context, state) {
           final role = state.uri.queryParameters['role'];
-          return RegisterScreen(initialRole: role);
+          // No register form any more: signing up is the mobile login.
+          // `?role=staff|client` pre-selects the role for a new number.
+          return LoginScreen(initialRole: role);
         },
       ),
       fadeRoute(
@@ -126,7 +129,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'otp',
         builder: (context, state) {
           final phone = state.uri.queryParameters['phone'] ?? '';
-          return OtpScreen(phone: phone);
+          final role = state.uri.queryParameters['role'];
+          return OtpScreen(
+            phone: phone,
+            role: role == null ? null : UserRole.fromString(role),
+          );
+        },
+      ),
+      slideRoute(
+        path: AppRoutes.signupRole,
+        name: 'signupRole',
+        builder: (context, state) {
+          final role = state.uri.queryParameters['role'];
+          return SignupRoleScreen(
+            phone: state.uri.queryParameters['phone'] ?? '',
+            initialRole: role == null ? null : UserRole.fromString(role),
+          );
         },
       ),
       fadeRoute(

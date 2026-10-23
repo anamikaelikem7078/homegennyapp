@@ -52,6 +52,14 @@ class RmRepositoryImpl implements RmRepository {
       );
 
   @override
+  Future<Result<List<SignupRequest>>> getSignupRequests() =>
+      _executor.fetch(remote: _remote.getSignupRequests);
+
+  @override
+  Future<Result<void>> acceptSignupRequest(SignupRequestType type, String id) =>
+      _executor.mutateVoid(remote: () => _remote.acceptSignupRequest(type, id));
+
+  @override
   Future<Result<List<TrialRow>>> getTrials() => _executor.fetch(remote: _remote.getTrials);
 
   @override

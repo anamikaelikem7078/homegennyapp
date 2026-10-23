@@ -10,7 +10,10 @@ abstract final class StaffDtoCodec {
         'series': d.series,
         'pipelineStage': d.pipelineStage,
         'completionPct': d.completionPct,
-        'assignedRm': {'name': d.assignedRmName, 'phone': d.assignedRmPhone},
+        'profileComplete': d.profileComplete,
+        'assignedRm': d.assignedRmName.isEmpty
+            ? null
+            : {'name': d.assignedRmName, 'phone': d.assignedRmPhone},
         'todayTasks': d.todayTasks.map(encodeTask).toList(),
       };
 
@@ -21,7 +24,8 @@ abstract final class StaffDtoCodec {
       fullName: json['fullName'] as String? ?? '',
       series: json['series'] as String? ?? '',
       pipelineStage: json['pipelineStage'] as String? ?? '',
-      completionPct: json['completionPct'] as int? ?? 0,
+      completionPct: (json['completionPct'] as num?)?.round() ?? 0,
+      profileComplete: json['profileComplete'] as bool? ?? json['profile_complete'] as bool? ?? true,
       assignedRmName: rm?['name'] as String? ?? '',
       assignedRmPhone: rm?['phone'] as String? ?? '',
       todayTasks: ((json['todayTasks'] as List<dynamic>?) ?? [])
@@ -30,7 +34,8 @@ abstract final class StaffDtoCodec {
     );
   }
 
-  // ── Profile ── (matches GET /staff/profile exactly)
+  // ── Profile ── (matches GET /staff/profile, and the PUT response, exactly;
+  // a blank is `null` there)
   static Map<String, dynamic> encodeProfile(StaffProfile p) => {
         'id': p.id,
         'staffApplicantId': p.staffApplicantId,
@@ -42,9 +47,27 @@ abstract final class StaffDtoCodec {
         'pipelineStage': p.pipelineStage,
         'address': p.address,
         'dateOfBirth': p.dateOfBirth,
+        'gender': p.gender,
+        'city': p.city,
+        'area': p.area,
+        'pincode': p.pincode,
+        'emergencyContactName': p.emergencyContactName,
+        'emergencyContactMobile': p.emergencyContactMobile,
+        'languages': p.languages,
+        'alternatePhone': p.alternatePhone,
+        'experienceYears': p.experienceYears,
+        'profile_complete': p.profileComplete,
+        'missing': p.missing,
+        'locked_fields': p.lockedFields,
+        'assignedRm': p.assignedRmName == null
+            ? null
+            : {'name': p.assignedRmName, 'phone': p.assignedRmPhone},
       };
 
-  static StaffProfile decodeProfile(Map<String, dynamic> json) => StaffProfile(
+  static StaffProfile decodeProfile(Map<String, dynamic> json) {
+    final rm = json['assignedRm'] as Map<String, dynamic>?;
+    List<String> strings(Object? v) => (v as List?)?.map((e) => e.toString()).toList() ?? const [];
+    return StaffProfile(
         id: json['id'] as String? ?? '',
         staffApplicantId: json['staffApplicantId'] as String?,
         staffCode: json['staffCode'] as String? ?? '',
@@ -55,7 +78,22 @@ abstract final class StaffDtoCodec {
         pipelineStage: json['pipelineStage'] as String? ?? '',
         address: json['address'] as String?,
         dateOfBirth: json['dateOfBirth']?.toString(),
+        gender: json['gender'] as String?,
+        city: json['city'] as String?,
+        area: json['area'] as String?,
+        pincode: json['pincode']?.toString(),
+        emergencyContactName: json['emergencyContactName'] as String?,
+        emergencyContactMobile: json['emergencyContactMobile']?.toString(),
+        languages: strings(json['languages']),
+        alternatePhone: json['alternatePhone']?.toString(),
+        experienceYears: (json['experienceYears'] as num?)?.toInt(),
+        profileComplete: json['profile_complete'] as bool? ?? true,
+        missing: strings(json['missing']),
+        lockedFields: strings(json['locked_fields']),
+        assignedRmName: rm?['name'] as String?,
+        assignedRmPhone: rm?['phone'] as String?,
       );
+  }
 
   // ── Task ── (matches GET /staff/dashboard `todayTasks[]` item exactly —
   // hardcoded server-side per the backend, but decoded like any real field)
@@ -141,6 +179,44 @@ abstract final class StaffDtoCodec {
         timestamp: json['timestamp'] as String? ?? '',
         latitude: (json['latitude'] as num?)?.toDouble(),
         longitude: (json['longitude'] as num?)?.toDouble(),
+        alreadyCheckedIn: json['already_checked_in'] as bool? ?? false,
+        placementId: json['placement_id'] as String?,
+        clientName: json['client_name'] as String?,
+        distanceM: (json['distance_m'] as num?)?.round(),
+        atHome: json['at_home'] as bool?,
+        locationIntervalSec: (json['location_interval_sec'] as num?)?.toInt(),
+        worked: json['worked'] as String?,
+      );
+
+  // ── Where the staff member can check in today ── (GET /staff/placements)
+  static StaffPlacementsToday decodePlacementsToday(Map<String, dynamic> json) => StaffPlacementsToday(
+        date: json['date'] as String? ?? '',
+        checkedInAt: json['checked_in_at'] as String?,
+        locationIntervalSec: (json['location_interval_sec'] as num?)?.toInt() ?? 300,
+        placements: [
+          for (final raw in json['placements'] as List<dynamic>? ?? const [])
+            if (raw is Map) _decodePlacementOption(Map<String, dynamic>.from(raw)),
+        ],
+      );
+
+  static StaffPlacementOption _decodePlacementOption(Map<String, dynamic> json) {
+    final home = json['home'] is Map ? json['home'] as Map : null;
+    return StaffPlacementOption(
+      placementId: json['placement_id'] as String? ?? '',
+      clientName: json['client_name'] as String? ?? 'Client',
+      address: json['address'] as String?,
+      homeLat: (home?['lat'] as num?)?.toDouble(),
+      homeLng: (home?['lng'] as num?)?.toDouble(),
+      placementType: json['placement_type'] as String?,
+      visitType: json['visit_type'] as String?,
+      today: json['today'] as String? ?? 'NOT_CHECKED_IN',
+    );
+  }
+
+  static LocationUploadResult decodeLocationUpload(Map<String, dynamic> json) => LocationUploadResult(
+        accepted: (json['accepted'] as num?)?.toInt() ?? 0,
+        dropped: (json['dropped'] as num?)?.toInt() ?? 0,
+        nextInSec: (json['next_in_sec'] as num?)?.toInt(),
       );
 
   // ── Notification ── (`type`/`data` are the newer training-quiz fields;

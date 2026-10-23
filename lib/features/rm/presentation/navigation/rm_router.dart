@@ -35,6 +35,7 @@ import '../screens/rm_invoice_preview_screen.dart';
 import '../screens/rm_staff_incidents_screen.dart';
 import '../screens/rm_locations_screen.dart';
 import '../screens/rm_upgrades_screen.dart';
+import '../screens/rm_signup_requests_screen.dart';
 import '../../../client/presentation/screens/payments/client_invoice_screen.dart';
 import '../../../staff/presentation/screens/home/staff_active_placement_screen.dart';
 import '../../../staff/presentation/screens/attendance/staff_daily_shift_screen.dart';
@@ -281,6 +282,11 @@ final List<RouteBase> rmRoutes = [
     path: '/rm/upgrades',
     name: 'rmUpgrades',
     builder: (context, state) => const RmUpgradesScreen(),
+  ),
+  fadeRoute(
+    path: '/rm/requests',
+    name: 'rmSignupRequests',
+    builder: (context, state) => const RmSignupRequestsScreen(),
   ),
   slideRoute(
     path: '/rm/staff/:id/invoice-preview',

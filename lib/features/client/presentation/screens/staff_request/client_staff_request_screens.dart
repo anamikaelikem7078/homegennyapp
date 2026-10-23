@@ -43,6 +43,16 @@ String _ymd(DateTime d) =>
 
 String _hhmm(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
+/// Diet type in full: "NON_VEG" → "Non-vegetarian". Older requests may
+/// still carry VEGAN, which falls back to a plain label.
+String _dietLabel(String code) => switch (code) {
+      'VEG' => 'Vegetarian',
+      'EGG' => 'Eggetarian',
+      'NON_VEG' => 'Non-vegetarian',
+      'JAIN' => 'Jain',
+      _ => _pretty(code),
+    };
+
 /// "2026-10-16" → "16 Oct".
 String _dayMonth(String ymd) {
   final d = DateTime.tryParse(ymd);
@@ -828,7 +838,7 @@ class _AskedFor extends StatelessWidget {
         if (list(q['medical_needs']).isNotEmpty)
           DsInfoLine(Icons.medical_services_rounded, 'Medical duties', list(q['medical_needs'])),
         if (q['night_care'] == true) const DsInfoLine(Icons.nightlight_round, 'Night care', 'Yes'),
-        if (q['diet_type'] != null) DsInfoLine(Icons.restaurant_rounded, 'Diet', _pretty('${q['diet_type']}')),
+        if (q['diet_type'] != null) DsInfoLine(Icons.restaurant_rounded, 'Diet', _dietLabel('${q['diet_type']}')),
         if (q['family_size'] != null) DsInfoLine(Icons.groups_rounded, 'People', '${q['family_size']}'),
         if (list(q['meals_per_day']).isNotEmpty)
           DsInfoLine(Icons.lunch_dining_rounded, 'Meals', list(q['meals_per_day'])),

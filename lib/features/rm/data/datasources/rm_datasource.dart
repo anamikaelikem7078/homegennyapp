@@ -117,6 +117,18 @@ class RmRemoteDataSource extends BaseRemoteDataSource {
     return items.whereType<Map<String, dynamic>>().map(RmDtoCodec.decodeUpgradeRow).toList();
   }
 
+  // ── Sign-up requests ──
+
+  Future<List<SignupRequest>> getSignupRequests() async {
+    final json = await getJson(ApiConstants.rmRequests);
+    final items = (json['items'] as List<dynamic>?) ?? const [];
+    return items.whereType<Map<String, dynamic>>().map(RmDtoCodec.decodeSignupRequest).toList();
+  }
+
+  Future<void> acceptSignupRequest(SignupRequestType type, String id) async {
+    await postJson(ApiConstants.rmRequestAccept(type == SignupRequestType.client ? 'CLIENT' : 'STAFF', id));
+  }
+
   // ── Locations ──
 
   Future<LocationsData> getLocations() async {

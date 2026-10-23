@@ -8,7 +8,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/utils/validators.dart';
+import '../../domain/models/user_role.dart';
 import '../viewmodels/login_viewmodel.dart';
+import '../widgets/role_picker_sheet.dart';
 
 // --- Palette ---
 const Color _brandBlue = Color(0xFF1A56FF);
@@ -22,10 +24,15 @@ const Color _error = Color(0xFFE5484D);
 const double _heroHeight = 340;
 const double _sheetOverlap = 36;
 
-/// Login screen: gradient hero with floating service icons and a
-/// slide-up form sheet.
+/// Login screen: gradient hero with floating service icons and a slide-up
+/// sheet asking for the mobile number only. A new number picks "Client or
+/// Staff?" and signs up on the same flow; the OTP screen does the rest.
 class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.initialRole});
+
+  /// `staff` / `client` from `/register?role=…` — pre-selects the role for a
+  /// new number so the "Client or Staff?" question is skipped.
+  final String? initialRole;
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -34,28 +41,29 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
 
   @override
   void dispose() {
     _phoneController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
+
+  UserRole? get _preselectedRole => switch (widget.initialRole?.toLowerCase()) {
+        'staff' => UserRole.staff,
+        'client' || 'customer' => UserRole.client,
+        _ => null,
+      };
 
   String? _localizedValidator(String? key) {
     if (key == null) return null;
     return switch (key) {
-      'emailRequired' || 'phoneRequired' => 'Mobile number is required',
-      'emailInvalid' || 'phoneInvalid' => 'Enter a valid mobile number',
-      'passwordRequired' => context.l10n.passwordRequired,
-      'passwordTooShort' => context.l10n.passwordTooShort,
+      'phoneRequired' => 'Mobile number is required',
+      'phoneInvalid' => 'Enter a valid 10-digit mobile number',
       _ => key,
     };
   }
 
-  Future<void> _onLogin() async {
+  Future<void> _onContinue() async {
     if (!_formKey.currentState!.validate()) {
       HapticFeedback.mediumImpact();
       return;
@@ -63,20 +71,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     HapticFeedback.lightImpact();
 
     final phone = _phoneController.text.trim();
-    final success = await ref
-        .read(loginViewModelProvider.notifier)
-        .login(phone: phone, password: _passwordController.text);
+    final sent = await ref.read(loginViewModelProvider.notifier).sendOtp(phone);
+    if (!mounted || sent == null) return;
 
-    if (!mounted || !success) return;
-
-    final loginState = ref.read(loginViewModelProvider);
-    if (loginState.mustChangePassword) {
-      context.go(AppRoutes.changePassword);
-    } else {
-      context.go(
-        Uri(path: AppRoutes.otp, queryParameters: {'phone': phone}).toString(),
-      );
+    if (sent.usePasswordLogin) {
+      await showOfficeAccountDialog(context);
+      return;
     }
+
+    // A new number signs up: "Client or Staff?" first (pre-selected when
+    // the user came from `/register?role=…`), then the OTP screen.
+    if (!sent.isRegistered) {
+      context.push(
+        Uri(
+          path: AppRoutes.signupRole,
+          queryParameters: {
+            'phone': phone,
+            if (_preselectedRole != null) 'role': _preselectedRole!.value,
+          },
+        ).toString(),
+      );
+      return;
+    }
+
+    context.push(Uri(path: AppRoutes.otp, queryParameters: {'phone': phone}).toString());
   }
 
   @override
@@ -140,7 +158,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 22),
             Text(
-              'Login or continue',
+              'Login or sign up',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
@@ -149,7 +167,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Use your registered mobile number',
+              'Enter your mobile number. We\'ll send you a 6-digit code.',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w500,
@@ -162,9 +180,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: TextFormField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
+                textInputAction: TextInputAction.done,
                 maxLength: 10,
+                autofillHints: const [AutofillHints.telephoneNumberNational],
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onFieldSubmitted: (_) => _onContinue(),
                 style: _fieldTextStyle(letterSpacing: 1.2),
                 decoration: _inputDecoration(
                   hint: 'Mobile number',
@@ -173,71 +193,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 validator: (v) => _localizedValidator(Validators.phone(v)),
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 22),
 
-            _GlowField(
-              child: TextFormField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => _onLogin(),
-                style: _fieldTextStyle(
-                  letterSpacing: _obscurePassword ? 3 : 0.2,
-                ),
-                decoration: _inputDecoration(
-                  hint: 'Password',
-                  prefix: const Padding(
-                    padding: EdgeInsets.only(left: 16, right: 10),
-                    child: Icon(Icons.lock_rounded, color: _muted, size: 20),
-                  ),
-                  suffix: IconButton(
-                    splashRadius: 20,
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                    icon: AnimatedSwitcher(
-                      duration: 250.ms,
-                      transitionBuilder: (child, anim) =>
-                          RotationTransition(
-                            turns: Tween(begin: 0.75, end: 1.0).animate(anim),
-                            child: FadeTransition(opacity: anim, child: child),
-                          ),
-                      child: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off_rounded
-                            : Icons.visibility_rounded,
-                        key: ValueKey(_obscurePassword),
-                        color: _muted,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => context.push(AppRoutes.forgotPassword),
-                style: TextButton.styleFrom(
-                  foregroundColor: _brandBlue,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 4,
-                  ),
-                ),
-                child: Text(
-                  'Forgot password?',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            _PrimaryButton(isLoading: isLoading, onPressed: _onLogin),
+            _PrimaryButton(isLoading: isLoading, onPressed: _onContinue),
             const SizedBox(height: 22),
 
             Row(
@@ -278,8 +236,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _buildSignUpFooter() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    // Wrap, not Row: drops "Create account" to a new line on narrow phones
+    // or large text instead of overflowing.
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         Text(
           'New to HomeGenny? ',
@@ -290,7 +251,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
         GestureDetector(
-          onTap: () => context.push(AppRoutes.register),
+          // Signing up is the same step: a new number is asked "Client or
+          // Staff?" after Continue.
+          onTap: _onContinue,
           child: Text(
             'Create account',
             style: GoogleFonts.plusJakartaSans(
@@ -372,9 +335,14 @@ class _Hero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topInset = MediaQuery.paddingOf(context).top;
+    // Landscape phones and very short screens: tighten the hero so the
+    // form is still reachable without scrolling past a full-screen banner.
+    final compact = MediaQuery.sizeOf(context).height < 600;
 
+    // A minimum height, not a fixed one: with large text or a narrow phone
+    // the hero grows instead of hiding its copy under the sheet.
     return Container(
-      height: _heroHeight + topInset,
+      constraints: BoxConstraints(minHeight: compact ? 0 : _heroHeight + topInset),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -428,11 +396,9 @@ class _Hero extends StatelessWidget {
             ),
           ),
 
-          // Copy
-          Positioned(
-            left: 24,
-            right: 24,
-            top: topInset + 28,
+          // Copy — not positioned, so it sizes the hero.
+          Padding(
+            padding: EdgeInsets.fromLTRB(24, topInset + (compact ? 16 : 28), 24, _sheetOverlap + 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -467,7 +433,7 @@ class _Hero extends StatelessWidget {
                     .animate()
                     .fadeIn(duration: 500.ms)
                     .slideX(begin: -0.2, end: 0, curve: Curves.easeOutCubic),
-                const SizedBox(height: 56),
+                SizedBox(height: compact ? 20 : 56),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -498,7 +464,11 @@ class _Hero extends StatelessWidget {
                     .fadeIn(duration: 400.ms)
                     .scaleXY(begin: 0.8, end: 1, curve: Curves.easeOutBack),
                 const SizedBox(height: 14),
-                const _Headline(),
+                // Keep the headline clear of the floating icons on the right.
+                const Padding(
+                  padding: EdgeInsets.only(right: 72),
+                  child: _Headline(),
+                ),
                 const SizedBox(height: 10),
                 Text(
                   'Manage your sanctuary with precision.',
@@ -849,12 +819,16 @@ class _BiometricButton extends StatelessWidget {
                     curve: Curves.easeInOut,
                   ),
               const SizedBox(width: 12),
-              Text(
-                'Login with biometrics',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: _ink,
+              Flexible(
+                child: Text(
+                  'Login with biometrics',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _ink,
+                  ),
                 ),
               ),
             ],

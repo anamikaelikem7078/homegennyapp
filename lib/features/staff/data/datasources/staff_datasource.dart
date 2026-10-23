@@ -34,14 +34,18 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
     return StaffDtoCodec.decodeProfile(json);
   }
 
-  Future<void> updateProfile({String? address, String? email}) async {
-    await putJson(
-      ApiConstants.staffProfile,
-      data: {
-        if (address != null) 'address': address,
-        if (email != null) 'email': email,
-      },
-    );
+  /// `PUT /staff/profile` with any subset of the wizard's snake_case fields.
+  /// Responds with the same shape as GET.
+  Future<StaffProfile> updateProfile(Map<String, dynamic> fields) async {
+    final json = await putJson(ApiConstants.staffProfile, data: fields);
+    return StaffDtoCodec.decodeProfile(json);
+  }
+
+  /// `POST /staff/profile/submit` with the whole form — saves it, checks
+  /// everything required, then finishes Stage 1.
+  Future<StaffProfileSubmitResult> submitProfile(Map<String, dynamic> fields) async {
+    final json = await postJson(ApiConstants.staffProfileSubmit, data: fields);
+    return StaffProfileSubmitResult.fromJson(json);
   }
 
   Future<DeploymentInfo> getDeployment() async {
@@ -49,15 +53,31 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
     return StaffDtoCodec.decodeDeployment(json);
   }
 
-  Future<CheckInResult> checkIn({double? latitude, double? longitude}) async {
+  Future<StaffPlacementsToday> getPlacementsToday() async {
+    final json = await getJson(ApiConstants.staffPlacements);
+    return StaffDtoCodec.decodePlacementsToday(json);
+  }
+
+  Future<CheckInResult> checkIn({double? latitude, double? longitude, String? placementId}) async {
     final json = await postJson(
       ApiConstants.staffAttendanceCheckIn,
       data: {
         if (latitude != null) 'latitude': latitude,
         if (longitude != null) 'longitude': longitude,
+        if (placementId != null) 'placement_id': placementId,
       },
     );
     return StaffDtoCodec.decodeCheckInResult(json);
+  }
+
+  /// Sends queued GPS points (at most 50) while checked in. A 400 here
+  /// means the shift is closed — callers clear their queue.
+  Future<LocationUploadResult> sendLocationPoints(List<LocationPoint> points) async {
+    final json = await postJson(
+      ApiConstants.staffAttendanceLocation,
+      data: {'points': [for (final p in points) p.toJson()]},
+    );
+    return StaffDtoCodec.decodeLocationUpload(json);
   }
 
   Future<CheckInResult> checkOut({double? latitude, double? longitude}) async {
@@ -364,6 +384,9 @@ class StaffLocalDataSource extends BaseLocalDataSource {
       saveJson(StorageKeys.staffDashboard, StaffDtoCodec.encodeDashboard(data));
 
   StaffDashboardData? getDashboard() {
+    // The last API response carries the RM; the Hive entity does not.
+    final json = getJson(StorageKeys.staffDashboard);
+    if (json != null) return StaffDtoCodec.decodeDashboard(json);
     if (user != null && user!.id != 'staff-demo-1') {
       final entity = hive.staffBox.get(user!.id) as StaffEntity?;
       if (entity != null) {
@@ -379,14 +402,15 @@ class StaffLocalDataSource extends BaseLocalDataSource {
         );
       }
     }
-    final json = getJson(StorageKeys.staffDashboard);
-    return json != null ? StaffDtoCodec.decodeDashboard(json) : null;
+    return null;
   }
 
   Future<void> cacheProfile(StaffProfile profile) =>
       saveJson(StorageKeys.staffProfile, StaffDtoCodec.encodeProfile(profile));
 
   StaffProfile? getProfile() {
+    final json = getJson(StorageKeys.staffProfile);
+    if (json != null) return StaffDtoCodec.decodeProfile(json);
     if (user != null && user!.id != 'staff-demo-1') {
       final entity = hive.staffBox.get(user!.id) as StaffEntity?;
       if (entity != null) {
@@ -395,14 +419,13 @@ class StaffLocalDataSource extends BaseLocalDataSource {
           staffCode: entity.staffCode,
           fullName: entity.name,
           mobile: entity.phone,
-          email: entity.email ?? 'no-email',
+          email: entity.email ?? '',
           series: '',
           pipelineStage: entity.pipelineStage,
         );
       }
     }
-    final json = getJson(StorageKeys.staffProfile);
-    return json != null ? StaffDtoCodec.decodeProfile(json) : null;
+    return null;
   }
 
   Future<void> cacheDocuments(List<StaffDocument> docs) => saveJsonList(
@@ -501,8 +524,8 @@ class StaffDummyDataSource {
   Future<List<StaffTask>> getTodaysTasks() => _api.getTodaysTasks();
   Future<List<PipelineStage>> getPipeline() => _api.getPipeline();
   Future<StaffProfile> getProfile() => _api.getProfile();
-  Future<void> updateProfile({String? address, String? email}) =>
-      _api.updateProfile(address: address, email: email);
+  Future<StaffProfile> updateProfile(Map<String, dynamic> fields) =>
+      _api.updateProfile(fields);
   Future<List<StaffDocument>> getDocuments() => _api.getDocuments();
   Future<StaffDocument> getDocument(String id) => _api.getDocument(id);
   Future<void> uploadDocument(String name, String type, PlatformFile file) => _api.uploadDocument(name, type, file);
@@ -519,8 +542,11 @@ class StaffDummyDataSource {
   Future<void> signAgreement(String signature) => _api.signAgreement(signature);
   Future<DeploymentInfo> getDeployment() => _api.getDeployment();
   Future<AttendanceRecord?> getTodayAttendance() => _api.getTodayAttendance();
-  Future<CheckInResult> checkIn({double? latitude, double? longitude}) =>
-      _api.checkIn(latitude: latitude, longitude: longitude);
+  Future<StaffPlacementsToday> getPlacementsToday() => _api.getPlacementsToday();
+  Future<CheckInResult> checkIn({double? latitude, double? longitude, String? placementId}) =>
+      _api.checkIn(latitude: latitude, longitude: longitude, placementId: placementId);
+  Future<LocationUploadResult> sendLocationPoints(List<LocationPoint> points) =>
+      _api.sendLocationPoints(points);
   Future<CheckInResult> checkOut({double? latitude, double? longitude}) =>
       _api.checkOut(latitude: latitude, longitude: longitude);
   Future<List<AttendanceRecord>> getAttendanceHistory() => _api.getAttendanceHistory();

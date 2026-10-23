@@ -49,7 +49,9 @@ class DsDialogCard extends StatelessWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
-        child: Padding(
+        // Dialog caps the height to the screen; scroll inside it so tall
+        // content still fits in landscape or with large text.
+        child: SingleChildScrollView(
           padding: padding ?? const EdgeInsets.fromLTRB(24, 28, 24, 22),
           child: Column(
             mainAxisSize: MainAxisSize.min,

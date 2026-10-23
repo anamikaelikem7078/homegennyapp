@@ -5,6 +5,7 @@ import '../../../../core/router/route_helpers.dart';
 import '../../../../core/presentation/screens/app_settings_screens.dart';
 
 import '../screens/attendance/client_attendance_screens.dart';
+import '../screens/attendance/client_staff_live_map_screen.dart';
 import '../screens/care/client_care_screens.dart';
 import '../screens/care/client_cook_screens.dart';
 import '../screens/care/client_instruction_screens.dart';
@@ -16,6 +17,9 @@ import '../screens/profile/client_profile_screens.dart';
 import '../screens/replacement/client_replacement_screens.dart';
 import '../screens/staff/client_staff_screens.dart';
 import '../screens/staff_request/client_staff_request_screens.dart';
+import '../../../../core/onboarding/profile_gate.dart';
+import '../../../../core/router/app_routes.dart';
+import '../screens/profile/client_profile_wizard_screen.dart';
 import 'client_routes.dart';
 import 'client_shell_screen.dart';
 
@@ -145,6 +149,12 @@ List<RouteBase> get clientRoutes => [
               staffId: state.pathParameters['id']!,
             ),
           ),
+          GoRoute(
+            path: 'location',
+            builder: (context, state) => ClientStaffLiveMapScreen(
+              staffId: state.pathParameters['id']!,
+            ),
+          ),
         ],
       ),
 
@@ -206,7 +216,7 @@ List<RouteBase> get clientRoutes => [
       // Replacement
       GoRoute(
         path: ClientRoutes.replacementRequest,
-        builder: (_, __) => const ClientReplacementRequestScreen(),
+        builder: (_, state) => ClientReplacementRequestScreen(placementId: state.uri.queryParameters['placement']),
       ),
       GoRoute(
         path: ClientRoutes.replacementStatus,
@@ -218,9 +228,22 @@ List<RouteBase> get clientRoutes => [
         path: ClientRoutes.staffRequests,
         builder: (_, __) => const ClientStaffRequestsScreen(),
       ),
+      // Enabled only once the profile is complete (the server refuses
+      // earlier with 403 PROFILE_INCOMPLETE).
       GoRoute(
         path: ClientRoutes.staffRequestNew,
-        builder: (_, __) => const ClientStaffRequestFormScreen(),
+        builder: (_, __) => const ProfileGate(
+          title: 'Request staff',
+          child: ClientStaffRequestFormScreen(),
+        ),
+      ),
+
+      // "Complete your profile" wizard; `?step=` opens the first missing step.
+      slideRoute(
+        path: AppRoutes.clientCompleteProfile,
+        builder: (_, state) => ClientProfileWizardScreen(
+          initialStep: int.tryParse(state.uri.queryParameters['step'] ?? '') ?? 0,
+        ),
       ),
       GoRoute(
         path: '${ClientRoutes.staffRequests}/:id',
