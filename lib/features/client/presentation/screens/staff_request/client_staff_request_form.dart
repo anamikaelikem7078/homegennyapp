@@ -47,6 +47,10 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
   DateTime? _startDate;
   TimeOfDay? _startTime;
   String _placementType = 'PERMANENT';
+  // 24×7 live-in: a permanent placement on a 24-hour duty — the staff member
+  // stays at the home round the clock and is billed per duty. Sent as
+  // PERMANENT with shift_hours 24, which the server reads as live-in.
+  bool _liveIn = false;
   String _genderPref = 'ANY';
   int _headcount = 1;
   final _shiftHours = TextEditingController(text: '8');
@@ -203,7 +207,11 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
         final now = DateTime.now();
         final start = DateTime(_startDate!.year, _startDate!.month, _startDate!.day, _startTime!.hour, _startTime!.minute);
         if (start.isBefore(now)) return 'That time has already passed today.';
-        if (!_oneTime && (int.tryParse(_shiftHours.text.trim()) ?? 0) < 1) return 'Please enter the hours per day.';
+        if (!_oneTime && !_liveIn) {
+          final hours = int.tryParse(_shiftHours.text.trim()) ?? 0;
+          if (hours < 1) return 'Please enter the hours per day.';
+          if (hours > 24) return 'A day has 24 hours — for round-the-clock staff choose 24×7 Live-in.';
+        }
       case 2:
         if (_isCare) {
           if (int.tryParse(_patientAge.text.trim()) == null) return 'Please enter the patient\'s age.';
@@ -329,8 +337,8 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
       // One-time: no duration from the client — the cook sets how long the
       // visit takes. Regular staff send their placement type and hours.
       if (!_oneTime) ...{
-        'placement_type': _placementType,
-        'shift_hours': num.tryParse(_shiftHours.text.trim()) ?? 8,
+        'placement_type': _liveIn ? 'PERMANENT' : _placementType,
+        'shift_hours': _liveIn ? 24 : (num.tryParse(_shiftHours.text.trim()) ?? 8),
       },
       'address': _address.text.trim(),
       if (_pin != null) ...{'lat': _pin!.latitude, 'lng': _pin!.longitude},
@@ -484,20 +492,35 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
         if (!_oneTime) ...[
           const DsSection('Work schedule'),
           _chips<String>(
-            values: const ['PERMANENT', 'TEMPORARY'],
-            isSelected: (v) => _placementType == v,
-            onTap: (v) => setState(() => _placementType = v),
-            label: (v) => v == 'TEMPORARY' ? 'Hourly' : 'Permanent (monthly)',
+            values: const ['PERMANENT', 'LIVE_IN', 'TEMPORARY'],
+            isSelected: (v) => v == 'LIVE_IN' ? _liveIn : (!_liveIn && _placementType == v),
+            onTap: (v) => setState(() {
+              if (v == 'LIVE_IN') {
+                _liveIn = true;
+                _placementType = 'PERMANENT';
+              } else {
+                _liveIn = false;
+                _placementType = v;
+              }
+            }),
+            label: (v) => switch (v) {
+              'TEMPORARY' => 'Hourly',
+              'LIVE_IN' => '24×7 Live-in',
+              _ => 'Permanent (monthly)',
+            },
           ),
           _gap(),
-          DsLabeledField(
-            label: 'Hours per day',
-            controller: _shiftHours,
-            icon: Icons.timelapse_rounded,
-            hint: '8',
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          ),
+          if (_liveIn)
+            const _LiveInNote()
+          else
+            DsLabeledField(
+              label: 'Hours per day',
+              controller: _shiftHours,
+              icon: Icons.timelapse_rounded,
+              hint: '8',
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
         ],
         const DsSection('Staff'),
         _FieldLabel('How many staff?'),
@@ -835,7 +858,9 @@ class _ClientStaffRequestFormScreenState extends ConsumerState<ClientStaffReques
     final when = '${_dayMonth(_ymd(_startDate!))}, ${_time12(_startHhmm!)}';
     final how = _oneTime
         ? 'Set by the cook'
-        : '${_placementType == 'TEMPORARY' ? 'Hourly' : 'Permanent'} · ${_shiftHours.text.trim()} h a day';
+        : _liveIn
+            ? '24×7 Live-in · stays round the clock'
+            : '${_placementType == 'TEMPORARY' ? 'Hourly' : 'Permanent'} · ${_shiftHours.text.trim()} h a day';
     final care = _careNeeds;
     return [
       const DsSection('Your booking'),
@@ -1181,6 +1206,43 @@ class _WhenSummary extends StatelessWidget {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
+                color: AppColors.lightTextPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown in place of "Hours per day" when 24×7 Live-in is chosen: there are
+/// no hours to enter, and the family should know how it is billed.
+class _LiveInNote extends StatelessWidget {
+  const _LiveInNote();
+
+  @override
+  Widget build(BuildContext context) {
+    const color = AppColors.success;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.nights_stay_rounded, size: 20, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Staff stays at your home round the clock. Billed per day of duty; '
+              'on their days off we send a relief staff member.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
                 color: AppColors.lightTextPrimary,
               ),
             ),
