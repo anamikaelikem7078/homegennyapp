@@ -1,0 +1,146 @@
+/* Shared style for the HomeGenny user guides. Made for A4 printing
+   (Chrome "Save as PDF") and also reads fine on a screen. */
+@page { size: A4; margin: 14mm 14mm 16mm; }
+
+:root {
+  --ink: #0f172a;
+  --muted: #475569;
+  --line: #e2e8f0;
+  --brand: #1a56ff;
+  --brand-dark: #0b1b4d;
+  --soft: #eef3ff;
+  --tip: #ecfdf5;
+  --tip-line: #10b981;
+  --warn: #fff7ed;
+  --warn-line: #f59e0b;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: #fff;
+  font: 11.5pt/1.55 "Segoe UI", "Noto Sans", Roboto, Arial, sans-serif;
+}
+main { max-width: 182mm; margin: 0 auto; }
+
+/* ── Cover ── */
+.cover {
+  min-height: 262mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 16mm 12mm;
+  border-radius: 6mm;
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand-dark), #1238b8 55%, var(--brand));
+  page-break-after: always;
+}
+.cover .brand { font-size: 14pt; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
+.cover h1 { font-size: 34pt; line-height: 1.12; margin: 0 0 6mm; }
+.cover p.lead { font-size: 14pt; max-width: 125mm; opacity: 0.92; margin: 0; }
+.cover .phones { display: flex; gap: 6mm; justify-content: center; margin: 10mm 0; }
+.cover .phones img { width: 46mm; border-radius: 6mm; border: 2.2mm solid #0a1230; }
+.cover .foot { font-size: 10pt; opacity: 0.8; }
+
+/* ── Headings ── */
+h2 {
+  font-size: 19pt;
+  margin: 0 0 3mm;
+  padding-top: 2mm;
+  color: var(--brand-dark);
+  page-break-after: avoid;
+}
+h2 .num {
+  display: inline-block;
+  min-width: 10mm;
+  color: var(--brand);
+}
+section.part { page-break-before: always; }
+section.part > p.intro { color: var(--muted); font-size: 12pt; margin: 0 0 6mm; }
+
+/* ── Journey strip (overview) ── */
+.journey { display: flex; flex-wrap: wrap; gap: 3mm; align-items: flex-start; margin: 4mm 0 6mm; }
+.journey .stop { width: 33mm; text-align: center; font-size: 9.5pt; }
+.journey .stop img { width: 100%; border-radius: 3mm; border: 1.2mm solid #0a1230; display: block; margin-bottom: 1.5mm; }
+.journey .stop b { display: block; font-size: 10pt; }
+.journey.five .stop { width: 27mm; }
+.journey .arrow { align-self: center; color: var(--brand); font-size: 16pt; font-weight: 700; margin-top: -12mm; }
+
+/* ── Step card ── */
+.step {
+  display: grid;
+  grid-template-columns: 48mm minmax(0, 1fr);
+  gap: 7mm;
+  align-items: start;
+  padding: 5mm 0;
+  border-top: 0.3mm solid var(--line);
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.step.wide-pair { grid-template-columns: 48mm 48mm minmax(0, 1fr); }
+.step figure { margin: 0; min-width: 0; }
+.step .phone { width: 100%; }
+.step .phone img {
+  width: 100%;
+  display: block;
+  border-radius: 5mm;
+  border: 1.8mm solid #0a1230;
+}
+/* Shows only the top of a screenshot (e.g. above a floating button). */
+.step .phone.crop img { aspect-ratio: 975 / 1560; object-fit: cover; object-position: top; }
+.step .phone figcaption { font-size: 8.5pt; color: var(--muted); text-align: center; margin-top: 1.5mm; }
+.step h3 { margin: 0 0 2mm; font-size: 13.5pt; }
+.step h3 .n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 7mm;
+  height: 7mm;
+  border-radius: 50%;
+  margin-right: 2mm;
+  background: var(--brand);
+  color: #fff;
+  font-size: 10pt;
+  vertical-align: 0.4mm;
+}
+.step dl { margin: 0; }
+.step dt { font-weight: 700; font-size: 10pt; color: var(--brand); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2.5mm; }
+.step dd { margin: 0.5mm 0 0; }
+.step ul { margin: 0.5mm 0 0; padding-left: 5mm; }
+.btn {
+  display: inline-block;
+  padding: 0 2mm;
+  border-radius: 1.5mm;
+  background: var(--soft);
+  color: var(--brand-dark);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ── Boxes ── */
+.box { border-left: 1.2mm solid; border-radius: 2mm; padding: 3mm 4mm; margin: 4mm 0; page-break-inside: avoid; }
+.box.tip { background: var(--tip); border-color: var(--tip-line); }
+.box.warn { background: var(--warn); border-color: var(--warn-line); }
+.box b:first-child { display: block; margin-bottom: 1mm; }
+
+/* ── Small screenshot grid ── */
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; margin: 4mm 0; }
+.grid figure { margin: 0; text-align: center; font-size: 9.5pt; page-break-inside: avoid; }
+.grid img { width: 100%; border-radius: 4mm; border: 1.5mm solid #0a1230; display: block; margin-bottom: 1.5mm; }
+
+/* ── FAQ ── */
+.faq dt { font-weight: 700; margin-top: 4mm; }
+.faq dd { margin: 1mm 0 0; color: var(--muted); }
+
+table.simple { border-collapse: collapse; width: 100%; margin: 3mm 0; font-size: 10.5pt; }
+table.simple th, table.simple td { border: 0.3mm solid var(--line); padding: 2mm 3mm; text-align: left; vertical-align: top; }
+table.simple th { background: var(--soft); }
+
+.note { font-size: 9pt; color: var(--muted); }
+
+@media screen {
+  body { background: #f1f5f9; }
+  main { background: #fff; padding: 12mm; margin: 8mm auto; box-shadow: 0 2mm 8mm rgba(0, 0, 0, 0.08); }
+}

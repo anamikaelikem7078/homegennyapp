@@ -4,7 +4,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/utils/validators.dart';
@@ -49,10 +48,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   UserRole? get _preselectedRole => switch (widget.initialRole?.toLowerCase()) {
-        'staff' => UserRole.staff,
-        'client' || 'customer' => UserRole.client,
-        _ => null,
-      };
+    'staff' => UserRole.staff,
+    'client' || 'customer' => UserRole.client,
+    _ => null,
+  };
 
   String? _localizedValidator(String? key) {
     if (key == null) return null;
@@ -94,7 +93,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    context.push(Uri(path: AppRoutes.otp, queryParameters: {'phone': phone}).toString());
+    context.push(
+      Uri(path: AppRoutes.otp, queryParameters: {'phone': phone}).toString(),
+    );
   }
 
   @override
@@ -136,102 +137,123 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Widget _buildSheet(bool isLoading) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 14, 24, 8),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE5E7EB),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 22),
-            Text(
-              'Login or sign up',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: _ink,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Enter your mobile number. We\'ll send you a 6-digit code.',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w500,
-                color: _muted,
-              ),
-            ),
-            const SizedBox(height: 22),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 8),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children:
+                  [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE5E7EB),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+                        Text(
+                          'Login or sign up',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: _ink,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Enter your mobile number. We\'ll send you a 6-digit code.',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w500,
+                            color: _muted,
+                          ),
+                        ),
+                        const SizedBox(height: 22),
 
-            _GlowField(
-              child: TextFormField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.done,
-                maxLength: 10,
-                autofillHints: const [AutofillHints.telephoneNumberNational],
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                onFieldSubmitted: (_) => _onContinue(),
-                style: _fieldTextStyle(letterSpacing: 1.2),
-                decoration: _inputDecoration(
-                  hint: 'Mobile number',
-                  prefix: const _CountryPrefix(),
-                ).copyWith(counterText: ''),
-                validator: (v) => _localizedValidator(Validators.phone(v)),
-              ),
-            ),
-            const SizedBox(height: 22),
+                        _GlowField(
+                          child: TextFormField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.done,
+                            maxLength: 10,
+                            autofillHints: const [
+                              AutofillHints.telephoneNumberNational,
+                            ],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            onFieldSubmitted: (_) => _onContinue(),
+                            style: _fieldTextStyle(letterSpacing: 1.2),
+                            decoration: _inputDecoration(
+                              hint: 'Mobile number',
+                              prefix: const _CountryPrefix(),
+                            ).copyWith(counterText: ''),
+                            validator: (v) =>
+                                _localizedValidator(Validators.phone(v)),
+                          ),
+                        ),
+                        const SizedBox(height: 22),
 
-            _PrimaryButton(isLoading: isLoading, onPressed: _onContinue),
-            const SizedBox(height: 22),
+                        _PrimaryButton(
+                          isLoading: isLoading,
+                          onPressed: _onContinue,
+                        ),
+                        const SizedBox(height: 22),
 
-            Row(
-              children: [
-                const Expanded(child: Divider(color: Color(0xFFEDEFF3))),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    'or',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF9CA3AF),
-                    ),
-                  ),
-                ),
-                const Expanded(child: Divider(color: Color(0xFFEDEFF3))),
-              ],
-            ),
-            const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Divider(color: Color(0xFFEDEFF3)),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Text(
+                                'or',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF9CA3AF),
+                                ),
+                              ),
+                            ),
+                            const Expanded(
+                              child: Divider(color: Color(0xFFEDEFF3)),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
 
-            _BiometricButton(
-              onPressed: () => context.push(AppRoutes.biometricLogin),
+                        _BiometricButton(
+                          onPressed: () =>
+                              context.push(AppRoutes.biometricLogin),
+                        ),
+                        const SizedBox(height: 26),
+                        _buildSignUpFooter(),
+                        const SizedBox(height: 12),
+                      ]
+                      .animate(interval: 60.ms, delay: 250.ms)
+                      .fadeIn(duration: 420.ms)
+                      .slideY(begin: 0.25, end: 0, curve: Curves.easeOutCubic),
             ),
-            const SizedBox(height: 26),
-            _buildSignUpFooter(),
-            const SizedBox(height: 12),
-          ]
-              .animate(interval: 60.ms, delay: 250.ms)
-              .fadeIn(duration: 420.ms)
-              .slideY(begin: 0.25, end: 0, curve: Curves.easeOutCubic),
-        ),
-      ),
-    )
+          ),
+        )
         .animate()
-        .slideY(begin: 0.35, end: 0, duration: 650.ms, curve: Curves.easeOutQuart)
+        .slideY(
+          begin: 0.35,
+          end: 0,
+          duration: 650.ms,
+          curve: Curves.easeOutQuart,
+        )
         .fadeIn(duration: 400.ms);
   }
 
@@ -304,7 +326,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       prefixIcon: prefix,
       prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
       suffixIcon: suffix,
-      border: OutlineInputBorder(borderSide: BorderSide.none, borderRadius: radius),
+      border: OutlineInputBorder(
+        borderSide: BorderSide.none,
+        borderRadius: radius,
+      ),
       enabledBorder: OutlineInputBorder(
         borderSide: const BorderSide(color: Colors.transparent),
         borderRadius: radius,
@@ -342,7 +367,9 @@ class _Hero extends StatelessWidget {
     // A minimum height, not a fixed one: with large text or a narrow phone
     // the hero grows instead of hiding its copy under the sheet.
     return Container(
-      constraints: BoxConstraints(minHeight: compact ? 0 : _heroHeight + topInset),
+      constraints: BoxConstraints(
+        minHeight: compact ? 0 : _heroHeight + topInset,
+      ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -362,7 +389,10 @@ class _Hero extends StatelessWidget {
           Positioned(
             bottom: 10,
             left: -70,
-            child: _Blob(size: 200, color: Colors.white.withValues(alpha: 0.08)),
+            child: _Blob(
+              size: 200,
+              color: Colors.white.withValues(alpha: 0.08),
+            ),
           ),
 
           // Floating service icons
@@ -398,68 +428,79 @@ class _Hero extends StatelessWidget {
 
           // Copy — not positioned, so it sizes the hero.
           Padding(
-            padding: EdgeInsets.fromLTRB(24, topInset + (compact ? 16 : 28), 24, _sheetOverlap + 24),
+            padding: EdgeInsets.fromLTRB(
+              24,
+              topInset + (compact ? 16 : 28),
+              24,
+              _sheetOverlap + 24,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: _sunYellow,
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: const Icon(
-                        Icons.eco_rounded,
-                        color: _deepNavy,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'HomeGenny',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                  ],
-                )
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: _sunYellow,
+                            borderRadius: BorderRadius.circular(11),
+                          ),
+                          child: const Icon(
+                            Icons.eco_rounded,
+                            color: _deepNavy,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'HomeGenny',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ],
+                    )
                     .animate()
                     .fadeIn(duration: 500.ms)
                     .slideX(begin: -0.2, end: 0, curve: Curves.easeOutCubic),
                 SizedBox(height: compact ? 20 : 56),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.bolt_rounded, color: _sunYellow, size: 15),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Welcome back',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
                         ),
                       ),
-                    ],
-                  ),
-                )
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.bolt_rounded,
+                            color: _sunYellow,
+                            size: 15,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Welcome back',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
                     .animate(delay: 150.ms)
                     .fadeIn(duration: 400.ms)
                     .scaleXY(begin: 0.8, end: 1, curve: Curves.easeOutBack),
@@ -471,13 +512,13 @@ class _Hero extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Manage your sanctuary with precision.',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withValues(alpha: 0.75),
-                  ),
-                )
+                      'Manage your sanctuary with precision.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white.withValues(alpha: 0.75),
+                      ),
+                    )
                     .animate(delay: 450.ms)
                     .fadeIn(duration: 500.ms)
                     .slideY(begin: 0.4, end: 0),
@@ -511,32 +552,33 @@ class _Headline extends StatelessWidget {
             .fadeIn(duration: 450.ms)
             .slideY(begin: 0.5, end: 0, curve: Curves.easeOutCubic),
         Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // Highlighter swipe behind the word
-            Positioned(
-              left: -2,
-              right: -4,
-              bottom: 4,
-              height: 12,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: _sunYellow.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(4),
+              clipBehavior: Clip.none,
+              children: [
+                // Highlighter swipe behind the word
+                Positioned(
+                  left: -2,
+                  right: -4,
+                  bottom: 4,
+                  height: 12,
+                  child:
+                      Container(
+                            decoration: BoxDecoration(
+                              color: _sunYellow.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          )
+                          .animate(delay: 750.ms)
+                          .scaleX(
+                            begin: 0,
+                            end: 1,
+                            alignment: Alignment.centerLeft,
+                            duration: 500.ms,
+                            curve: Curves.easeOutCubic,
+                          ),
                 ),
-              )
-                  .animate(delay: 750.ms)
-                  .scaleX(
-                    begin: 0,
-                    end: 1,
-                    alignment: Alignment.centerLeft,
-                    duration: 500.ms,
-                    curve: Curves.easeOutCubic,
-                  ),
-            ),
-            Text('sorted.', style: base),
-          ],
-        )
+                Text('sorted.', style: base),
+              ],
+            )
             .animate(delay: 350.ms)
             .fadeIn(duration: 450.ms)
             .slideY(begin: 0.5, end: 0, curve: Curves.easeOutCubic),
@@ -554,12 +596,17 @@ class _Blob extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-    )
+          width: size,
+          height: size,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+        )
         .animate(onPlay: (c) => c.repeat(reverse: true))
-        .scaleXY(begin: 0.9, end: 1.1, duration: 4.seconds, curve: Curves.easeInOut);
+        .scaleXY(
+          begin: 0.9,
+          end: 1.1,
+          duration: 4.seconds,
+          curve: Curves.easeInOut,
+        );
   }
 }
 
@@ -579,18 +626,23 @@ class _FloatingIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(size * 0.32),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-      ),
-      child: Icon(icon, color: color, size: size * 0.46),
-    )
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(size * 0.32),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+          ),
+          child: Icon(icon, color: color, size: size * 0.46),
+        )
         .animate(delay: (300 + delay).ms)
         .fadeIn(duration: 500.ms)
-        .scaleXY(begin: 0.4, end: 1, curve: Curves.easeOutBack, duration: 600.ms)
+        .scaleXY(
+          begin: 0.4,
+          end: 1,
+          curve: Curves.easeOutBack,
+          duration: 600.ms,
+        )
         .then()
         .animate(onPlay: (c) => c.repeat(reverse: true))
         .moveY(begin: -6, end: 6, duration: 2200.ms, curve: Curves.easeInOut)
@@ -701,18 +753,18 @@ class _PrimaryButtonState extends State<_PrimaryButton> {
         ),
         const SizedBox(width: 10),
         Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.arrow_forward_rounded,
-            size: 18,
-            color: Colors.white,
-          ),
-        )
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.arrow_forward_rounded,
+                size: 18,
+                color: Colors.white,
+              ),
+            )
             .animate(onPlay: (c) => c.repeat(reverse: true))
             .moveX(begin: 0, end: 4, duration: 700.ms, curve: Curves.easeInOut),
       ],
@@ -727,50 +779,60 @@ class _PrimaryButtonState extends State<_PrimaryButton> {
         scale: _pressed ? 0.96 : 1,
         duration: 120.ms,
         curve: Curves.easeOut,
-        child: AnimatedContainer(
-          duration: 250.ms,
-          height: 58,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            gradient: const LinearGradient(
-              colors: [Color(0xFF2F6BFF), _brandBlue, Color(0xFF1238B8)],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: _brandBlue.withValues(alpha: _pressed ? 0.25 : 0.4),
-                blurRadius: _pressed ? 10 : 22,
-                offset: Offset(0, _pressed ? 4 : 10),
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Center(
-            child: AnimatedSwitcher(
-              duration: 250.ms,
-              transitionBuilder: (child, anim) => FadeTransition(
-                opacity: anim,
-                child: ScaleTransition(scale: anim, child: child),
-              ),
-              child: widget.isLoading
-                  ? const SizedBox(
-                      key: ValueKey('loading'),
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.6,
-                        color: Colors.white,
+        child:
+            AnimatedContainer(
+                  duration: 250.ms,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF2F6BFF),
+                        _brandBlue,
+                        Color(0xFF1238B8),
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _brandBlue.withValues(
+                          alpha: _pressed ? 0.25 : 0.4,
+                        ),
+                        blurRadius: _pressed ? 10 : 22,
+                        offset: Offset(0, _pressed ? 4 : 10),
                       ),
-                    )
-                  : KeyedSubtree(key: const ValueKey('label'), child: label),
-            ),
-          ),
-        )
-            .animate(onPlay: (c) => c.repeat())
-            .shimmer(
-              delay: 1800.ms,
-              duration: 1400.ms,
-              color: Colors.white.withValues(alpha: 0.28),
-            ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Center(
+                    child: AnimatedSwitcher(
+                      duration: 250.ms,
+                      transitionBuilder: (child, anim) => FadeTransition(
+                        opacity: anim,
+                        child: ScaleTransition(scale: anim, child: child),
+                      ),
+                      child: widget.isLoading
+                          ? const SizedBox(
+                              key: ValueKey('loading'),
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.6,
+                                color: Colors.white,
+                              ),
+                            )
+                          : KeyedSubtree(
+                              key: const ValueKey('label'),
+                              child: label,
+                            ),
+                    ),
+                  ),
+                )
+                .animate(onPlay: (c) => c.repeat())
+                .shimmer(
+                  delay: 1800.ms,
+                  duration: 1400.ms,
+                  color: Colors.white.withValues(alpha: 0.28),
+                ),
       ),
     );
   }
@@ -799,18 +861,18 @@ class _BiometricButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: _brandBlue.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.fingerprint_rounded,
-                  color: _brandBlue,
-                  size: 20,
-                ),
-              )
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: _brandBlue.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.fingerprint_rounded,
+                      color: _brandBlue,
+                      size: 20,
+                    ),
+                  )
                   .animate(onPlay: (c) => c.repeat(reverse: true))
                   .scaleXY(
                     begin: 1,
