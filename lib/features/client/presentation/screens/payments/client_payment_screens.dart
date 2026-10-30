@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/utils/currency_formatter.dart';
+import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/client_models.dart';
 import '../../navigation/client_routes.dart';
@@ -41,9 +42,9 @@ Future<void> _downloadInvoice(BuildContext context, WidgetRef ref, ClientInvoice
   }
 }
 
-String _gatewayUri(ClientInvoice inv) => Uri(
+String _gatewayUri(ClientInvoice inv, {double? amount}) => Uri(
       path: ClientRoutes.paymentGateway,
-      queryParameters: {'invoiceId': inv.invoiceId, 'amount': inv.totalAmount.toString()},
+      queryParameters: {'invoiceId': inv.invoiceId, 'amount': (amount ?? inv.totalAmount).toString()},
     ).toString();
 
 const _noInvoices = DsEmptyBlock(
@@ -185,8 +186,10 @@ class _ClientPaymentsTabScreenState extends ConsumerState<ClientPaymentsTabScree
               _AmountHero(
                 pill: context.l10n.pendingInvoice.toUpperCase(),
                 label: context.l10n.totalOutstanding,
-                amount: inv.totalAmount,
-                caption: context.l10n.dueBy(inv.dueDate),
+                amount: _dueFor(inv, null),
+                caption: inv.creditedAmount > 0
+                    ? '${_creditNoteLabel(inv.creditedAmount)} · ${context.l10n.dueBy(DateFormatter.day(inv.dueDate))}'
+                    : context.l10n.dueBy(DateFormatter.day(inv.dueDate)),
                 footer: Row(
                   children: [
                     Expanded(
@@ -227,6 +230,25 @@ class _ClientPaymentsTabScreenState extends ConsumerState<ClientPaymentsTabScree
                 ),
               ],
             ),
+            // Billing can be weekly or fortnightly, so one month may hold
+            // several invoices: list each by the days it covers.
+            if (list.isNotEmpty) ...[
+              const DsSection('Your invoices'),
+              for (final i in list)
+                DsListCard(
+                  icon: Icons.receipt_long_rounded,
+                  title: i.periodLabel,
+                  subtitle: '${i.invoiceNumber} · ${CurrencyFormatter.inr(i.totalAmount)}'
+                      '${i.creditedAmount > 0 ? '\n${_creditNoteLabel(i.creditedAmount)}' : ''}',
+                  trailing: DsPill(
+                    _isPaidStatus(i.status) ? 'Paid' : 'Due ${DateFormatter.day(i.dueDate)}',
+                    color: _isPaidStatus(i.status) ? AppColors.success : AppColors.warning,
+                  ),
+                  onTap: () => context.push(
+                    Uri(path: ClientRoutes.invoice, queryParameters: {'id': i.invoiceId}).toString(),
+                  ),
+                ),
+            ],
             DsSection(context.l10n.autoPaySettings),
             Container(
               padding: const EdgeInsets.all(14),
@@ -329,18 +351,41 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
-/// Invoice detail.
+bool _isPaidStatus(String status) => status.toUpperCase() == 'PAID';
+
+/// "Credit note −₹500".
+String _creditNoteLabel(double amount) => 'Credit note −${CurrencyFormatter.inr(amount)}';
+
+/// What the client still owes on [inv]: the detail's amountDue once loaded
+/// (total − credit notes − paid), else total − credit notes.
+double _dueFor(ClientInvoice inv, ClientInvoiceDetail? detail) {
+  if (detail != null) return detail.amountDue;
+  final due = inv.totalAmount - inv.creditedAmount;
+  return due < 0 ? 0 : due;
+}
+
+/// Invoice detail — the one [invoiceId] names (`?id=` on the route), else
+/// the latest. A client can have several invoices in one month, so the
+/// subtitle shows the invoice's own days.
 class ClientInvoiceScreen extends ConsumerWidget {
-  const ClientInvoiceScreen({super.key});
+  const ClientInvoiceScreen({super.key, this.invoiceId});
+
+  final String? invoiceId;
+
+  ClientInvoice? _pick(List<ClientInvoice> list) =>
+      list.where((i) => i.invoiceId == invoiceId).firstOrNull ?? list.firstOrNull;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final invoices = ref.watch(clientInvoicesProvider);
-    final inv = invoices.valueOrNull?.firstOrNull;
+    final inv = _pick(invoices.valueOrNull ?? const []);
+    final due = inv == null
+        ? 0.0
+        : _dueFor(inv, ref.watch(clientInvoiceDetailProvider(inv.invoiceId)).valueOrNull);
 
     return DsPage(
       title: context.l10n.invoiceDetails,
-      subtitle: inv == null ? null : 'For ${inv.billingMonth}',
+      subtitle: inv == null ? null : 'For ${inv.periodLabel}',
       onBack: () => context.pop(),
       onRefresh: () async => ref.invalidate(clientInvoicesProvider),
       actions: [
@@ -349,7 +394,9 @@ class ClientInvoiceScreen extends ConsumerWidget {
             icon: Icons.share_rounded,
             tooltip: context.l10n.share,
             onPressed: () => Share.share(
-              'Invoice: ${inv.invoiceNumber}\nAmount: ${CurrencyFormatter.inr(inv.totalAmount)}\nDue Date: ${inv.dueDate}',
+              'Invoice: ${inv.invoiceNumber}\nPeriod: ${inv.periodLabel}\nAmount: ${CurrencyFormatter.inr(inv.totalAmount)}'
+              '${inv.creditedAmount > 0 ? '\n${_creditNoteLabel(inv.creditedAmount)}\nAmount due: ${CurrencyFormatter.inr(due)}' : ''}'
+              '\nDue Date: ${DateFormatter.day(inv.dueDate)}',
             ),
           ),
           const SizedBox(width: 8),
@@ -365,21 +412,21 @@ class ClientInvoiceScreen extends ConsumerWidget {
           : DsGradientButton(
               label: context.l10n.proceedToPayment,
               icon: Icons.arrow_forward_rounded,
-              onPressed: () => context.push(_gatewayUri(inv)),
+              onPressed: () => context.push(_gatewayUri(inv, amount: due)),
             ),
       body: dsAsyncBody(
         invoices,
         onRetry: () => ref.invalidate(clientInvoicesProvider),
         builder: (list) {
-          if (list.isEmpty) return const [_noInvoices];
-          final inv = list.first;
+          final inv = _pick(list);
+          if (inv == null) return const [_noInvoices];
           final detail = ref.watch(clientInvoiceDetailProvider(inv.invoiceId)).valueOrNull;
           return [
             _AmountHero(
               pill: inv.invoiceNumber.toUpperCase(),
               label: context.l10n.totalOutstanding,
-              amount: inv.totalAmount,
-              caption: context.l10n.dueBy(inv.dueDate),
+              amount: _dueFor(inv, detail),
+              caption: context.l10n.dueBy(DateFormatter.day(inv.dueDate)),
               icon: Icons.receipt_long_rounded,
             ),
             DsSection(
@@ -399,12 +446,22 @@ class ClientInvoiceScreen extends ConsumerWidget {
 }
 
 class _Row {
-  const _Row(this.label, this.amount, {this.bold = false, this.muted = false});
+  const _Row(this.label, this.amount, {this.bold = false, this.muted = false, this.negative = false});
   final String label;
   final double amount;
   final bool bold;
   final bool muted;
+  /// Shown as "−₹X" in red (credit notes, payments).
+  final bool negative;
 }
+
+/// Under the total: "Credit note −₹X" (when there is one), payments
+/// received, then the amount due.
+List<_Row> _dueRows({required double credited, required double paid, required double due}) => [
+      if (credited > 0) _Row('Credit note', credited, negative: true),
+      if (paid > 0) _Row('Paid', paid, negative: true),
+      if (credited > 0 || paid > 0) _Row('Amount due', due, bold: true),
+    ];
 
 class _AmountRows extends StatelessWidget {
   const _AmountRows({required this.rows});
@@ -435,11 +492,15 @@ class _AmountRows extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    CurrencyFormatter.inr(rows[i].amount),
+                    '${rows[i].negative ? '−' : ''}${CurrencyFormatter.inr(rows[i].amount)}',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: rows[i].bold ? 17 : 14,
                       fontWeight: FontWeight.w800,
-                      color: rows[i].bold ? AppColors.primary : AppColors.lightTextPrimary,
+                      color: rows[i].bold
+                          ? AppColors.primary
+                          : rows[i].negative
+                              ? AppColors.error
+                              : AppColors.lightTextPrimary,
                     ),
                   ),
                 ],
@@ -470,6 +531,7 @@ class _DetailBreakdown extends StatelessWidget {
         if (d.sgst > 0) _Row('9% SGST', d.sgst, muted: true),
         if (d.igst > 0) _Row('18% IGST', d.igst, muted: true),
         _Row('Total', d.totalAmount, bold: true),
+        ..._dueRows(credited: d.creditedAmount, paid: d.amountPaid, due: d.amountDue),
       ],
     );
   }
@@ -485,6 +547,7 @@ class _ItemsBreakdown extends StatelessWidget {
       rows: [
         for (final item in invoice.items) _Row(item.description, item.amount),
         _Row('Total', invoice.totalAmount, bold: true),
+        ..._dueRows(credited: invoice.creditedAmount, paid: 0, due: _dueFor(invoice, null)),
       ],
     );
   }
@@ -724,7 +787,7 @@ class ClientPaymentStatusScreen extends ConsumerWidget {
               pill: context.l10n.pendingCap,
               label: context.l10n.referenceInvoice(inv.id),
               amount: inv.totalAmount,
-              caption: context.l10n.dueDateDesc(inv.dueDate),
+              caption: context.l10n.dueDateDesc(DateFormatter.day(inv.dueDate)),
               icon: Icons.hourglass_top_rounded,
             ),
             const DsSection('Charges'),

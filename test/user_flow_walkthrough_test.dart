@@ -96,14 +96,30 @@ class _FakeBackend implements HttpClientAdapter {
     for (final MapEntry(key: pattern, value: body)
         in fakeBackendFixtures.entries) {
       if (RegExp('^$pattern\$').hasMatch(key)) {
-        // ignore: avoid_print
-        print('FLOW|API|200|$key');
-        return ResponseBody.fromString(
-          jsonEncode(switch (body) {
+        Object? data;
+        try {
+          data = switch (body) {
             Object? Function() f => f(),
             Object? Function(RequestOptions) f => f(options),
             _ => body,
-          }),
+          };
+        } catch (e) {
+          // A fixture can answer with an HTTP error (e.g. wrong password).
+          final (status, errorBody) = fakeBackendError(e) ?? (500, {});
+          // ignore: avoid_print
+          print('FLOW|API|$status|$key');
+          return ResponseBody.fromString(
+            jsonEncode(errorBody),
+            status,
+            headers: {
+              Headers.contentTypeHeader: [Headers.jsonContentType],
+            },
+          );
+        }
+        // ignore: avoid_print
+        print('FLOW|API|200|$key');
+        return ResponseBody.fromString(
+          jsonEncode(data),
           200,
           headers: {
             Headers.contentTypeHeader: [Headers.jsonContentType],
@@ -673,6 +689,32 @@ void main() {
     }
     await w.settle(20);
     await w.shot('home_after_login');
+    await _finish(w);
+  });
+
+  // ── An office (RM) account: the server says it signs in with a password ──
+  testWidgets('office login', (tester) async {
+    final w = await _start(tester, hive, 'office');
+    await tester.enterText(find.byType(EditableText).first, '9811100001');
+    await w.settle(4);
+    await w.tap('Continue');
+    await w.shot('password_sheet');
+    await tester.enterText(find.byType(EditableText).last, 'wrong-password');
+    await w.settle(2);
+    await w.tap('Log in');
+    await w.shot('wrong_password');
+    await tester.enterText(find.byType(EditableText).last, 'Office@123');
+    await w.settle(2);
+    await w.tap('Log in');
+    for (var i = 0; i < 100 && !w.location.startsWith('/rm'); i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await w.settle(1);
+    }
+    await w.settle(10);
+    await w.shot('rm_dashboard');
+    expect(w.location, startsWith('/rm'));
     await _finish(w);
   });
 

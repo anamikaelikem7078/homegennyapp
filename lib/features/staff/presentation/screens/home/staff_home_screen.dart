@@ -273,6 +273,11 @@ class _TodayShiftCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(house.clientName, style: title),
+                    if (house.liveIn) ...[
+                      const SizedBox(height: 4),
+                      const DsPill('24×7 Live-in', color: AppColors.success),
+                      const SizedBox(height: 4),
+                    ],
                     if (house.address != null && house.address!.trim().isNotEmpty)
                       Text(house.address!.trim(), style: small, maxLines: 2, overflow: TextOverflow.ellipsis),
                     if (timeLine != null) ...[
@@ -508,10 +513,11 @@ class _TrainingCard extends ConsumerWidget {
     final batch = training.batches.isEmpty ? null : training.batches.first;
     final cert = training.videoCert;
     if (batch == null && cert.required_ == 0) return const SizedBox.shrink();
+    final submitted = ref.watch(staffVideoCertSubmittedProvider) ?? cert.approved;
 
     final parts = [
       if (batch != null) '${batch.batchCode} · ${_pretty(batch.status)}',
-      if (cert.required_ > 0) 'Video certification ${cert.approved}/${cert.required_}',
+      if (cert.required_ > 0) 'Video certification $submitted/${cert.required_} submitted',
     ];
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -800,6 +806,7 @@ class StaffProfileCompletionScreen extends ConsumerWidget {
     final rejectedDocuments = documents.where((d) => d.status == DocumentApprovalStatus.rejected).length;
     final agreement = ref.watch(staffAgreementProvider).valueOrNull;
     final videoCert = ref.watch(staffTrainingHomeProvider).valueOrNull?.videoCert;
+    final videosSubmitted = ref.watch(staffVideoCertSubmittedProvider) ?? videoCert?.approved ?? 0;
 
     final steps = <_CompletionStep>[
       _CompletionStep(
@@ -837,8 +844,10 @@ class StaffProfileCompletionScreen extends ConsumerWidget {
             ? ('Open', AppColors.primary)
             : videoCert.approved >= videoCert.required_
                 ? ('Done', AppColors.success)
-                : ('${videoCert.approved}/${videoCert.required_}', AppColors.warning),
-        progress: videoCert == null || videoCert.required_ == 0 ? null : videoCert.approved / videoCert.required_,
+                : videosSubmitted >= videoCert.required_
+                    ? ('In review', AppColors.primary)
+                    : ('$videosSubmitted/${videoCert.required_}', AppColors.warning),
+        progress: videoCert == null || videoCert.required_ == 0 ? null : videosSubmitted / videoCert.required_,
         onTap: () => context.push(StaffRoutes.videoCertification),
       ),
       _CompletionStep(

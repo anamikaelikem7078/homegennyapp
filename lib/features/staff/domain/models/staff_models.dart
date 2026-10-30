@@ -452,6 +452,9 @@ class AttendanceRecord {
     this.checkIn,
     this.checkOut,
     this.location,
+    this.clientStatus,
+    this.clientNote,
+    this.resolutionNote,
   });
 
   final String date;
@@ -459,6 +462,16 @@ class AttendanceRecord {
   final String? checkIn;
   final String? checkOut;
   final String? location;
+
+  /// The client's confirmation of the day: NOT_REQUIRED, PENDING, APPROVED,
+  /// DEEMED, DISPUTED or APPROVED_PAPER.
+  final String? clientStatus;
+
+  /// The client's reason when they disputed the day.
+  final String? clientNote;
+
+  /// The RM's note once a disputed day was resolved.
+  final String? resolutionNote;
 }
 
 /// Monthly attendance summary.
@@ -495,9 +508,39 @@ class SalaryHouse {
   final double grossSalary;
 }
 
+/// One salary month — an entry of `awaiting_approval` in GET /staff/salary
+/// and GET /staff/payslips (`{period_month, period_year}`), or the month a
+/// "Salary slip ready" notification points at.
+class SalaryPeriod {
+  const SalaryPeriod(this.month, this.year);
+
+  final int month;
+  final int year;
+
+  static const _monthNames = [
+    '', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+
+  /// "November".
+  String get monthName => month >= 1 && month <= 12 ? _monthNames[month] : '';
+
+  /// "November 2026".
+  String get label => '$monthName $year';
+
+  /// The "$month-$year" payslip ref (see [Payslip.ref]).
+  String get ref => '$month-$year';
+
+  @override
+  bool operator ==(Object other) => other is SalaryPeriod && other.month == month && other.year == year;
+
+  @override
+  int get hashCode => Object.hash(month, year);
+}
+
 /// Salary summary model — matches GET /staff/salary exactly (the `salary`
-/// object, or `null` with a `message` when no payroll run has produced a
-/// payslip for this staff member yet). [hasPayslips] is false in that case.
+/// object, or `null` with a `message` when nothing is approved for the month
+/// yet). [hasPayslips] is false in that case.
 class SalarySummary {
   const SalarySummary({
     required this.hasPayslips,
@@ -509,12 +552,18 @@ class SalarySummary {
     this.houses = const [],
     this.ref,
     this.emptyMessage,
+    this.arrears = 0,
+    this.arrearsNote,
+    this.pendingHouses = 0,
+    this.awaitingApproval = const [],
   });
 
   final bool hasPayslips;
   final String month;
   final String gross;
+  /// ESIC + PF only.
   final String deductions;
+  /// gross − deductions + [arrears].
   final String net;
   final String status;
   final List<SalaryHouse> houses;
@@ -524,7 +573,24 @@ class SalarySummary {
   final String? ref;
   /// Set (with [hasPayslips] false) when the server returns
   /// `{"salary": null, "message": "..."}` — a normal 200, not an error.
+  /// Shown as is.
   final String? emptyMessage;
+  /// Money owed from a corrected earlier invoice, ₹ — already inside [net].
+  final double arrears;
+  final String? arrearsNote;
+  /// How many of this month's clients Finance hasn't approved yet.
+  final int pendingHouses;
+  /// Months Finance is still checking — not payslips yet.
+  final List<SalaryPeriod> awaitingApproval;
+}
+
+/// GET /staff/payslips — the approved months plus the ones still being
+/// checked by Finance.
+class PayslipHistory {
+  const PayslipHistory({required this.payslips, this.awaitingApproval = const []});
+
+  final List<Payslip> payslips;
+  final List<SalaryPeriod> awaitingApproval;
 }
 
 /// Payslip model — one row from GET /staff/payslips (one per month, newest
@@ -542,14 +608,23 @@ class Payslip {
     required this.status,
     this.houses = const [],
     this.presentDays,
+    this.arrears = 0,
+    this.arrearsNote,
+    this.pendingHouses = 0,
   });
 
   final String ref;
   final String month;
-  /// Net pay, formatted.
+  /// Net pay, formatted — gross − deductions + [arrears].
   final String amount;
   final String grossAmount;
+  /// ESIC + PF only.
   final String deductionsAmount;
+  /// Money owed from a corrected earlier invoice, ₹ — already inside [amount].
+  final double arrears;
+  final String? arrearsNote;
+  /// How many of this month's clients Finance hasn't approved yet.
+  final int pendingHouses;
   /// Raw deduction line items (e.g. {"esic": 2.96, "pf": 47.38}) for the
   /// detail screen — keys are backend field names, title-cased for display.
   final Map<String, double> deductionBreakdown;
@@ -623,6 +698,7 @@ class StaffProfile {
     this.assignedRmName,
     this.assignedRmPhone,
     this.gender,
+    this.fatherOrHusbandName,
     this.city,
     this.area,
     this.pincode,
@@ -658,6 +734,9 @@ class StaffProfile {
 
   /// MALE / FEMALE / OTHER.
   final String? gender;
+
+  /// Printed on the client's monthly muster roll (Form XVI). Optional.
+  final String? fatherOrHusbandName;
   final String? city;
   final String? area;
   final String? pincode;
@@ -794,6 +873,7 @@ class StaffPlacementOption {
     this.homeLng,
     this.placementType,
     this.visitType,
+    this.liveIn = false,
   });
 
   final String placementId;
@@ -805,6 +885,10 @@ class StaffPlacementOption {
   final double? homeLng;
   final String? placementType; // PERMANENT | TEMPORARY
   final String? visitType; // REGULAR | ONE_TIME
+
+  /// 24×7 live-in or relief: the shift stays open until check-out, across
+  /// days (up to 31).
+  final bool liveIn;
 
   /// NOT_CHECKED_IN | CHECKED_IN | CHECKED_OUT
   final String today;

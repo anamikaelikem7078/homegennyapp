@@ -24,6 +24,9 @@ abstract final class ClientRoutes {
   static const String attendanceToday = '/client/attendance/today';
   static const String attendanceHistory = '/client/attendance/history';
   static const String attendanceRaiseIssue = '/client/attendance/raise-issue';
+  // `?status=ALL` opens every day instead of the waiting ones.
+  static const String confirmDays = '/client/attendance/confirm';
+  static const String musterRoll = '/client/attendance/muster-roll';
 
   // Payments
   static const String invoice = '/client/payments/invoice';

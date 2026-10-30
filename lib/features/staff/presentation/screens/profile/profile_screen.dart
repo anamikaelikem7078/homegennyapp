@@ -47,11 +47,12 @@ class StaffProfileScreen extends ConsumerWidget {
       AgreementStatus.pending => (l10n.signatureRequired, 'Action needed'),
       null => ('Terms and conditions', null),
     };
+    final videosSubmitted = ref.watch(staffVideoCertSubmittedProvider);
     final videoSubtitle = videoCert == null || videoCert.required_ == 0
         ? 'Record your introduction'
         : videoCert.approved >= videoCert.required_
             ? 'Certified'
-            : '${videoCert.approved} of ${videoCert.required_} approved';
+            : '${videosSubmitted ?? videoCert.approved} of ${videoCert.required_} submitted · ${videoCert.approved} approved';
 
     return Scaffold(
       body: profileAsync.when(
@@ -214,6 +215,7 @@ class _PersonalInfoCard extends StatelessWidget {
         'date_of_birth',
       ),
       (Icons.wc_rounded, 'Gender', _genderLabels[profile.gender?.toUpperCase()], 'Not added', 'gender'),
+      (Icons.family_restroom_rounded, "Father's / husband's name", profile.fatherOrHusbandName, 'Not added', null),
       (
         Icons.work_rounded,
         'Work category',

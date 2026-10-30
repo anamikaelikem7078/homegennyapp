@@ -213,6 +213,9 @@ class StaffRequest {
 
   bool get isOneTime => visitType == VisitType.oneTime;
 
+  /// 24×7 live-in: a regular request on a 24-hour duty (`shift_hours` ≥ 24).
+  bool get isLiveIn => !isOneTime && shiftHours >= 24;
+
   bool get isOpen => StaffRequestStatus.open.contains(status);
   bool get canChoose => status == StaffRequestStatus.shortlisted;
 }

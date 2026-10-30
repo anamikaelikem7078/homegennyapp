@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../core/utils/currency_formatter.dart';
+import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../../domain/models/client_models.dart';
 import '../../navigation/client_routes.dart';
@@ -33,7 +34,7 @@ class ClientInvoiceScreen extends ConsumerWidget {
           slivers: [
             SliverToBoxAdapter(
               child: DsHeroHeader(
-                title: invoice == null ? 'Invoice' : 'Invoice · ${invoice.billingMonth}',
+                title: invoice == null ? 'Invoice' : 'Invoice · ${invoice.periodLabel}',
                 eyebrow: invoice?.invoiceNumber.isNotEmpty == true ? invoice!.invoiceNumber : 'Billing',
                 eyebrowIcon: Icons.receipt_long_rounded,
                 showBack: true,
@@ -251,7 +252,7 @@ class _TotalCard extends StatelessWidget {
                 if (invoice.dueDate.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
-                    'Due ${invoice.dueDate}',
+                    'Due ${DateFormatter.day(invoice.dueDate)}',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,

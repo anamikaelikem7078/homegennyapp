@@ -141,6 +141,9 @@ class StaffVideoCertificationScreen extends ConsumerWidget {
         builder: (list) {
           final approved = list.where((p) => p.status == VideoCertStatus.approved).length;
           final review = list.where((p) => p.status == VideoCertStatus.uploaded).length;
+          // Progress = videos submitted (under review or approved), so it
+          // moves as soon as a prompt is uploaded, not only after review.
+          final done = approved + review;
           return [
             DsGradientCard(
               colors: allApproved ? DsGradientCard.green : DsGradientCard.blue,
@@ -150,7 +153,7 @@ class StaffVideoCertificationScreen extends ConsumerWidget {
                     width: 84,
                     height: 84,
                     child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: list.isEmpty ? 0 : approved / list.length),
+                      tween: Tween(begin: 0, end: list.isEmpty ? 0 : done / list.length),
                       duration: 1000.ms,
                       curve: Curves.easeOutCubic,
                       builder: (_, v, _) => Stack(
@@ -166,7 +169,7 @@ class StaffVideoCertificationScreen extends ConsumerWidget {
                             ),
                           ),
                           Text(
-                            '$approved/${list.length}',
+                            '$done/${list.length}',
                             style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
                           ),
                         ],
@@ -184,9 +187,12 @@ class StaffVideoCertificationScreen extends ConsumerWidget {
                           allApproved ? 'You\'re fully certified!' : 'Record ${list.length} short videos',
                           style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
                         ),
-                        if (review > 0)
+                        if (done > 0 && !allApproved)
                           Text(
-                            '$review under review',
+                            [
+                              '$approved approved',
+                              if (review > 0) '$review under review',
+                            ].join(' · '),
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,

@@ -4,7 +4,10 @@ import '../../../../core/router/page_transitions.dart';
 import '../../../../core/router/route_helpers.dart';
 import '../../../../core/presentation/screens/app_settings_screens.dart';
 
+import '../../domain/models/attendance_approval_models.dart';
 import '../screens/attendance/client_attendance_screens.dart';
+import '../screens/attendance/client_confirm_days_screen.dart';
+import '../screens/attendance/client_muster_roll_screen.dart';
 import '../screens/attendance/client_staff_live_map_screen.dart';
 import '../screens/care/client_care_screens.dart';
 import '../screens/care/client_cook_screens.dart';
@@ -171,11 +174,22 @@ List<RouteBase> get clientRoutes => [
         path: ClientRoutes.attendanceRaiseIssue,
         builder: (_, __) => const ClientRaiseAttendanceIssueScreen(),
       ),
+      GoRoute(
+        path: ClientRoutes.confirmDays,
+        builder: (_, state) => ClientConfirmDaysScreen(
+          initialStatus: state.uri.queryParameters['status'] ?? ClientDayStatus.pending,
+        ),
+      ),
+      GoRoute(
+        path: ClientRoutes.musterRoll,
+        builder: (_, __) => const ClientMusterRollScreen(),
+      ),
 
       // Payments
       GoRoute(
         path: ClientRoutes.invoice,
-        builder: (_, __) => const ClientInvoiceScreen(),
+        // ?id= opens one invoice (a month can hold several); else the latest.
+        builder: (_, state) => ClientInvoiceScreen(invoiceId: state.uri.queryParameters['id']),
       ),
       GoRoute(
         path: ClientRoutes.paymentHistory,

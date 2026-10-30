@@ -145,13 +145,13 @@ final _careRequest = {
   'series_db': 'SKILLED_CARE',
   'placement_type': 'PERMANENT',
   'visit_type': 'REGULAR',
-  'shift_hours': 12,
+  'shift_hours': 24, // 24×7 live-in
   'headcount': 1,
   'gender_pref': 'ANY',
   'start_date': _d(10),
   'start_time': '09:00',
   'address': '42, Green Park Extension, New Delhi - 110016',
-  'notes': 'Night care for my father after surgery.',
+  'notes': 'Round-the-clock care for my father after surgery.',
   'created_at': _ago(days: 1),
   'rm': {'name': 'Demo RM', 'phone': '9800000001'},
 };
@@ -458,7 +458,40 @@ final _invoicePreview = {
 /// `METHOD /path` regex → body (or a function of the request).
 final Map<String, Object> fakeBackendFixtures = {
   // ── Sign-up of a new number (the demo numbers never reach these) ──
-  'POST /auth/otp/send': {'sent': true, 'is_registered': false},
+  // 9811100001 is an office (RM) account: it signs in with a password.
+  'POST /auth/otp/send': (RequestOptions o) {
+    final phone = o.data is Map ? (o.data as Map)['phone'] : null;
+    return phone == '9811100001'
+        ? {
+            'sent': false,
+            'is_registered': true,
+            'use_password_login': true,
+            'role': 'RM',
+          }
+        : {'sent': true, 'is_registered': false};
+  },
+  'POST /auth/login': (RequestOptions o) {
+    final body = o.data is Map ? o.data as Map : const {};
+    if (body['password'] != 'Office@123') {
+      throw const _HttpError(401, 'Invalid phone number or password');
+    }
+    return {
+      'access_token': 'demo-access-token',
+      'refresh_token': 'demo-refresh-token',
+      'user': {
+        'id': 'rm-office-1',
+        'name': 'Office RM',
+        'phone': '9811100001',
+        'role': 'RM',
+      },
+    };
+  },
+  'GET /user/profile': {
+    'id': 'rm-office-1',
+    'name': 'Office RM',
+    'phone': '9811100001',
+    'role': 'RM',
+  },
   'POST /auth/otp/verify': (RequestOptions o) {
     final body = o.data is Map ? o.data as Map : const {};
     return {
@@ -1128,3 +1161,22 @@ final Map<String, Object> fakeBackendFixtures = {
     ],
   },
 };
+
+/// Thrown by a fixture to answer with an HTTP error instead of 200.
+class _HttpError implements Exception {
+  const _HttpError(this.status, this.message);
+  final int status;
+  final String message;
+}
+
+/// The status and body a fixture's [_HttpError] stands for.
+(int, Map<String, Object?>)? fakeBackendError(Object error) =>
+    error is _HttpError
+    ? (
+        error.status,
+        {
+          'statusCode': error.status,
+          'message': {'message': error.message, 'statusCode': error.status},
+        },
+      )
+    : null;

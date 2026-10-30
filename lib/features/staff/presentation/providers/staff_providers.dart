@@ -94,6 +94,15 @@ final staffVideoCertProvider =
   );
 });
 
+/// Video certification prompts submitted so far — under review or approved.
+/// Null until the prompt list loads; the training summary from
+/// `GET /training/mine` only counts approved ones.
+final staffVideoCertSubmittedProvider = Provider<int?>((ref) => ref
+    .watch(staffVideoCertProvider)
+    .valueOrNull
+    ?.where((p) => p.status == VideoCertStatus.uploaded || p.status == VideoCertStatus.approved)
+    .length);
+
 /// Videos recorded on-device (keyed by prompt id) that have not yet finished
 /// uploading. The server only ever reports `uploaded`/`approved`/`rejected`
 /// once an upload completes, so without this the prompt list has no way to
@@ -166,15 +175,18 @@ final staffMonthlyAttendanceProvider =
   );
 });
 
-final staffSalarySummaryProvider = FutureProvider<SalarySummary>((ref) async {
-  final result = await ref.watch(staffRepositoryProvider).getSalarySummary();
+/// The latest salary month, or the one given (e.g. from a "Salary slip
+/// ready" notification).
+final staffSalarySummaryProvider =
+    FutureProvider.family<SalarySummary, SalaryPeriod?>((ref, period) async {
+  final result = await ref.watch(staffRepositoryProvider).getSalarySummary(period: period);
   return result.fold(
     onSuccess: (data) => data,
     onError: (f) => throw Exception(f.message),
   );
 });
 
-final staffPayslipHistoryProvider = FutureProvider<List<Payslip>>((ref) async {
+final staffPayslipHistoryProvider = FutureProvider<PayslipHistory>((ref) async {
   final result = await ref.watch(staffRepositoryProvider).getPayslipHistory();
   return result.fold(
     onSuccess: (data) => data,

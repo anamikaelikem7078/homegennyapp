@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../foundations/app_decorations.dart';
 import '../../tokens/app_radius.dart';
 import '../../tokens/app_spacing.dart';
+import 'ds_camera_capture_page.dart';
 
 /// Image picker widget with camera and gallery options.
 class DsImagePicker extends StatefulWidget {
@@ -17,8 +18,11 @@ class DsImagePicker extends StatefulWidget {
     this.label,
     this.initialImage,
     this.height = 160,
+    this.preferFrontCamera = false,
   });
 
+  /// Open the front camera for "Take a photo" (selfies).
+  final bool preferFrontCamera;
   final ValueChanged<File> onImagePicked;
   final String? label;
   final File? initialImage;
@@ -39,12 +43,33 @@ class _DsImagePickerState extends State<DsImagePicker> {
   }
 
   Future<void> _pick(ImageSource source) async {
-    final picked = await _picker.pickImage(
-      source: source,
-      maxWidth: 1920,
-      imageQuality: 85,
-    );
-    if (picked != null) {
+    XFile? picked;
+    try {
+      // On web image_picker's camera is a file input; desktop browsers
+      // ignore its `capture` hint and never open the camera.
+      picked = kIsWeb && source == ImageSource.camera
+          ? await DsCameraCapturePage.open(context, preferFront: widget.preferFrontCamera)
+          : await _picker.pickImage(
+              source: source,
+              maxWidth: 1920,
+              imageQuality: 85,
+              preferredCameraDevice: widget.preferFrontCamera ? CameraDevice.front : CameraDevice.rear,
+            );
+    } catch (e) {
+      // e.g. camera permission denied, or no camera app.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            source == ImageSource.camera
+                ? 'Could not open the camera. Check camera permission and try again.'
+                : 'Could not open your photos. Try again.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (picked != null && mounted) {
       final file = File(picked.path);
       setState(() => _image = file);
       widget.onImagePicked(file);

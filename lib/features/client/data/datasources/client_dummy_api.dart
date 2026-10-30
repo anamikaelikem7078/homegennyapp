@@ -206,9 +206,27 @@ class ClientDummyApi {
         totalAmount: 18540,
         status: 'PENDING',
         dueDate: '2024-07-22T00:00:00.000Z',
+        periodFrom: '2024-07-16',
+        periodTo: '2024-07-31',
       );
 
-  Future<List<ClientInvoice>> getInvoices() => _simulate([_currentInvoice]);
+  /// A fortnightly client gets two invoices for July.
+  ClientInvoice get _earlierInvoice => const ClientInvoice(
+        id: 'HG-INV-2407-000',
+        invoiceId: 'HG-INV-2407-000',
+        invoiceNumber: 'HG-INV-2407-000',
+        billingMonth: '7/2024',
+        salaryComponent: 15000,
+        managementFee: 3000,
+        gstAmount: 540,
+        totalAmount: 18540,
+        status: 'PAID',
+        dueDate: '2024-07-08T00:00:00.000Z',
+        periodFrom: '2024-07-01',
+        periodTo: '2024-07-15',
+      );
+
+  Future<List<ClientInvoice>> getInvoices() => _simulate([_currentInvoice, _earlierInvoice]);
 
   List<ClientPaymentHistory> get _paymentHistory => const [
         ClientPaymentHistory(

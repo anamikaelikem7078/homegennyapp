@@ -78,7 +78,8 @@ String _when(StaffRequest r) => [
 
 /// The list card's booking line:
 /// "One-time visit · 2 h · 16 Oct, 7:30 PM" or
-/// "Regular · Permanent · 12 h · from 16 Oct, 8:00 AM".
+/// "Regular · Permanent · 12 h · from 16 Oct, 8:00 AM" or
+/// "Regular · 24×7 Live-in · from 16 Oct, 8:00 AM".
 String _bookingLine(StaffRequest r) {
   final when = _when(r);
   if (r.isOneTime) {
@@ -87,8 +88,12 @@ String _bookingLine(StaffRequest r) {
   }
   return [
     'Regular',
-    r.placementType == 'TEMPORARY' ? 'Hourly' : 'Permanent',
-    '${BookingRules.hours(r.shiftHours)} h',
+    if (r.isLiveIn)
+      '24×7 Live-in'
+    else ...[
+      r.placementType == 'TEMPORARY' ? 'Hourly' : 'Permanent',
+      '${BookingRules.hours(r.shiftHours)} h',
+    ],
     if (when.isNotEmpty) 'from $when',
   ].join(' · ');
 }
@@ -728,7 +733,9 @@ class _YourBooking extends StatelessWidget {
     final when = _when(r);
     final howLong = r.isOneTime
         ? BookingRules.durationLabel(r.durationMin ?? (r.shiftHours * 60).round())
-        : '${r.placementType == 'TEMPORARY' ? 'Hourly' : 'Permanent'} · ${BookingRules.hours(r.shiftHours)} h a day';
+        : r.isLiveIn
+            ? '24×7 Live-in · stays round the clock'
+            : '${r.placementType == 'TEMPORARY' ? 'Hourly' : 'Permanent'} · ${BookingRules.hours(r.shiftHours)} h a day';
     return DsInfoCard(
       lines: [
         DsInfoLine(Icons.badge_rounded, 'Staff', '${SeriesDisplay.label(r.series)} × ${r.headcount}'),

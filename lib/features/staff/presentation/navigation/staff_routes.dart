@@ -53,6 +53,8 @@ abstract final class StaffRoutes {
 
   // Salary
   static const String salary = '/staff/salary';
+  /// Salary for one month — `?month=&year=` passed to GET /staff/salary.
+  static String salaryFor(int month, int year) => '$salary?month=$month&year=$year';
   // Payslip refs look like "HR_PAYROLL:<uuid>" — percent-encoded since the
   // colon would otherwise sit unescaped in a path segment.
   static String payslip(String ref) => '/staff/salary/payslip/${Uri.encodeComponent(ref)}';

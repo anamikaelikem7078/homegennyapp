@@ -8,8 +8,8 @@
 #   bash docs/user_guides/make_screenshots.sh
 set -e
 cd "$(dirname "$0")/../.."
-rm -rf docs/user_guides/screenshots/{common,signup,client,staff,rm}
-for journey in common signup client staff rm; do
+rm -rf docs/user_guides/screenshots/{common,signup,office,client,staff,rm}
+for journey in common signup "office login" client staff rm; do
   echo "── $journey"
   flutter test test/user_flow_walkthrough_test.dart \
     --plain-name "$journey" \

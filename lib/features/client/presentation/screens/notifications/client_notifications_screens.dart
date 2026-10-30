@@ -122,7 +122,12 @@ class _ClientNotificationsTabScreenState extends ConsumerState<ClientNotificatio
                     final template = shown[i].template ?? '';
                     // "Booking confirmed" (STAFF_REQUEST_CONFIRMED) and the
                     // other staff-request updates open the request.
-                    if (template.startsWith('STAFF_REQUEST') && requestId is String) {
+                    final type = shown[i].type;
+                    if (template == 'ATTENDANCE_CONFIRM' || type == 'ATTENDANCE_CONFIRM') {
+                      context.push(ClientRoutes.confirmDays);
+                    } else if (template == 'ATTENDANCE_RESOLVED' || type == 'ATTENDANCE_RESOLVED') {
+                      context.push('${ClientRoutes.confirmDays}?status=ALL');
+                    } else if (template.startsWith('STAFF_REQUEST') && requestId is String) {
                       context.push(ClientRoutes.staffRequestDetail(requestId));
                     } else if ((template == 'STAFF_CHECKED_IN' || template == 'STAFF_AWAY_FROM_HOME') &&
                         staffId is String) {

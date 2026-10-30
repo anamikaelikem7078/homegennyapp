@@ -1,3 +1,5 @@
+import '../../../../core/utils/date_formatter.dart';
+
 /// Payment status for dummy-only payment history entries.
 enum ClientPaymentStatus { pending, paid, overdue, processing }
 
@@ -360,12 +362,29 @@ class ClientInvoice {
     required this.totalAmount,
     required this.status,
     required this.dueDate,
+    this.periodFrom,
+    this.periodTo,
+    this.creditedAmount = 0,
   });
+
+  /// Credit notes against this invoice, ₹ (0 when none).
+  final double creditedAmount;
 
   final String id;
   final String invoiceId;
   final String invoiceNumber;
+
+  /// `12/2025`. No longer unique per client — see [periodLabel].
   final String billingMonth;
+
+  /// The days this invoice covers, `YYYY-MM-DD`. Null only on very old
+  /// invoices.
+  final String? periodFrom;
+  final String? periodTo;
+
+  /// "01–07 Dec 2025", or the month for invoices without dates.
+  String get periodLabel =>
+      DateFormatter.period(periodFrom, periodTo, billingMonth: billingMonth);
   final double salaryComponent;
   final double managementFee;
   final double gstAmount;
@@ -420,13 +439,23 @@ class ClientInvoiceDetail {
     required this.totalAmount,
     required this.amountPaid,
     required this.amountDue,
+    this.creditedAmount = 0,
   });
+
+  /// Credit notes against this invoice, ₹ (0 when none). [amountDue] is
+  /// already totalAmount − creditedAmount − amountPaid.
+  final double creditedAmount;
 
   final String id;
   final String documentType;
   final String billingMonth;
   final String periodFrom;
   final String periodTo;
+
+  /// "01–07 Dec 2025" — this invoice's own days (a client can have several
+  /// invoices in one month), or the month for invoices without dates.
+  String get periodLabel =>
+      DateFormatter.period(periodFrom, periodTo, billingMonth: billingMonth);
   final String status;
   final String dueDate;
   final String placeOfSupply;

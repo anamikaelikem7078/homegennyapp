@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../../design_system/design_system.dart';
+import '../../../domain/models/staff_models.dart';
 import '../../navigation/staff_routes.dart';
 import '../../providers/staff_providers.dart';
 
@@ -75,17 +76,51 @@ class StaffNotificationsScreen extends ConsumerWidget {
                   message: list[i].message,
                   time: list[i].time,
                   isRead: list[i].isRead,
-                  icon: _iconFor(list[i].type),
+                  icon: _salaryTitles.contains(list[i].title) ? Icons.payments_rounded : _iconFor(list[i].type),
                   onTap: () {
                     ref.read(staffRepositoryProvider).markNotificationRead(list[i].id);
                     ref.invalidate(staffNotificationsProvider);
-                    _navigateForType(context, list[i].type, list[i].data);
+                    if (!_navigateForTitle(context, list[i])) {
+                      _navigateForType(context, list[i].type, list[i].data);
+                    }
                   },
                 ).animate(delay: (45 * i.clamp(0, 10)).ms).fadeIn(duration: 280.ms).slideX(begin: 0.05, end: 0),
           ];
         },
       ),
     );
+  }
+
+  static const _slipReady = 'Salary slip ready';
+  static const _arrearsNext = 'Arrears on your next salary';
+  static const _salaryTitles = {_slipReady, _arrearsNext};
+
+  /// Salary notifications are told apart by title. "Salary slip ready"
+  /// opens Salary for its month; "Arrears on your next salary" opens Salary.
+  /// Returns false for any other title.
+  bool _navigateForTitle(BuildContext context, StaffNotification n) {
+    switch (n.title) {
+      case _slipReady:
+        final period = _periodOf(n);
+        context.push(period == null ? StaffRoutes.salary : StaffRoutes.salaryFor(period.month, period.year));
+        return true;
+      case _arrearsNext:
+        context.push(StaffRoutes.salary);
+        return true;
+    }
+    return false;
+  }
+
+  /// The month from `data` (period_month/period_year or month/year), else
+  /// an "M/YYYY" in the message.
+  static SalaryPeriod? _periodOf(StaffNotification n) {
+    int? asInt(Object? v) => v is int ? v : int.tryParse('${v ?? ''}');
+    final d = n.data ?? const {};
+    final month = asInt(d['period_month'] ?? d['month']);
+    final year = asInt(d['period_year'] ?? d['year']);
+    if (month != null && year != null && month >= 1 && month <= 12) return SalaryPeriod(month, year);
+    final m = RegExp(r'\b(1[0-2]|0?[1-9])/(\d{4})\b').firstMatch(n.message);
+    return m == null ? null : SalaryPeriod(int.parse(m.group(1)!), int.parse(m.group(2)!));
   }
 
   IconData _iconFor(String type) => switch (type) {
@@ -100,6 +135,11 @@ class StaffNotificationsScreen extends ConsumerWidget {
       };
 
   void _navigateForType(BuildContext context, String type, Map<String, dynamic>? data) {
+    // RM resolved a day the client disputed.
+    if (type == 'ATTENDANCE_RESOLVED' || data?['template'] == 'ATTENDANCE_RESOLVED') {
+      context.push(StaffRoutes.attendanceHistory);
+      return;
+    }
     switch (type) {
       case 'document':
         context.push(StaffRoutes.documents);

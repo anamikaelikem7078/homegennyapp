@@ -257,7 +257,7 @@ class _Header extends StatelessWidget {
     switch (data.status) {
       case 'PRESENT':
         final since = data.checkIn?.at;
-        title = since == null ? '$name · Present' : '$name · Present since ${DateFormatter.time(since)}';
+        title = since == null ? '$name · Present' : '$name · Present since ${DateFormatter.since(since)}';
         if (last != null) {
           label = last.label;
           labelColor = last.atHome == false ? AppColors.error : AppColors.success;

@@ -53,12 +53,82 @@ String _currentFy() {
   return 'FY ${start % 100}-${(start + 1) % 100}';
 }
 
+/// "1 client pending" — clients of the month Finance hasn't approved yet.
+String _pendingLabel(int n) => '$n ${n == 1 ? 'client' : 'clients'} pending';
+
+/// A month Finance is still checking — not a payslip yet, so not tappable.
+class _AwaitingTile extends StatelessWidget {
+  const _AwaitingTile({required this.period});
+  final SalaryPeriod period;
+
+  @override
+  Widget build(BuildContext context) {
+    return DsListCard(
+      icon: Icons.hourglass_top_rounded,
+      iconColor: AppColors.warning,
+      title: '${period.monthName} salary — being checked by Finance',
+      subtitle: '${period.label} · the slip appears once it is approved',
+    );
+  }
+}
+
+/// The "Arrears" line, with the server's reason under it. Arrears are
+/// already inside the net amount.
+class _ArrearsCard extends StatelessWidget {
+  const _ArrearsCard({required this.amount, this.note});
+  final double amount;
+  final String? note;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: dsCardDecoration(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const DsIconTile(Icons.add_circle_rounded, size: 40),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Arrears',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.lightTextPrimary),
+                ),
+                if (note != null && note!.isNotEmpty)
+                  Text(
+                    note!,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '+ ${CurrencyFormatter.inr(amount)}',
+            style: GoogleFonts.plusJakartaSans(fontSize: 14.5, fontWeight: FontWeight.w800, color: AppColors.success),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Big net-pay hero shared by salary + payslip screens.
 class _NetHero extends StatelessWidget {
-  const _NetHero({required this.month, required this.net, required this.status, this.footer});
+  const _NetHero({
+    required this.month,
+    required this.net,
+    required this.status,
+    this.pendingHouses = 0,
+    this.footer,
+  });
   final String month;
   final String net;
   final String status;
+  final int pendingHouses;
   final Widget? footer;
 
   @override
@@ -99,6 +169,15 @@ class _NetHero extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (pendingHouses > 0)
+                      Text(
+                        _pendingLabel(pendingHouses),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.sunYellow,
+                        ),
+                      ),
                     const SizedBox(height: 6),
                     DsGlassPill(status.toUpperCase(), icon: Icons.check_circle_rounded),
                   ],
@@ -115,13 +194,16 @@ class _NetHero extends StatelessWidget {
   }
 }
 
-/// Salary summary screen.
+/// Salary summary screen — the latest month, or [period] when opened for a
+/// specific one (e.g. from a "Salary slip ready" notification).
 class StaffSalaryScreen extends ConsumerWidget {
-  const StaffSalaryScreen({super.key});
+  const StaffSalaryScreen({super.key, this.period});
+  final SalaryPeriod? period;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summary = ref.watch(staffSalarySummaryProvider);
+    final provider = staffSalarySummaryProvider(period);
+    final summary = ref.watch(provider);
 
     final actions = [
       DsListCard(
@@ -151,29 +233,40 @@ class StaffSalaryScreen extends ConsumerWidget {
       title: 'Salary',
       subtitle: 'Your earnings overview',
       onBack: () => _back(context),
-      onRefresh: () async => ref.invalidate(staffSalarySummaryProvider),
+      onRefresh: () async => ref.invalidate(provider),
       body: dsAsyncBody(
         summary,
-        onRetry: () => ref.invalidate(staffSalarySummaryProvider),
+        onRetry: () => ref.invalidate(provider),
         builder: (s) {
+          final awaiting = [
+            if (s.awaitingApproval.isNotEmpty) ...[
+              const DsSection('Being checked'),
+              for (final p in s.awaitingApproval) _AwaitingTile(period: p),
+            ],
+          ];
           if (!s.hasPayslips) {
             return [
+              // The server's message is shown as is (e.g. "Your salary for
+              // 11/2026 is being checked by Finance…").
               DsEmptyBlock(
                 icon: Icons.payments_rounded,
-                title: 'No payslips yet',
+                title: period?.label ?? 'No payslip yet',
                 message: s.emptyMessage ?? 'Your salary details will appear here once payroll runs for the first time.',
               ),
+              ...awaiting,
               const DsSection('Quick actions'),
               DsAdaptiveGrid(children: actions),
             ];
           }
           final gross = _amount(s.gross);
           final ded = _amount(s.deductions);
+          final net = _amount(s.net);
           return [
             _NetHero(
               month: s.month,
               net: s.net,
               status: s.status,
+              pendingHouses: s.pendingHouses,
               footer: s.ref == null
                   ? null
                   : Row(
@@ -211,21 +304,37 @@ class StaffSalaryScreen extends ConsumerWidget {
                     color: AppColors.error,
                     icon: Icons.trending_down_rounded,
                   ),
+                  if (s.arrears > 0) ...[
+                    const SizedBox(height: 14),
+                    _BarRow(
+                      label: 'Arrears',
+                      value: CurrencyFormatter.inr(s.arrears),
+                      fraction: gross == 0 ? 0 : s.arrears / gross,
+                      color: AppColors.primary,
+                      icon: Icons.add_circle_rounded,
+                    ),
+                  ],
                   const SizedBox(height: 14),
+                  // net = gross − deductions + arrears
                   _BarRow(
                     label: 'Net pay',
                     value: s.net,
-                    fraction: gross == 0 ? 0 : (gross - ded) / gross,
+                    fraction: gross == 0 ? 0 : net / gross,
                     color: AppColors.success,
                     icon: Icons.account_balance_wallet_rounded,
                   ),
                 ],
               ),
             ),
+            if (s.arrears > 0) ...[
+              const SizedBox(height: 12),
+              _ArrearsCard(amount: s.arrears, note: s.arrearsNote),
+            ],
             if (s.houses.isNotEmpty) ...[
               DsSection('Earned from', trailing: DsPill('${s.houses.length}')),
               for (final h in s.houses) _HouseTile(house: h),
             ],
+            ...awaiting,
             const DsSection('Quick actions'),
             DsAdaptiveGrid(children: actions),
           ];
@@ -329,7 +438,7 @@ class StaffPayslipScreen extends ConsumerWidget {
         builder: (p) {
           final deductionRows = p.deductionBreakdown.entries.where((e) => e.value > 0).toList();
           return [
-            _NetHero(month: p.month, net: p.amount, status: p.status),
+            _NetHero(month: p.month, net: p.amount, status: p.status, pendingHouses: p.pendingHouses),
             const DsSection('Earnings'),
             DsInfoCard(
               lines: [
@@ -340,6 +449,10 @@ class StaffPayslipScreen extends ConsumerWidget {
                 ),
               ],
             ),
+            if (p.arrears > 0) ...[
+              const SizedBox(height: 12),
+              _ArrearsCard(amount: p.arrears, note: p.arrearsNote),
+            ],
             if (deductionRows.isNotEmpty) ...[
               DsSection('Deductions', trailing: DsPill(p.deductionsAmount, color: AppColors.error)),
               DsInfoCard(
@@ -367,6 +480,10 @@ class StaffPayslipScreen extends ConsumerWidget {
                   _summaryRow('Gross pay', p.grossAmount),
                   const SizedBox(height: 8),
                   _summaryRow('Total deductions', '- ${p.deductionsAmount}', color: AppColors.error),
+                  if (p.arrears > 0) ...[
+                    const SizedBox(height: 8),
+                    _summaryRow('Arrears', '+ ${CurrencyFormatter.inr(p.arrears)}', color: AppColors.success),
+                  ],
                   const Divider(height: 22, color: AppColors.lightBorder),
                   _summaryRow('Net payable', p.amount, bold: true, color: AppColors.success),
                 ],
@@ -418,14 +535,22 @@ class StaffSalaryHistoryScreen extends ConsumerWidget {
       body: dsAsyncBody(
         history,
         onRetry: () => ref.invalidate(staffPayslipHistoryProvider),
-        builder: (list) {
+        builder: (h) {
+          final list = h.payslips;
+          final awaiting = [
+            if (h.awaitingApproval.isNotEmpty) ...[
+              const DsSection('Being checked'),
+              for (final p in h.awaitingApproval) _AwaitingTile(period: p),
+            ],
+          ];
           if (list.isEmpty) {
-            return const [
-              DsEmptyBlock(
+            return [
+              const DsEmptyBlock(
                 icon: Icons.receipt_long_rounded,
                 title: 'No payslips yet',
-                message: 'Payslips appear here after each payroll run.',
+                message: 'Payslips appear here once Finance approves each month.',
               ),
+              ...awaiting,
             ];
           }
           final total = list.fold<double>(0, (a, p) => a + _amount(p.amount));
@@ -443,6 +568,7 @@ class StaffSalaryHistoryScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            ...awaiting,
             const DsSection('Payslips'),
             for (var i = 0; i < list.length; i++)
               _PayslipTile(payslip: list[i], fraction: max == 0 ? 0 : _amount(list[i].amount) / max)
@@ -501,6 +627,24 @@ class _PayslipTile extends StatelessWidget {
                               color: AppColors.lightTextPrimary,
                             ),
                           ),
+                          if (p.pendingHouses > 0)
+                            Text(
+                              _pendingLabel(p.pendingHouses),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.warning,
+                              ),
+                            ),
+                          if (p.arrears > 0)
+                            Text(
+                              'Includes ${CurrencyFormatter.inr(p.arrears)} arrears',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.lightTextSecondary,
+                              ),
+                            ),
                         ],
                       ),
                     ),

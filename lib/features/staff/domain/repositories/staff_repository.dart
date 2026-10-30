@@ -39,8 +39,9 @@ abstract interface class StaffRepository {
   Future<Result<CheckInResult>> checkOut({double? latitude, double? longitude});
   Future<Result<List<AttendanceRecord>>> getAttendanceHistory();
   Future<Result<MonthlyAttendance>> getMonthlyAttendance(String month);
-  Future<Result<SalarySummary>> getSalarySummary();
-  Future<Result<List<Payslip>>> getPayslipHistory();
+  /// The latest month, or [period] when given.
+  Future<Result<SalarySummary>> getSalarySummary({SalaryPeriod? period});
+  Future<Result<PayslipHistory>> getPayslipHistory();
   Future<Result<Payslip>> getPayslip(String ref);
   Future<Result<List<int>>> downloadPayslipPdf(String ref);
   Future<Result<BankDetails>> getBankDetails();

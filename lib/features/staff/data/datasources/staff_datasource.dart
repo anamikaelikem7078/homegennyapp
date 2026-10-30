@@ -112,16 +112,13 @@ class StaffRemoteDataSource extends BaseRemoteDataSource {
     return StaffDtoCodec.decodeSalarySummary(json);
   }
 
-  Future<List<Payslip>> getPayslipHistory() async {
+  Future<PayslipHistory> getPayslipHistory() async {
     final json = await getJson(ApiConstants.staffPayslips);
-    return StaffDtoCodec.decodeList(
-      json['items'] as List<dynamic>? ?? [],
-      StaffDtoCodec.decodePayslip,
-    );
+    return StaffDtoCodec.decodePayslipHistory(json);
   }
 
   Future<Payslip> getPayslip(String ref) async {
-    final all = await getPayslipHistory();
+    final all = (await getPayslipHistory()).payslips;
     return all.firstWhere(
       (p) => p.ref == ref,
       orElse: () => throw StateError('No payslip found for ref $ref'),
@@ -552,8 +549,8 @@ class StaffDummyDataSource {
   Future<List<AttendanceRecord>> getAttendanceHistory() => _api.getAttendanceHistory();
   Future<MonthlyAttendance> getMonthlyAttendance(String month) =>
       _api.getMonthlyAttendance(month);
-  Future<SalarySummary> getSalarySummary() => _api.getSalarySummary();
-  Future<List<Payslip>> getPayslipHistory() => _api.getPayslipHistory();
+  Future<SalarySummary> getSalarySummary({SalaryPeriod? period}) => _api.getSalarySummary(period: period);
+  Future<PayslipHistory> getPayslipHistory() => _api.getPayslipHistory();
   Future<Payslip> getPayslip(String id) => _api.getPayslip(id);
   Future<List<int>> downloadPayslipPdf(String ref) => _api.downloadPayslipPdf(ref);
   Future<BankDetails> getBankDetails() => _api.getBankDetails();

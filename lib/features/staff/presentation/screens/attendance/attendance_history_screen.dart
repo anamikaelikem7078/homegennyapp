@@ -154,6 +154,14 @@ class StaffAttendanceTile extends StatelessWidget {
                         Expanded(child: _time(Icons.logout_rounded, 'Out', DateFormatter.time(record.checkOut))),
                       ],
                     ),
+                    if (_clientTag(record.clientStatus) case (final tag, final tagColor, final tagIcon)) ...[
+                      const SizedBox(height: 8),
+                      Align(alignment: Alignment.centerLeft, child: DsPill(tag, color: tagColor, icon: tagIcon)),
+                    ],
+                    if (record.clientStatus == 'DISPUTED' && (record.clientNote?.isNotEmpty ?? false))
+                      _note('Client: ${record.clientNote}', AppColors.error),
+                    if (record.resolutionNote?.isNotEmpty ?? false)
+                      _note('Resolved: ${record.resolutionNote}', AppColors.success),
                     if (record.location != null && record.location!.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Row(
@@ -180,6 +188,23 @@ class StaffAttendanceTile extends StatelessWidget {
       ),
     );
   }
+
+  /// The client's confirmation of the day; null = no tag (NOT_REQUIRED, or
+  /// an older server).
+  static (String, Color, IconData)? _clientTag(String? s) => switch (s) {
+        'PENDING' => ('Waiting for client', AppColors.warning, Icons.hourglass_top_rounded),
+        'APPROVED' || 'DEEMED' || 'APPROVED_PAPER' => ('Confirmed', AppColors.success, Icons.verified_rounded),
+        'DISPUTED' => ('Under review', AppColors.error, Icons.report_rounded),
+        _ => null,
+      };
+
+  Widget _note(String text, Color color) => Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          text,
+          style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+        ),
+      );
 
   Widget _time(IconData icon, String label, String value) => Row(
         children: [

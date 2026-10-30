@@ -114,6 +114,12 @@ class ClientProfileTabScreen extends ConsumerWidget {
                     title: l10n.paymentMethods,
                     onTap: () => context.push(ClientRoutes.paymentDetails),
                   ),
+                  DsProfileMenuItem(
+                    icon: Icons.table_chart_rounded,
+                    title: 'Monthly attendance sheet',
+                    subtitle: 'View, print and sign',
+                    onTap: () => context.push(ClientRoutes.musterRoll),
+                  ),
                 ],
               ),
               DsProfileSection(

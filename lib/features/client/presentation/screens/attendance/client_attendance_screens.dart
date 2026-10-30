@@ -149,7 +149,7 @@ class ClientTodayAttendanceScreen extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: DsGlassStat(
-                          value: t.checkInTime ?? '—',
+                          value: t.checkInTime == null ? '—' : DateFormatter.since(t.checkInTime),
                           label: 'Check-in',
                           icon: Icons.login_rounded,
                         ),
@@ -225,7 +225,8 @@ class _StaffTodayCard extends StatelessWidget {
     final last = staff.lastLocation;
     final small = GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.lightTextSecondary);
     final times = [
-      if (staff.checkIn != null) 'In ${DateFormatter.time(staff.checkIn)}',
+      // A live-in's check-in can be days ago: show its date then.
+      if (staff.checkIn != null) 'In ${DateFormatter.since(staff.checkIn)}',
       if (staff.checkOut != null) 'Out ${DateFormatter.time(staff.checkOut)}',
     ].join('  ·  ');
 

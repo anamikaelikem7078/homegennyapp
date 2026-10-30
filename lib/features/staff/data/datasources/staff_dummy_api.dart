@@ -494,28 +494,49 @@ class StaffDummyApi {
         ),
       );
 
+  static const _awaitingApproval = [SalaryPeriod(7, 2024)];
+
   SalarySummary get _salarySummary => const SalarySummary(
         hasPayslips: true,
         month: 'June 2024',
         gross: '₹28,000',
         deductions: '₹2,240',
-        net: '₹25,760',
+        net: '₹25,960',
         status: 'Paid',
         ref: 'FIELD_PAYROLL:demo-june',
+        arrears: 200,
+        arrearsNote: '₹200 — demo invoice 1–10 May: rate correction',
+        awaitingApproval: _awaitingApproval,
       );
 
-  Future<SalarySummary> getSalarySummary() => _simulate(_salarySummary);
+  Future<SalarySummary> getSalarySummary({SalaryPeriod? period}) => _simulate(
+        period != null && _awaitingApproval.contains(period)
+            ? SalarySummary(
+                hasPayslips: false,
+                month: '',
+                gross: '',
+                deductions: '',
+                net: '',
+                status: '',
+                emptyMessage: 'Your salary for ${period.month}/${period.year} is being checked by Finance. '
+                    'The slip appears here once it is approved.',
+                awaitingApproval: _awaitingApproval,
+              )
+            : _salarySummary,
+      );
 
   List<Payslip> get _payslips => const [
         Payslip(
           ref: 'FIELD_PAYROLL:demo-june',
           month: 'June 2024',
-          amount: '₹25,760',
+          amount: '₹25,960',
           grossAmount: '₹28,000',
           deductionsAmount: '₹2,240',
           deductionBreakdown: {'pf': 1800, 'esic': 440},
           status: 'Paid',
           presentDays: 26,
+          arrears: 200,
+          arrearsNote: '₹200 — demo invoice 1–10 May: rate correction',
         ),
         Payslip(
           ref: 'FIELD_PAYROLL:demo-may',
@@ -539,7 +560,8 @@ class StaffDummyApi {
         ),
       ];
 
-  Future<List<Payslip>> getPayslipHistory() => _simulate(_payslips);
+  Future<PayslipHistory> getPayslipHistory() =>
+      _simulate(PayslipHistory(payslips: _payslips, awaitingApproval: _awaitingApproval));
 
   Future<Payslip> getPayslip(String ref) async {
     await Future<void>.delayed(_delay);

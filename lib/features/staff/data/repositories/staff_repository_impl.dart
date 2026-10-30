@@ -312,13 +312,13 @@ class StaffRepositoryImpl implements StaffRepository {
       _executor.fetch(local: () async => await _local.getMonthlyAttendance(month), dummy: () => _dummy.getMonthlyAttendance(month));
 
   @override
-  Future<Result<SalarySummary>> getSalarySummary() => _executor.fetch(
-        remote: _remote.getSalarySummary,
-        dummy: _dummy.getSalarySummary,
+  Future<Result<SalarySummary>> getSalarySummary({SalaryPeriod? period}) => _executor.fetch(
+        remote: () => _remote.getSalarySummary(month: period?.month, year: period?.year),
+        dummy: () => _dummy.getSalarySummary(period: period),
       );
 
   @override
-  Future<Result<List<Payslip>>> getPayslipHistory() => _executor.fetch(
+  Future<Result<PayslipHistory>> getPayslipHistory() => _executor.fetch(
         remote: _remote.getPayslipHistory,
         dummy: _dummy.getPayslipHistory,
       );

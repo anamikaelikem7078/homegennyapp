@@ -9,8 +9,7 @@ import '../../../core/router/app_routes.dart';
 import '../../../core/utils/validators.dart';
 import '../../domain/models/user_role.dart';
 import '../viewmodels/login_viewmodel.dart';
-import '../widgets/role_picker_sheet.dart';
-
+import '../widgets/office_login_sheet.dart';
 // --- Palette ---
 const Color _brandBlue = Color(0xFF1A56FF);
 const Color _deepNavy = Color(0xFF0B1B4D);
@@ -19,7 +18,6 @@ const Color _ink = Color(0xFF111827);
 const Color _muted = Color(0xFF6B7280);
 const Color _fieldFill = Color(0xFFF3F5FA);
 const Color _error = Color(0xFFE5484D);
-
 const double _heroHeight = 340;
 const double _sheetOverlap = 36;
 
@@ -73,8 +71,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final sent = await ref.read(loginViewModelProvider.notifier).sendOtp(phone);
     if (!mounted || sent == null) return;
 
+    // Office accounts (RM, BM, Admin) sign in with their password, not OTP.
     if (sent.usePasswordLogin) {
-      await showOfficeAccountDialog(context);
+      await signInOfficeAccount(context, phone);
       return;
     }
 

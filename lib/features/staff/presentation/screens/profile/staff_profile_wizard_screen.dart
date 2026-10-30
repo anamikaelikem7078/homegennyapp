@@ -59,6 +59,7 @@ class _StaffProfileWizardScreenState extends ConsumerState<StaffProfileWizardScr
   final _ecName = TextEditingController();
   final _ecMobile = TextEditingController();
   final _experience = TextEditingController();
+  final _relation = TextEditingController(); // father_or_husband_name
   DateTime? _dob;
   String? _gender;
   String? _series; // short code: UC / SC / CK
@@ -73,7 +74,7 @@ class _StaffProfileWizardScreenState extends ConsumerState<StaffProfileWizardScr
 
   @override
   void dispose() {
-    for (final c in [_name, _address, _pincode, _ecName, _ecMobile, _experience]) {
+    for (final c in [_name, _address, _pincode, _ecName, _ecMobile, _experience, _relation]) {
       c.dispose();
     }
     super.dispose();
@@ -87,6 +88,7 @@ class _StaffProfileWizardScreenState extends ConsumerState<StaffProfileWizardScr
     _ecName.text = p.emergencyContactName ?? '';
     _ecMobile.text = p.emergencyContactMobile ?? '';
     _experience.text = p.experienceYears?.toString() ?? '';
+    _relation.text = p.fatherOrHusbandName ?? '';
     _dob = DateTime.tryParse(p.dateOfBirth ?? '');
     _gender = _genders.any((g) => g.$1 == p.gender?.toUpperCase()) ? p.gender!.toUpperCase() : null;
     _series = SeriesCatalog.fallback.find(p.series)?.short;
@@ -114,6 +116,8 @@ class _StaffProfileWizardScreenState extends ConsumerState<StaffProfileWizardScr
           'full_name': _name.text.trim(),
           if (_dob != null) 'date_of_birth': DateFormat('yyyy-MM-dd').format(_dob!),
           if (_gender != null) 'gender': _gender,
+          // Optional; a blank is never sent (the server takes 2–150 letters).
+          if (_relation.text.trim().isNotEmpty) 'father_or_husband_name': _relation.text.trim(),
           if (_series != null) 'series': _series,
         },
       1 => {
@@ -390,6 +394,23 @@ class _StaffProfileWizardScreenState extends ConsumerState<StaffProfileWizardScr
         ),
       ),
       const SizedBox(height: 16),
+      // Printed on the client's monthly attendance sheet (muster roll).
+      DsLabeledField(
+        label: "Father's or husband's name",
+        controller: _relation,
+        icon: Icons.family_restroom_rounded,
+        optional: true,
+        textCapitalization: TextCapitalization.words,
+        maxLength: 150,
+        validator: (v) {
+          final t = v?.trim() ?? '';
+          if (t.isEmpty) return null;
+          if (t.length < 2) return 'Enter at least 2 letters';
+          if (!RegExp(r"^[\p{L} .'-]+$", unicode: true).hasMatch(t)) return 'Use letters only';
+          return null;
+        },
+      ),
+      const SizedBox(height: 16),
       _lockedOr(
         'series',
         'Work category',
@@ -529,6 +550,7 @@ class _StaffProfileWizardScreenState extends ConsumerState<StaffProfileWizardScr
           ('Full name', or(_name.text)),
           ('Date of birth', _dob == null ? 'Not added' : DateFormat('d MMM yyyy').format(_dob!)),
           ('Gender', or(_genders.where((g) => g.$1 == _gender).map((g) => g.$2).firstOrNull)),
+          ("Father's / husband's name", or(_relation.text)),
           ('Work category', _series == null ? 'Not added' : SeriesDisplay.label(_series)),
         ],
       ),

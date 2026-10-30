@@ -10,6 +10,7 @@ import 'package:homegennyapp/core/theme/app_fonts.dart';
 import '../../../../../design_system/design_system.dart';
 import '../../navigation/client_routes.dart';
 import '../../../../../common/presentation/providers/auth_provider.dart';
+import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../core/onboarding/onboarding_providers.dart';
 import '../../../../../core/onboarding/profile_gate.dart';
 import '../../../../../core/router/app_routes.dart';
@@ -19,6 +20,7 @@ import '../../../../../core/extensions/context_extensions.dart';
 import '../../../domain/models/client_models.dart';
 import '../../../domain/models/client_snapshot.dart';
 import '../../../domain/models/staff_request_models.dart';
+import '../../providers/attendance_approval_providers.dart';
 import '../../providers/client_providers.dart';
 import '../../widgets/client_scaffold.dart';
 import 'today_at_home_card.dart';
@@ -85,6 +87,7 @@ class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> with Widget
         ..invalidate(clientAssignedStaffProvider)
         ..invalidate(clientAttendanceHistoryProvider)
         ..invalidate(clientStaffRequestsProvider)
+        ..invalidate(clientPendingApprovalsProvider)
         ..invalidate(clientNotificationsProvider);
     }
 
@@ -349,8 +352,18 @@ class _AttentionSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final open = (ref.watch(clientStaffRequestsProvider).valueOrNull ?? const <StaffRequest>[]).where((r) => r.isOpen).toList();
     final toChoose = open.where((r) => r.canChoose).fold<int>(0, (sum, r) => sum + r.shortlistedCount);
+    final toConfirm = ref.watch(clientPendingApprovalsProvider).valueOrNull?.pendingCount ?? 0;
 
     final items = <Widget>[
+      if (toConfirm > 0)
+        _AttentionTile(
+          color: AppColors.warning,
+          icon: Icons.fact_check_rounded,
+          title: toConfirm == 1 ? '1 day to confirm' : '$toConfirm days to confirm',
+          subtitle: 'Check the days your staff marked',
+          cta: 'Confirm',
+          onTap: () => context.push(ClientRoutes.confirmDays),
+        ),
       if (data.pendingInvoicesCount > 0)
         _AttentionTile(
           color: AppColors.error,
@@ -1083,7 +1096,7 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
                 icon: Icons.today_rounded,
                 iconColor: today.checkInTime != null ? AppColors.success : AppColors.warning,
                 title: l10n.today,
-                subtitle: today.checkInTime != null ? l10n.checkInTime(today.checkInTime!) : l10n.noRecordsYet,
+                subtitle: today.checkInTime != null ? l10n.checkInTime(DateFormatter.since(today.checkInTime)) : l10n.noRecordsYet,
                 trailing: DsPill(
                   today.todayStatus.replaceAll('_', ' '),
                   color: today.checkInTime != null ? AppColors.success : AppColors.warning,
@@ -1105,6 +1118,20 @@ class ClientAttendanceSummaryScreen extends ConsumerWidget {
                   title: l10n.attendanceHistory,
                   subtitle: 'Every day this month',
                   onTap: () => context.push(ClientRoutes.attendanceHistory),
+                ),
+                DsListCard(
+                  margin: EdgeInsets.zero,
+                  icon: Icons.fact_check_rounded,
+                  title: 'Confirm days',
+                  subtitle: 'Confirm or question marked days',
+                  onTap: () => context.push(ClientRoutes.confirmDays),
+                ),
+                DsListCard(
+                  margin: EdgeInsets.zero,
+                  icon: Icons.table_chart_rounded,
+                  title: 'Monthly attendance sheet',
+                  subtitle: 'View, print and sign',
+                  onTap: () => context.push(ClientRoutes.musterRoll),
                 ),
                 DsListCard(
                   margin: EdgeInsets.zero,
@@ -1166,7 +1193,7 @@ class ClientPendingPaymentScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        DsGlassPill(inv.billingMonth.toUpperCase(), icon: Icons.receipt_long_rounded),
+                        DsGlassPill(inv.periodLabel.toUpperCase(), icon: Icons.receipt_long_rounded),
                         const SizedBox(height: 12),
                         TweenAnimationBuilder<double>(
                           tween: Tween(begin: 0, end: inv.totalAmount),

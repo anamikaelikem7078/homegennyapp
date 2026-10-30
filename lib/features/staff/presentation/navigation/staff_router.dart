@@ -249,10 +249,22 @@ List<RouteBase> get staffRoutes => [
         builder: (_, __) => const StaffMonthlyAttendanceScreen(),
       ),
 
+      // Notifications
+      GoRoute(
+        path: StaffRoutes.notifications,
+        builder: (_, __) => const StaffNotificationsScreen(),
+      ),
+
       // Salary
       GoRoute(
         path: StaffRoutes.salary,
-        builder: (_, __) => const StaffSalaryScreen(),
+        builder: (_, state) {
+          final month = int.tryParse(state.uri.queryParameters['month'] ?? '');
+          final year = int.tryParse(state.uri.queryParameters['year'] ?? '');
+          return StaffSalaryScreen(
+            period: month != null && year != null ? SalaryPeriod(month, year) : null,
+          );
+        },
         routes: [
           GoRoute(
             path: 'payslip/:id',

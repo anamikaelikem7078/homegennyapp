@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import '../constants/api_constants.dart';
@@ -97,14 +99,33 @@ abstract class BaseRemoteDataSource {
     final status = response.statusCode ?? 0;
     final body = response.data;
     if (status < 200 || status >= 300 || body == null) {
+      // A bytes request gets its JSON error envelope as raw bytes too —
+      // decode it so the server's message (e.g. "No payslip for 11/2026")
+      // reaches the user instead of a generic failure.
       throw DioException(
         requestOptions: response.requestOptions,
-        response: response,
+        response: Response<dynamic>(
+          requestOptions: response.requestOptions,
+          statusCode: response.statusCode,
+          statusMessage: response.statusMessage,
+          headers: response.headers,
+          data: _decodeErrorBytes(body),
+        ),
         type: DioExceptionType.badResponse,
         message: 'Request failed with status $status',
       );
     }
     return body;
+  }
+
+  static dynamic _decodeErrorBytes(List<int>? bytes) {
+    if (bytes == null || bytes.isEmpty) return null;
+    final text = utf8.decode(bytes, allowMalformed: true);
+    try {
+      return jsonDecode(text);
+    } on FormatException {
+      return text;
+    }
   }
 
   Future<Map<String, dynamic>> uploadMultipart(

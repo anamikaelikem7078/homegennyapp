@@ -13,6 +13,7 @@ import '../../../core/router/app_routes.dart';
 import '../../domain/models/user_role.dart';
 import '../providers/auth_provider.dart';
 import '../viewmodels/otp_viewmodel.dart';
+import '../widgets/office_login_sheet.dart';
 import '../widgets/role_picker_sheet.dart';
 
 // --- Premium Palette ---
@@ -90,8 +91,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         setState(() => _role = role);
         await _verify();
       case OtpOfficeAccount():
-        await showOfficeAccountDialog(context);
-        if (mounted) context.go(AppRoutes.login);
+        // Office accounts sign in with their password instead.
+        await signInOfficeAccount(context, widget.phone);
       case OtpFailed():
         _otpController.clear();
         _focusNode.requestFocus();

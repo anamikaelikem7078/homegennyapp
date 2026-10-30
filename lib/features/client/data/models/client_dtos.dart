@@ -347,10 +347,13 @@ abstract final class ClientDtoCodec {
         'invoiceId': i.invoiceId,
         'invoiceNumber': i.invoiceNumber,
         'billingMonth': i.billingMonth,
+        'periodFrom': i.periodFrom,
+        'periodTo': i.periodTo,
         'salaryComponent': i.salaryComponent,
         'managementFee': i.managementFee,
         'gstAmount': i.gstAmount,
         'totalAmount': i.totalAmount,
+        'creditedAmount': i.creditedAmount,
         'status': i.status,
         'dueDate': i.dueDate,
       };
@@ -370,6 +373,10 @@ abstract final class ClientDtoCodec {
         totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
         status: json['status'] as String? ?? 'PENDING',
         dueDate: json['dueDate'] as String? ?? '',
+        // The invoice's own days; null only on very old invoices.
+        periodFrom: json['periodFrom'] as String?,
+        periodTo: json['periodTo'] as String?,
+        creditedAmount: (json['creditedAmount'] as num?)?.toDouble() ?? 0,
       );
 
   // ── Invoice detail ── (matches GET /client/invoices/:id exactly — a
@@ -404,6 +411,7 @@ abstract final class ClientDtoCodec {
         totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
         amountPaid: (json['amountPaid'] as num?)?.toDouble() ?? 0,
         amountDue: (json['amountDue'] as num?)?.toDouble() ?? 0,
+        creditedAmount: (json['creditedAmount'] as num?)?.toDouble() ?? 0,
       );
 
   // ── Payment history ── (real endpoint now; exact field names aren't

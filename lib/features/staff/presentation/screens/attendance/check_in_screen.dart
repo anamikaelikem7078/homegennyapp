@@ -309,6 +309,7 @@ class _StaffCheckInScreenState extends ConsumerState<StaffCheckInScreen> {
           child: DsImagePicker(
             label: 'Selfie for attendance',
             height: 200,
+            preferFrontCamera: true,
             initialImage: _selfie,
             onImagePicked: (file) => setState(() => _selfie = file),
           ),

@@ -48,6 +48,7 @@ abstract final class StaffDtoCodec {
         'address': p.address,
         'dateOfBirth': p.dateOfBirth,
         'gender': p.gender,
+        'fatherOrHusbandName': p.fatherOrHusbandName,
         'city': p.city,
         'area': p.area,
         'pincode': p.pincode,
@@ -79,6 +80,7 @@ abstract final class StaffDtoCodec {
         address: json['address'] as String?,
         dateOfBirth: json['dateOfBirth']?.toString(),
         gender: json['gender'] as String?,
+        fatherOrHusbandName: (json['fatherOrHusbandName'] ?? json['father_or_husband_name']) as String?,
         city: json['city'] as String?,
         area: json['area'] as String?,
         pincode: json['pincode']?.toString(),
@@ -141,6 +143,8 @@ abstract final class StaffDtoCodec {
   static Map<String, dynamic> encodeAttendance(AttendanceRecord r) => {
         'date': r.date, 'check_in': r.checkIn, 'check_out': r.checkOut,
         'status': r.status, 'location': r.location,
+        'client_status': r.clientStatus, 'client_note': r.clientNote,
+        'resolution_note': r.resolutionNote,
       };
 
   static AttendanceRecord decodeAttendance(Map<String, dynamic> json) => AttendanceRecord(
@@ -149,6 +153,9 @@ abstract final class StaffDtoCodec {
         checkOut: json['check_out'] as String?,
         status: json['status'] as String? ?? 'absent',
         location: json['location'] as String?,
+        clientStatus: json['client_status'] as String?,
+        clientNote: json['client_note'] as String?,
+        resolutionNote: json['resolution_note'] as String?,
       );
 
   // ── Deployment ── (matches GET /staff/deployment exactly)
@@ -210,6 +217,7 @@ abstract final class StaffDtoCodec {
       placementType: json['placement_type'] as String?,
       visitType: json['visit_type'] as String?,
       today: json['today'] as String? ?? 'NOT_CHECKED_IN',
+      liveIn: json['live_in'] as bool? ?? false,
     );
   }
 
@@ -480,11 +488,20 @@ abstract final class StaffDtoCodec {
           ))
       .toList();
 
+  /// `awaiting_approval: [{period_month, period_year}]` — months Finance is
+  /// still checking (both GET /staff/salary and GET /staff/payslips).
+  static List<SalaryPeriod> _decodeAwaitingApproval(List<dynamic>? json) => [
+        for (final e in json ?? const [])
+          if (e is Map<String, dynamic> && e['period_month'] is int && e['period_year'] is int)
+            SalaryPeriod(e['period_month'] as int, e['period_year'] as int),
+      ];
+
   /// Decodes one `salary`-shaped object — shared by GET /staff/salary's
-  /// `salary` field and each item of GET /staff/payslips' `items[]`, which
-  /// are identical in shape per the backend audit (snake_case wire fields:
-  /// period_month, period_year, days_worked, gross_salary, esic_employee,
-  /// pf_employee, total_deductions, net_salary, status, houses[]).
+  /// `salary` field and each row of GET /staff/payslips, which are
+  /// identical in shape (snake_case wire fields: period_month, period_year,
+  /// pending_houses, days_worked, gross_salary, esic_employee, pf_employee,
+  /// total_deductions, arrears, arrears_note, net_salary, status, houses[]).
+  /// total_deductions is ESIC + PF only; net_salary already includes arrears.
   static ({
     String month,
     String ref,
@@ -495,6 +512,9 @@ abstract final class StaffDtoCodec {
     List<SalaryHouse> houses,
     int? presentDays,
     Map<String, double> deductionBreakdown,
+    double arrears,
+    String? arrearsNote,
+    int pendingHouses,
   }) _decodeSalaryObject(Map<String, dynamic> json) {
     final month = json['period_month'] as int? ?? json['periodMonth'] as int?;
     final year = json['period_year'] as int? ?? json['periodYear'] as int?;
@@ -513,14 +533,19 @@ abstract final class StaffDtoCodec {
         if (esic != null) 'esic': esic,
         if (pf != null) 'pf': pf,
       },
+      arrears: ((json['arrears'] as num?) ?? 0).toDouble(),
+      arrearsNote: json['arrears_note'] as String?,
+      pendingHouses: (json['pending_houses'] as num?)?.toInt() ?? 0,
     );
   }
 
   // ── Salary summary ── (matches GET /staff/salary exactly — `{"salary":
-  // {...}}` normally, or `{"salary": null, "message": "..."}` as a normal
-  // 200 before any payroll has run for this staff member)
+  // {...}, "awaiting_approval": [...]}` normally, or `{"salary": null,
+  // "awaiting_approval": [...], "message": "..."}` as a normal 200 when
+  // nothing is approved for the month yet)
   static SalarySummary decodeSalarySummary(Map<String, dynamic> json) {
     final salary = json['salary'] as Map<String, dynamic>?;
+    final awaiting = _decodeAwaitingApproval(json['awaiting_approval'] as List<dynamic>?);
     if (salary == null) {
       return SalarySummary(
         hasPayslips: false,
@@ -530,6 +555,7 @@ abstract final class StaffDtoCodec {
         net: '',
         status: '',
         emptyMessage: json['message'] as String? ?? 'No payroll has been run for you yet.',
+        awaitingApproval: awaiting,
       );
     }
     final s = _decodeSalaryObject(salary);
@@ -542,11 +568,26 @@ abstract final class StaffDtoCodec {
       status: s.status,
       houses: s.houses,
       ref: s.ref,
+      arrears: s.arrears,
+      arrearsNote: s.arrearsNote,
+      pendingHouses: s.pendingHouses,
+      awaitingApproval: awaiting,
     );
   }
 
-  // ── Payslip ── (matches one item of GET /staff/payslips `items[]` —
-  // same shape as the GET /staff/salary `salary` object)
+  // ── Payslip history ── (GET /staff/payslips — `{"payslips": [...],
+  // "total": n, "awaiting_approval": [...]}`; older servers sent the rows
+  // as `items`)
+  static PayslipHistory decodePayslipHistory(Map<String, dynamic> json) => PayslipHistory(
+        payslips: decodeList(
+          (json['payslips'] ?? json['items']) as List<dynamic>? ?? [],
+          decodePayslip,
+        ),
+        awaitingApproval: _decodeAwaitingApproval(json['awaiting_approval'] as List<dynamic>?),
+      );
+
+  // ── Payslip ── (one row of GET /staff/payslips — same shape as the
+  // GET /staff/salary `salary` object)
   static Payslip decodePayslip(Map<String, dynamic> json) {
     final s = _decodeSalaryObject(json);
     return Payslip(
@@ -559,6 +600,9 @@ abstract final class StaffDtoCodec {
       status: s.status,
       houses: s.houses,
       presentDays: s.presentDays,
+      arrears: s.arrears,
+      arrearsNote: s.arrearsNote,
+      pendingHouses: s.pendingHouses,
     );
   }
 
@@ -633,14 +677,17 @@ class VideoCertUploadRecord {
   final String reviewStatus;
   final int attemptNumber;
 
+  /// An upload row exists, so the video was submitted: anything not yet
+  /// approved or rejected (`PENDING`, `IN_REVIEW`, …) is awaiting review —
+  /// `uploaded`, never `pending` (which means "not recorded yet").
   VideoCertStatus get status {
-    switch (reviewStatus) {
+    switch (reviewStatus.toUpperCase()) {
       case 'APPROVED':
         return VideoCertStatus.approved;
       case 'REJECTED':
         return VideoCertStatus.rejected;
       default:
-        return VideoCertStatus.pending;
+        return VideoCertStatus.uploaded;
     }
   }
 }

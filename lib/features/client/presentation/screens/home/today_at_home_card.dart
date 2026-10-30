@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../../core/utils/date_formatter.dart';
 import '../../../../../core/constants/api_constants.dart';
 import '../../../../../core/constants/storage_keys.dart';
 import '../../../../../core/di/injection.dart';
@@ -29,7 +30,7 @@ Color snapshotStatusColor(SnapshotStatus s) => switch (s) {
 
 /// `today.attendance` as the short pill text and its colour (brief §1).
 (String, Color) attendanceLabel(SnapshotToday t, SnapshotDeployment d) {
-  final inAt = t.checkIn == null ? 'In' : 'In at ${t.checkIn}';
+  final inAt = t.checkIn == null ? 'In' : 'In at ${DateFormatter.since(t.checkIn)}';
   final due = d.shiftStart;
   return switch (t.attendance.toUpperCase()) {
     'ON_TIME' => (inAt, AppColors.success),
